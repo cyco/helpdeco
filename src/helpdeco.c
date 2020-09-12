@@ -1385,7 +1385,7 @@ void ExportBitmaps(FILE *HelpFile) /* export all bitmaps */
     BUFFER buf;
     MFILE *mf;
     char *leader;
-    char FileName[20];
+    char FileName[255];
     long FileLength;
     int i,num,n,type;
     long savepos;
@@ -5133,7 +5133,7 @@ void ContextList(FILE *HelpFile)
     int j,window,len;
     BOOL morekeywords;
     CTXOMAPREC *map = NULL;
-    char filename[13];
+    char filename[255];
     TOPICLINK TopicLink;
     char *LinkData1;
     char *LinkData2;
