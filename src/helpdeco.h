@@ -23,7 +23,12 @@ http://www.gnu.org
 #ifndef HELPDECO_H
 #define HELPDECO_H
 #include <time.h>
+#ifdef __APPLE__
+#define HAVE_STRNCPY HAVE_STRNCPY
+#include <stdlib.h>
+#else
 #include <malloc.h>
+#endif
 #include <stdio.h>
 #include <stdarg.h>
 #ifndef _WIN32
