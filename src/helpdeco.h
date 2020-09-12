@@ -684,7 +684,9 @@ MFILE;
 
 extern void error(const char *format,...);
 #ifdef HAVE_STRNCPY
+#ifndef strlcpy
 #define strlcpy strncpy
+#endif
 #elif !defined(HAVE_STRLCPY)
 extern size_t strlcpy(char *dest,const char *src,size_t len); /* limited string copy */
 #endif /* !defined(HAVE_STRLCPY) */
