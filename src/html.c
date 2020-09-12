@@ -28,8 +28,8 @@ void ChangeHTMLFont(FILE *rtf,unsigned_legacy_int i,BOOL ul,BOOL uldb)
     legacy_long pos;
     FILE *__html_output = rtf;
 
-    fprintf(__html_output, "</font>");
-    fprintf(__html_output, "<font");
+    fprintf(__html_output, "</span>");
+    fprintf(__html_output, "<span");
     if(i<fonts)
     {
         pos=ftell(rtf);
@@ -368,7 +368,7 @@ BOOL LoadFontsIntoHTML(FILE *HelpFile,FILE *rtf)
 
 BOOL TopicDumpToHTML(FILE *HelpFile,FILE *__html_output)
 {
-#if 1
+#if 0
 #include <stdio.h>
 char debug_buffer[4096];
 FILE *dev_null = fopen("/dev/null", "w");
@@ -379,6 +379,7 @@ FILE *dev_null = fopen("/dev/null", "w");
 
 #define html_puts(str) fputs(str, __html_output)
 #define html_putc(c) fputc(c, __html_output)
+#define html_printf(format, ...) fprintf(__html_output, format, ##__VA_ARGS__);
 #define rtf_printf(format, ...) fprintf(__rtf_output, "<span style=\"color: red !important;\">" format "</span>", ##__VA_ARGS__)
 #define rtf_puts(str) rtf_printf("%s", str)
 #define rtf_putc(c) rtf_printf("%c", c)
@@ -444,19 +445,19 @@ FILE *dev_null = fopen("/dev/null", "w");
             if(TopicPhraseRead(HelpFile,0,LinkData2,TopicLink.BlockSize-TopicLink.DataLen1,TopicLink.DataLen2)!=TopicLink.BlockSize-TopicLink.DataLen1) break;
         }
         else LinkData2=NULL;
-        if(LinkData1&&TopicLink.RecordType==TL_TOPICHDR) /* display a Topic Header record */
+        
+        if(LinkData1 && TopicLink.RecordType==TL_TOPICHDR) /* display a Topic Header record */
         {
             if(!firsttopic)
             {
-                
                 // fputs("\\page\n",rtf); /* RTF: Required page break. */
-                html_puts("</font></p>");
+                html_puts("</span></p>");
                 html_puts("</helpdeco-topic>\n");
-                html_puts("<helpdeco-topic>\n");
-            } else {
-                html_puts("<helpdeco-topic>\n");
-                html_puts("<p><font>");
             }
+            if(TopicLink.NextBlock != -1) {
+                html_puts("\n\n<helpdeco-topic><p><span>\n");
+            } else
+                firsttopic = FALSE;
             firsttopic=FALSE;
             fprintf(stderr,"\rTopic %ld...",TopicNum-15);
             TopicNum++;
@@ -528,12 +529,12 @@ FILE *dev_null = fopen("/dev/null", "w");
                 if(x2&0x0400) rtf_puts("\\qr"); /* RTF: Right-aligned. */
                 if(x2&0x0800) rtf_puts("\\qc"); /* RTF: Centered. */
                 if(x2&0x0001) scanlong(&ptr);
-                if(x2&0x0002) rtf_printf("\\sb%ld",scanint(&ptr)*scaling-rounderr); /* RTF: Space before (the default is 0). */
-                if(x2&0x0004) rtf_printf("\\sa%ld",scanint(&ptr)*scaling-rounderr); /* RTF: Space after (the default is 0). */
-                if(x2&0x0008) rtf_printf("\\sl%ld",scanint(&ptr)*scaling-rounderr); /* RTF: Space between lines. */
-                if(x2&0x0010) rtf_printf("\\li%ld",scanint(&ptr)*scaling-rounderr); /* RTF: Left indent (the default is 0). */
-                if(x2&0x0020) rtf_printf("\\ri%ld",scanint(&ptr)*scaling-rounderr); /* RTF: Right indent (the default is 0). */
-                if(x2&0x0040) rtf_printf("\\fi%ld",scanint(&ptr)*scaling-rounderr); /* RTF: First-line indent (the default is 0). */
+                if(x2&0x0002) rtf_printf("\\sb%ld",scanint(&ptr)); /* RTF: Space before (the default is 0). */
+                if(x2&0x0004) rtf_printf("\\sa%ld",scanint(&ptr)); /* RTF: Space after (the default is 0). */
+                if(x2&0x0008) rtf_printf("\\sl%ld",scanint(&ptr)); /* RTF: Space between lines. */
+                if(x2&0x0010) rtf_printf("\\li%ld",scanint(&ptr)); /* RTF: Left indent (the default is 0). */
+                if(x2&0x0020) rtf_printf("\\ri%ld",scanint(&ptr)); /* RTF: Right indent (the default is 0). */
+                if(x2&0x0040) rtf_printf("\\fi%ld",scanint(&ptr)); /* RTF: First-line indent (the default is 0). */
                 if(x2&0x0100)
                 {
                     x1=(unsigned char)*ptr++;
@@ -651,7 +652,6 @@ FILE *dev_null = fopen("/dev/null", "w");
                             else
                             {
                                 // rtf_puts("\n\\par "); /* RTF: End of paragraph. */
-                                fputs("</p>", __html_output);
                             }
                             ptr++;
                             break;

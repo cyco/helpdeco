@@ -5455,10 +5455,10 @@ BOOL HelpDeCompile(FILE *HelpFile,char *dumpfile,legacy_int mode,char *exportnam
        {
            FILE *__html_output = rtf;
            fprintf(__html_output, "<!doctype html>\n");
-           fprintf(__html_output, "<html>\n");
+           fprintf(__html_output, "<html lang=\"en\">\n");
            fprintf(__html_output, "<head>\n");
-           fprintf(__html_output, "<meta charset=\"windows-1252\">\n");
-           fprintf(__html_output, "<title>%s</title>\n", HelpFileTitle);
+           fprintf(__html_output, "<meta charset=\"utf-8\">\n");
+           fprintf(__html_output, "<title>%s</title>\n", strlen(HelpFileTitle) ? HelpFileTitle : "untitled");
            fprintf(__html_output, "<style>"
                    "body { margin: auto; max-width: 600px; }"
                    "helpdeco-document { display: block; }"
