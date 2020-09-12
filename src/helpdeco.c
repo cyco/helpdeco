@@ -5441,6 +5441,10 @@ BOOL HelpDeCompile(FILE *HelpFile,char *dumpfile,legacy_int mode,char *exportnam
 		ListReferences();
 	    }
 	    break;
+    case 8: /* create lookalike HTML */
+        fprintf(stderr,"Creating HTML lookalike is not implemented yet!\n");
+        exit(1);
+        break;
 	}
     }
     else
@@ -5705,9 +5709,12 @@ int main(int argc,char *argv[])
 	    case 'p':
 		mode=6;
 		break;
-	    case 'r':
-		mode=3;
-		break;
+        case 'r':
+        mode=3;
+        break;
+        case 'w':
+        mode=8;
+        break;
 	    case 's':
 		if(argv[i][2])
 		{
@@ -5802,7 +5809,8 @@ int main(int argc,char *argv[])
 		       "\n"
 		       "usage:   HELPDECO helpfile[.hlp]    ["OPTSTR"y]  - decompile helpfile into all sources\n"
 		       "         HELPDECO helpfile[.hlp]    ["OPTSTR"y] "OPTSTR"a[annfile.ANN]  - and add annotations\n"
-		       "         HELPDECO helpfile[.hlp] "OPTSTR"r ["OPTSTR"y] ["OPTSTR"n]    - decompile into lookalike RTF\n"
+               "         HELPDECO helpfile[.hlp] "OPTSTR"r ["OPTSTR"y] ["OPTSTR"n]    - decompile into lookalike RTF\n"
+               "         HELPDECO helpfile[.hlp] "OPTSTR"w    - decompile into lookalike HTML\n"
 		       "         HELPDECO helpfile[.hlp] "OPTSTR"c ["OPTSTR"y]  - generate Win95 .CNT content file\n"
 		       "         HELPDECO helpfile[.hlp] "OPTSTR"l       - list entry points of this helpfile\n"
 		       "         HELPDECO helpfile[.hlp] "OPTSTR"e ["OPTSTR"f]  - list references to other helpfiles\n"
