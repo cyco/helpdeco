@@ -5127,6 +5127,8 @@ legacy_int CTXOMAPRecCmp(const void *a,const void *b)
     return 0;
 }
 
+#include "html.c"
+
 void ContextList(FILE *HelpFile)
 {
     uint16_t maprecs,m;
@@ -5441,11 +5443,42 @@ BOOL HelpDeCompile(FILE *HelpFile,char *dumpfile,legacy_int mode,char *exportnam
 		ListReferences();
 	    }
 	    break;
-    case 8: /* create lookalike HTML */
-        fprintf(stderr,"Creating HTML lookalike is not implemented yet!\n");
-        exit(1);
-        break;
-	}
+     case 8: /* create lookalike HTML */
+       SysLoad(HelpFile);
+       fprintf(stderr,"Writing %s...\n",HelpFileTitle);
+       exportplain=TRUE; SysLoad(HelpFile);
+       ExportBitmaps(HelpFile);
+       PhraseLoad(HelpFile);
+       snprintf(filename, sizeof(filename), "%s.html", name);
+       rtf=my_fopen(filename,"wt");
+       if(rtf)
+       {
+           FILE *__html_output = rtf;
+           fprintf(__html_output, "<!doctype html>\n");
+           fprintf(__html_output, "<html>\n");
+           fprintf(__html_output, "<head>\n");
+           fprintf(__html_output, "<meta charset=\"windows-1252\">\n");
+           fprintf(__html_output, "<title>%s</title>\n", HelpFileTitle);
+           fprintf(__html_output, "<style>"
+                   "body { margin: auto; max-width: 600px; }"
+                   "helpdeco-document { display: block; }"
+                   "helpdeco-topic { display: block; border: 1px solid black; padding: 10px; margin: 10px;}"
+                   "</style>"
+           "\n");
+           LoadFontsIntoHTML(HelpFile, rtf);
+           fprintf(__html_output, "</head>\n");
+           fprintf(__html_output, "<body>\n");
+           fprintf(__html_output, "<helpdeco-document>");
+           TopicDumpToHTML(HelpFile, rtf);
+           fprintf(__html_output, "</helpdeco-document>");
+           fprintf(__html_output, "</body>\n");
+           fprintf(rtf, "</html>\n");
+           
+           putc('\n',stderr);
+           my_fclose(rtf);
+       }
+       break;
+    }
     }
     else
     {
