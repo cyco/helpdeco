@@ -663,7 +663,7 @@ BOOL SearchFile(FILE *HelpFile,const char *FileName,legacy_long *FileLength)
     BTREEHEADER BtreeHdr;
     BTREENODEHEADER CurrNode;
     legacy_long offset;
-    char TempFile[19];
+    char TempFile[255];
     legacy_int i,n;
 
     fseek(HelpFile,0,SEEK_SET);
@@ -791,7 +791,7 @@ SYSTEMRECORD *GetFirstSystemRecord(FILE *HelpFile)
 void ListFiles(FILE *HelpFile) /* display internal directory */
 {
     BUFFER buf;
-    char FileName[20];
+    char FileName[255];
     legacy_int j,i,n;
 
     puts("FileName		  FileOffset | FileName 	       FileOffset");
@@ -813,7 +813,7 @@ void ListBaggage(FILE *HelpFile,FILE *hpj,BOOL before31) /* writes out [BAGGAGE]
 {
     BOOL headerwritten;
     char *leader;
-    char FileName[20];
+    char FileName[255];
     legacy_long FileLength;
     BUFFER buf;
     legacy_int i,n;
