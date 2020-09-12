@@ -2025,7 +2025,7 @@ unsigned char AddColor(unsigned char r,unsigned char g,unsigned char b)
 
 /* load fonts from help file, filling up internal font structure,
 // writing fonttbl, colortbl, and styletbl to rtf file */
-void FontLoad(FILE *HelpFile,FILE *rtf,FILE *hpj)
+void FontLoadRTF(FILE *HelpFile,FILE *rtf,FILE *hpj)
 {
     static char *BestFonts[]={"Arial","Times New Roman","MS Sans Serif","MS Serif","Helv","TmsRmn","MS Sans Serif","Helvetica","Times Roman","Times"};
     legacy_int default_font = 0;
@@ -3034,19 +3034,19 @@ uint32_t BackLinkLink(legacy_long TopicOffset,legacy_long OtherTopicOffset,legac
 }
 
 /* create numbered rtf file names, no numbering if i=0 */
-void BuildName(char *buffer,legacy_int i)
+void BuildRTFName(char *buffer,legacy_int i)
 {
     char num[7];
 
     strcpy(buffer,name);
     if(i)
     {
-	snprintf(num, 7, "%d", i);
-	if(strlen(buffer)+strlen(num)>8)
-	{
-	    buffer[8-strlen(num)]='\0';
-	}
-	strcat(buffer,num);
+    snprintf(num, 7, "%d", i);
+    if(strlen(buffer)+strlen(num)>8)
+    {
+        buffer[8-strlen(num)]='\0';
+    }
+    strcat(buffer,num);
     }
     strcat(buffer,".rtf");
 }
@@ -3161,7 +3161,7 @@ TOPICOFFSET NextTopicOffset(TOPICOFFSET TopicOffset,TOPICPOS NextBlock,TOPICPOS 
 /* TopicDump: converts the internal |TOPIC file to RTF format suitable for
 // recompilation inserting footnotes with information from other internal
 // files as required */
-FILE *TopicDump(FILE *HelpFile,FILE *rtf,FILE *hpj,BOOL makertf)
+FILE *TopicDumpRTF(FILE *HelpFile,FILE *rtf,FILE *hpj,BOOL makertf)
 {
     TOPICLINK TopicLink;
     char *LinkData1;  /* Data associated with this link */
@@ -3232,10 +3232,10 @@ FILE *TopicDump(FILE *HelpFile,FILE *rtf,FILE *hpj,BOOL makertf)
 		{
 		    putc('}',rtf);
 		    my_fclose(rtf);
-		    BuildName(buffer,++NumberOfRTF);
+		    BuildRTFName(buffer,++NumberOfRTF);
 		    if(hpj) fprintf(hpj,"%s\n",buffer);
 		    rtf=my_fopen(buffer,"wt");
-		    FontLoad(HelpFile,rtf,NULL);
+		    FontLoadRTF(HelpFile,rtf,NULL);
 		    TopicInRTF=0;
 		}
 		else if(!firsttopic)
@@ -5320,14 +5320,14 @@ BOOL HelpDeCompile(FILE *HelpFile,char *dumpfile,legacy_int mode,char *exportnam
 		strcpy(filename,name);
 		strcat(filename,".ph");
 		PhraseList(filename); /* after PhraseLoad */
-		BuildName(filename,TopicsPerRTF>0);
+		BuildRTFName(filename,TopicsPerRTF>0);
 		rtf=my_fopen(filename,"wt");
 		if(rtf)
 		{
-		    FontLoad(HelpFile,rtf,hpj);
+		    FontLoadRTF(HelpFile,rtf,hpj);
 		    fputs("Pass 2...\n",stderr);
 		    fprintf(hpj,"[FILES]\n%s\n\n",filename);
-		    rtf=TopicDump(HelpFile,rtf,hpj,FALSE);
+		    rtf=TopicDumpRTF(HelpFile,rtf,hpj,FALSE);
 		    putc('}',rtf);
 		    putc('\n',stderr);
 		    my_fclose(rtf);
@@ -5376,12 +5376,12 @@ BOOL HelpDeCompile(FILE *HelpFile,char *dumpfile,legacy_int mode,char *exportnam
 	    exportplain=TRUE;
 	    ExportBitmaps(HelpFile);
 	    PhraseLoad(HelpFile);
-	    BuildName(filename,TopicsPerRTF>0);
+	    BuildRTFName(filename,TopicsPerRTF>0);
 	    rtf=my_fopen(filename,"wt");
 	    if(rtf)
 	    {
-		FontLoad(HelpFile,rtf,NULL);
-		rtf=TopicDump(HelpFile,rtf,NULL,TRUE);
+		FontLoadRTF(HelpFile,rtf,NULL);
+		rtf=TopicDumpRTF(HelpFile,rtf,NULL,TRUE);
 		putc('}',rtf);
 		putc('\n',stderr);
 		my_fclose(rtf);
