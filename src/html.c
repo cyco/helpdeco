@@ -584,7 +584,8 @@ FILE *dev_null = fopen("/dev/null", "w");
                             } else if(isprint((unsigned char)*str)){
                                 html_putc(*str);
                             } else {
-                                rtf_printf("\\'%02x",(unsigned char)*str);
+                                // rtf_printf("\\'%02x",(unsigned char)*str);
+                                html_printf("&#%d;", (unsigned char)*str);
                             }
                         }
                         if(ActualTopicOffset<MaxTopicOffset) ActualTopicOffset++;
