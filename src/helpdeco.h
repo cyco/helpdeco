@@ -48,6 +48,8 @@ typedef struct { char a,b,c; } align;
 #if sizeof(align)!=3
 #error Compile bytealigned !
 #endif
+#elif defined(__APPLE__)
+#pragma pack(push, 1)
 #else
 #pragma pack(1)
 #endif
@@ -762,4 +764,7 @@ extern void LinkDump(FILE *HelpFile);
 extern void AnnotationDump(FILE *HelpFile,long FileLength,const char *name);
 
 extern BOOL overwrite; /* ugly: declared in HELPDECO.C */
+#if defined(__APPLE__)
+#pragma pack(pop)
+#endif
 #endif
