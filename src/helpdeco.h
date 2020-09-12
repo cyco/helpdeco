@@ -43,6 +43,20 @@ http://www.gnu.org
 #include "compat.h"
 #endif
 
+#if UINTPTR_MAX == 0xffffffff
+typedef long legacy_long;
+typedef unsigned long unsigned_legacy_long;
+typedef int legacy_int;
+typedef unsigned int unsigned_legacy_int;
+#elif UINTPTR_MAX == 0xffffffffffffffff
+typedef int legacy_long;
+typedef unsigned int unsigned_legacy_long;
+typedef short legacy_int;
+typedef unsigned short unsigned_legacy_int;
+#else
+/* wtf */
+#endif
+
 #ifdef __TURBOC__
 typedef struct { char a,b,c; } align;
 #if sizeof(align)!=3
@@ -70,7 +84,7 @@ typedef struct               /* structure at beginning of help file */
 {
     int32_t Magic;              /* 0x00035F3F */
     int32_t DirectoryStart;     /* offset of FILEHEADER of internal direcory */
-    int32_t FreeChainStart;     /* offset of FILEHEADER or -1L */
+    int32_t FreeChainStart;     /* offset of FILEHEADER or -1 */
     int32_t EntireFileSize;     /* size of entire help file in bytes */
 }
 HELPHEADER;
@@ -709,11 +723,11 @@ extern size_t my_gets(char *ptr,size_t size,FILE *f);  /* read nul terminated st
 extern void my_fclose(FILE *f); /* checks if disk is full */
 extern FILE *my_fopen(const char *filename,const char *mode); /* save fopen function */
 extern uint16_t my_getw(FILE *f); /* get 16 bit quantity */
-extern uint32_t getdw(FILE *f); /* get long */
+extern uint32_t getdw(FILE *f); /* get legacy_long */
 extern void my_putw(uint16_t w,FILE *f); /* write 16 bit quantity */
-extern void putdw(uint32_t x,FILE *f); /* write long to file */
-extern void putcdw(uint32_t x,FILE *f); /* write compressed long to file */
-extern void putcw(unsigned int x,FILE *f); /* write compressed word to file */
+extern void putdw(uint32_t x,FILE *f); /* write legacy_long to file */
+extern void putcdw(uint32_t x,FILE *f); /* write compressed legacy_long to file */
+extern void putcw(unsigned_legacy_int x,FILE *f); /* write compressed word to file */
 extern int MemoryPut(MFILE *f,char c); /* put char to memory mapped file */
 extern int FilePut(MFILE *f,char c); /* put char to regular file */
 extern int MemoryGet(MFILE *f); /* get char from memory mapped file */
@@ -727,26 +741,26 @@ extern void FileSeek(MFILE *f,long offset); /* seek in regular file */
 extern MFILE *CreateMap(char *ptr,size_t size); /* assign a memory mapped file */
 extern MFILE *CreateVirtual(FILE *f);  /* assign a real file */
 extern void CloseMap(MFILE *f); /* close a MFILE */
-extern int GetWord(MFILE *f); /* read 16 bit value from memory mapped file or regular file */
+extern legacy_int GetWord(MFILE *f); /* read 16 bit value from memory mapped file or regular file */
 extern uint16_t GetCWord(MFILE *f); /* get compressed word from memory mapped file or regular file */
-extern uint32_t GetCDWord(MFILE *f); /* get compressed long from memory mapped file or regular file */
-extern uint32_t GetDWord(MFILE *f); /* get long from memory mapped file or regular file */
+extern uint32_t GetCDWord(MFILE *f); /* get compressed legacy_long from memory mapped file or regular file */
+extern uint32_t GetDWord(MFILE *f); /* get legacy_long from memory mapped file or regular file */
 extern size_t StringRead(char *ptr,size_t size,MFILE *f); /* read nul terminated string from memory mapped or regular file */
-extern long copy(FILE *f,long bytes,FILE *out);
-extern long CopyBytes(MFILE *f,long bytes,FILE *out);
-extern long decompress(int method,MFILE *f,long bytes,MFILE *fTarget);
-extern long DecompressIntoBuffer(int method,FILE *HelpFile,long bytes,char *ptr,long size);
-extern long DecompressIntoFile(int method,MFILE *f,long bytes,FILE *fTarget);
-extern void HexDump(FILE *f,long FileLength,long offset);
-extern void HexDumpMemory(unsigned char *bypMem,unsigned int FileLength);
-extern char *PrintString(const char *str,unsigned int len);
+extern legacy_long copy(FILE *f,legacy_long bytes,FILE *out);
+extern legacy_long CopyBytes(MFILE *f,legacy_long bytes,FILE *out);
+extern legacy_long decompress(legacy_int method,MFILE *f,legacy_long bytes,MFILE *fTarget);
+extern legacy_long DecompressIntoBuffer(legacy_int method,FILE *HelpFile,legacy_long bytes,char *ptr,legacy_long size);
+extern legacy_long DecompressIntoFile(legacy_int method,MFILE *f,legacy_long bytes,FILE *fTarget);
+extern void HexDump(FILE *f,legacy_long FileLength,legacy_long offset);
+extern void HexDumpMemory(unsigned char *bypMem,unsigned_legacy_int FileLength);
+extern char *PrintString(const char *str,unsigned_legacy_int len);
 extern BOOL GetBit(FILE *f);
 extern void putrtf(FILE *rtf,const char *str);
 extern int16_t scanint(char **ptr); /* scan a compressed short */
 extern uint16_t scanword(char **ptr); /* scan a compressed unsiged short */
 extern uint32_t scanlong(char **ptr);  /* scan a compressed long */
-extern BOOL SearchFile(FILE *HelpFile,const char *FileName,long *FileLength);
-extern int16_t GetFirstPage(FILE *HelpFile,BUFFER *buf,long *TotalEntries);
+extern BOOL SearchFile(FILE *HelpFile,const char *FileName,legacy_long *FileLength);
+extern int16_t GetFirstPage(FILE *HelpFile,BUFFER *buf,legacy_long *TotalEntries);
 extern int16_t GetNextPage(FILE *HelpFile,BUFFER *buf); /* walk Btree */
 extern SYSTEMRECORD *GetNextSystemRecord(SYSTEMRECORD *SysRec);
 extern SYSTEMRECORD *GetFirstSystemRecord(FILE *HelpFile);
@@ -754,14 +768,14 @@ extern void ListFiles(FILE *HelpFile); /* display internal directory */
 extern void ListBaggage(FILE *HelpFile,FILE *hpj,BOOL before31); /* writes out [BAGGAGE] section */
 extern void PrintWindow(FILE *hpj,SECWINDOW *SWin);
 extern void PrintMVBWindow(FILE *hpj,MVBWINDOW *SWin);
-extern void ToMapDump(FILE *HelpFile,long FileLength);
+extern void ToMapDump(FILE *HelpFile,legacy_long FileLength);
 extern void GroupDump(FILE *HelpFile);
 extern void KWMapDump(FILE *HelpFile);
-extern void KWDataDump(FILE *HelpFile,long FileLength);
+extern void KWDataDump(FILE *HelpFile,legacy_long FileLength);
 extern void CatalogDump(FILE *HelpFile);
 extern void CTXOMAPDump(FILE *HelpFile);
 extern void LinkDump(FILE *HelpFile);
-extern void AnnotationDump(FILE *HelpFile,long FileLength,const char *name);
+extern void AnnotationDump(FILE *HelpFile,legacy_long FileLength,const char *name);
 
 extern BOOL overwrite; /* ugly: declared in HELPDECO.C */
 #if defined(__APPLE__)

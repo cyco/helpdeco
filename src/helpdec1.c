@@ -204,7 +204,7 @@ void putcdw(uint32_t x,FILE *f) /* write compressed long to file */
     }
 }
 
-void putcw(unsigned int x,FILE *f) /* write compressed word to file */
+void putcw(unsigned_legacy_int x,FILE *f) /* write compressed word to file */
 {
     if(x>127)
     {
@@ -263,7 +263,7 @@ size_t FileRead(MFILE *f,void *ptr,long bytes) /* read function for regular file
 
 long MemoryTell(MFILE *f) /* tell for memory mapped file */
 {
-    return (long)f->ptr;
+    return (legacy_long)f->ptr;
 }
 
 long FileTell(MFILE *f) /* tell for regular file */
@@ -317,7 +317,7 @@ void CloseMap(MFILE *f) /* close a MFILE */
     if(f) free(f);
 }
 
-int GetWord(MFILE *f) /* read 16 bit value from memory mapped file or regular file */
+legacy_int GetWord(MFILE *f) /* read 16 bit value from memory mapped file or regular file */
 {
     unsigned char b;
 
@@ -354,7 +354,7 @@ uint32_t GetDWord(MFILE *f) /* get long from memory mapped file or regular file 
 size_t StringRead(char *ptr,size_t size,MFILE *f) /* read nul terminated string from memory mapped or regular file */
 {
     size_t i;
-    int c;
+    legacy_int c;
 
     i=0;
     while((c=f->get(f))>0)
@@ -370,30 +370,30 @@ size_t StringRead(char *ptr,size_t size,MFILE *f) /* read nul terminated string 
     return i;
 }
 
-long copy(FILE *f,long bytes,FILE *out)
+legacy_long copy(FILE *f,legacy_long bytes,FILE *out)
 {
-    long length;
-    int size;
+    legacy_long length;
+    legacy_int size;
     static char buffer[512];
 
     for(length=0;length<bytes;length+=size)
     {
-	size=(int)(bytes-length>sizeof(buffer)?sizeof(buffer):bytes-length);
+	size=(legacy_int)(bytes-length>sizeof(buffer)?sizeof(buffer):bytes-length);
 	my_fread(buffer,size,f);
 	fwrite(buffer,size,1,out);
     }
     return length;
 }
 
-long CopyBytes(MFILE *f,long bytes,FILE *out)
+legacy_long CopyBytes(MFILE *f,legacy_long bytes,FILE *out)
 {
-    long length;
-    int size;
+    legacy_long length;
+    legacy_int size;
     static char buffer[512];
 
     for(length=0;length<bytes;length+=size)
     {
-	size=(int)(bytes-length>sizeof(buffer)?sizeof(buffer):bytes-length);
+	size=(legacy_int)(bytes-length>sizeof(buffer)?sizeof(buffer):bytes-length);
 	f->read(f,buffer,size);
 	fwrite(buffer,size,1,out);
     }
@@ -402,9 +402,9 @@ long CopyBytes(MFILE *f,long bytes,FILE *out)
 
 signed char count; /* for run len decompression */
 
-int DeRun(MFILE *f,char c) /* expand runlen compressed data */
+legacy_int DeRun(MFILE *f,char c) /* expand runlen compressed data */
 {
-    int i;
+    legacy_int i;
 
     if(count&0x7F)
     {
@@ -433,13 +433,13 @@ int DeRun(MFILE *f,char c) /* expand runlen compressed data */
 // 3: runlen and LZ77 decompression
 // returns number of bytes copied to fTarget. Doesn't complain if fTarget
 // is a memory mapped file and buffer is full, just stops writing */
-long decompress(int method,MFILE *f,long bytes,MFILE *fTarget)
+legacy_long decompress(legacy_int method,MFILE *f,legacy_long bytes,MFILE *fTarget)
 {
     static unsigned char lzbuffer[0x1000];
-    int (*Emit)(MFILE *f,char c);
+    legacy_int (*Emit)(MFILE *f,char c);
     unsigned char bits = 0,mask;
-    int pos,len,back;
-    long n;
+    legacy_int pos,len,back;
+    legacy_long n;
 
     n=0;
     if(method&1)
@@ -455,7 +455,7 @@ long decompress(int method,MFILE *f,long bytes,MFILE *fTarget)
     {
 	mask=0;
 	pos=0;
-	while(bytes-->0L)
+	while(bytes-->0)
 	{
 	    if(!mask)
 	    {
@@ -485,12 +485,12 @@ long decompress(int method,MFILE *f,long bytes,MFILE *fTarget)
     }
     else
     {
-	while(bytes-->0L) n+=Emit(fTarget,f->get(f));
+	while(bytes-->0) n+=Emit(fTarget,f->get(f));
     }
     return n;
 }
 
-long DecompressIntoBuffer(int method,FILE *HelpFile,long bytes,char *ptr,long size)
+legacy_long DecompressIntoBuffer(legacy_int method,FILE *HelpFile,legacy_long bytes,char *ptr,legacy_long size)
 {
     MFILE *f;
     MFILE *mf;
@@ -503,7 +503,7 @@ long DecompressIntoBuffer(int method,FILE *HelpFile,long bytes,char *ptr,long si
     return bytes;
 }
 
-long DecompressIntoFile(int method,MFILE *f,long bytes,FILE *fTarget)
+legacy_long DecompressIntoFile(legacy_int method,MFILE *f,legacy_long bytes,FILE *fTarget)
 {
     MFILE *mf;
 
@@ -513,18 +513,18 @@ long DecompressIntoFile(int method,MFILE *f,long bytes,FILE *fTarget)
     return bytes;
 }
 
-void HexDump(FILE *f,long FileLength,long offset)
+void HexDump(FILE *f,legacy_long FileLength,legacy_long offset)
 {
     unsigned char b[16];
-    long l;
-    int n,i;
+    legacy_long l;
+    legacy_int n,i;
 
     puts("[-Addr-] [--------------------Data---------------------] [-----Text-----]");
     fseek(f,offset,SEEK_CUR);
     for(l=offset;l<FileLength;l+=16)
     {
 	printf("%08lX ",l);
-	n=(int)(FileLength-l>16?16:FileLength-l);
+	n=(legacy_int)(FileLength-l>16?16:FileLength-l);
 	for(i=0;i<n;i++) printf("%02X ",b[i]=getc(f));
 	while(i++<16) printf("	 ");
 	for(i=0;i<n;i++) putchar(isprint(b[i])?b[i]:'.');
@@ -532,17 +532,17 @@ void HexDump(FILE *f,long FileLength,long offset)
     }
 }
 
-void HexDumpMemory(unsigned char *bypMem,unsigned int FileLength)
+void HexDumpMemory(unsigned char *bypMem,unsigned_legacy_int FileLength)
 {
     unsigned char b[16];
-    unsigned int l;
-    int n,i;
+    unsigned_legacy_int l;
+    legacy_int n,i;
 
     puts("[-Addr-] [--------------------Data---------------------] [-----Text-----]");
     for(l=0;l<FileLength;l+=16)
     {
 	printf("%08X ",l);
-	n=(int)(FileLength-l>16?16:FileLength-l);
+	n=(legacy_int)(FileLength-l>16?16:FileLength-l);
 	for(i=0;i<n;i++) printf("%02X ",b[i]=*bypMem++);
 	while(i++<16) printf("	 ");
 	for(i=0;i<n;i++) putchar(isprint(b[i])?b[i]:'.');
@@ -552,7 +552,7 @@ void HexDumpMemory(unsigned char *bypMem,unsigned int FileLength)
 
 /* write str to stdout, replacing nonprintable characters with hex codes,
 // returning str+len. PrintString doesn't stop at NUL characters */
-char *PrintString(const char *str,unsigned int len)
+char *PrintString(const char *str,unsigned_legacy_int len)
 {
     while(len-->0)
     {
@@ -582,14 +582,14 @@ BOOL GetBit(FILE *f)
 	if(!mask)
 	{
 	    value = getdw(f);
-	    mask=1L;
+	    mask=1;
 	}
     }
     else
     {
-	mask=0L; /* initialize */
+	mask=0; /* initialize */
     }
-    return (value&mask)!=0L;
+    return (value&mask)!=0;
 }
 /* output str to RTF file, escaping necessary characters */
 void putrtf(FILE *rtf,const char *str)
@@ -643,7 +643,7 @@ uint32_t scanlong(char **ptr)  /* scan a compressed long */
 {
     uint32_t ret;
     if(*(*ptr)&1) {
-        ret = (*(((uint32_t *)(*ptr)))>>1)-0x40000000L;
+        ret = (*(((uint32_t *)(*ptr)))>>1)-0x40000000;
         *ptr=((uint32_t *)*ptr)+1;
     } else {
         ret = (*(((uint16_t *)(*ptr)))>>1)-0x4000;
@@ -656,17 +656,17 @@ uint32_t scanlong(char **ptr)  /* scan a compressed long */
 // reads FILEHEADER and returns TRUE with current position in HelpFile set
 // to first byte of data of FileName or returns FALSE if not found. Stores
 // UsedSpace (that's the file size) in FileLength if FileLength isn't NULL */
-BOOL SearchFile(FILE *HelpFile,const char *FileName,long *FileLength)
+BOOL SearchFile(FILE *HelpFile,const char *FileName,legacy_long *FileLength)
 {
     HELPHEADER Header;
     FILEHEADER FileHdr;
     BTREEHEADER BtreeHdr;
     BTREENODEHEADER CurrNode;
-    long offset;
+    legacy_long offset;
     char TempFile[19];
-    int i,n;
+    legacy_int i,n;
 
-    fseek(HelpFile,0L,SEEK_SET);
+    fseek(HelpFile,0,SEEK_SET);
     read_HELPHEADER(&Header,HelpFile);
     if(Header.Magic!=0x00035F3FL) return FALSE;
     fseek(HelpFile,Header.DirectoryStart,SEEK_SET);
@@ -678,7 +678,7 @@ BOOL SearchFile(FILE *HelpFile,const char *FileName,long *FileLength)
     }
     read_BTREEHEADER(&BtreeHdr,HelpFile);
     offset=ftell(HelpFile);
-    fseek(HelpFile,offset+BtreeHdr.RootPage*(long)BtreeHdr.PageSize,SEEK_SET);
+    fseek(HelpFile,offset+BtreeHdr.RootPage*(legacy_long)BtreeHdr.PageSize,SEEK_SET);
     for(n=1;n<BtreeHdr.NLevels;n++)
     {
 	read_BTREEINDEXHEADER_to_BTREENODEHEADER(&CurrNode,HelpFile);
@@ -688,7 +688,7 @@ BOOL SearchFile(FILE *HelpFile,const char *FileName,long *FileLength)
 	    if(strcmp(FileName,TempFile)<0) break;
 	    CurrNode.PreviousPage=my_getw(HelpFile);
 	}
-	fseek(HelpFile,offset+CurrNode.PreviousPage*(long)BtreeHdr.PageSize,SEEK_SET);
+	fseek(HelpFile,offset+CurrNode.PreviousPage*(legacy_long)BtreeHdr.PageSize,SEEK_SET);
     }
     read_BTREENODEHEADER(&CurrNode,HelpFile);
     for(i=0;i<CurrNode.NEntries;i++)
@@ -712,9 +712,9 @@ BOOL SearchFile(FILE *HelpFile,const char *FileName,long *FileLength)
 // Number of TotalBtreeEntries stored in TotalEntries if pointer is
 // not NULL, NumberOfEntries of first B+ tree page returned.
 // buf stores position, so GetNextPage will seek to position itself. */
-int16_t GetFirstPage(FILE *HelpFile,BUFFER *buf,long *TotalEntries)
+int16_t GetFirstPage(FILE *HelpFile,BUFFER *buf,legacy_long *TotalEntries)
 {
-    int CurrLevel;
+    legacy_int CurrLevel;
     BTREEHEADER BTreeHdr;
     BTREENODEHEADER CurrNode;
 
@@ -723,11 +723,11 @@ int16_t GetFirstPage(FILE *HelpFile,BUFFER *buf,long *TotalEntries)
     if(!BTreeHdr.TotalBtreeEntries) return 0;
     buf->FirstLeaf=ftell(HelpFile);
     buf->PageSize=BTreeHdr.PageSize;
-    fseek(HelpFile,buf->FirstLeaf+BTreeHdr.RootPage*(long)BTreeHdr.PageSize,SEEK_SET);
+    fseek(HelpFile,buf->FirstLeaf+BTreeHdr.RootPage*(legacy_long)BTreeHdr.PageSize,SEEK_SET);
     for(CurrLevel=1;CurrLevel<BTreeHdr.NLevels;CurrLevel++)
     {
 	read_BTREEINDEXHEADER_to_BTREENODEHEADER(&CurrNode,HelpFile);
-	fseek(HelpFile,buf->FirstLeaf+CurrNode.PreviousPage*(long)BTreeHdr.PageSize,SEEK_SET);
+	fseek(HelpFile,buf->FirstLeaf+CurrNode.PreviousPage*(legacy_long)BTreeHdr.PageSize,SEEK_SET);
     }
     read_BTREENODEHEADER(&CurrNode,HelpFile);
     buf->NextPage=CurrNode.NextPage;
@@ -739,7 +739,7 @@ int16_t GetNextPage(FILE *HelpFile,BUFFER *buf) /* walk Btree */
     BTREENODEHEADER CurrNode;
 
     if(buf->NextPage==-1) return 0;
-    fseek(HelpFile,buf->FirstLeaf+buf->NextPage*(long)buf->PageSize,SEEK_SET);
+    fseek(HelpFile,buf->FirstLeaf+buf->NextPage*(legacy_long)buf->PageSize,SEEK_SET);
     read_BTREENODEHEADER(&CurrNode,HelpFile);
     buf->NextPage=CurrNode.NextPage;
     return CurrNode.NEntries;
@@ -776,7 +776,7 @@ SYSTEMRECORD *GetFirstSystemRecord(FILE *HelpFile)
 {
     SYSTEMHEADER SysHdr;
     SYSTEMRECORD *SysRec;
-    long FileLength;
+    legacy_long FileLength;
 
     if(!SearchFile(HelpFile,"|SYSTEM",&FileLength)) return NULL;
     read_SYSTEMHEADER(&SysHdr,HelpFile);
@@ -792,7 +792,7 @@ void ListFiles(FILE *HelpFile) /* display internal directory */
 {
     BUFFER buf;
     char FileName[20];
-    int j,i,n;
+    legacy_int j,i,n;
 
     puts("FileName		  FileOffset | FileName 	       FileOffset");
     puts("-----------------------------------+-----------------------------------");
@@ -814,11 +814,11 @@ void ListBaggage(FILE *HelpFile,FILE *hpj,BOOL before31) /* writes out [BAGGAGE]
     BOOL headerwritten;
     char *leader;
     char FileName[20];
-    long FileLength;
+    legacy_long FileLength;
     BUFFER buf;
-    int i,n;
+    legacy_int i,n;
     FILE *f;
-    long savepos;
+    legacy_long savepos;
 
     headerwritten=FALSE;
     leader="|bm"+before31;
@@ -954,11 +954,11 @@ void PrintMVBWindow(FILE *hpj,MVBWINDOW *SWin)
     putc('\n',hpj);
 }
 
-void ToMapDump(FILE *HelpFile,long FileLength)
+void ToMapDump(FILE *HelpFile,legacy_long FileLength)
 {
-    long i;
+    legacy_long i;
 
-    for(i=0;i*4L<FileLength;i++)
+    for(i=0;i*4<FileLength;i++)
     {
 	printf("TopicNum: %-12ld TopicOffset: 0x%08lX\n",i,getdw(HelpFile));
     }
@@ -968,7 +968,7 @@ void GroupDump(FILE *HelpFile)
 {
     GROUPHEADER GroupHeader;
     char *ptr = NULL;
-    unsigned long i;
+    unsigned_legacy_long i;
 
     read_GROUPHEADER(&GroupHeader,HelpFile);
     switch(GroupHeader.GroupType)
@@ -1000,9 +1000,9 @@ void KWMapDump(FILE *HelpFile)
     }
 }
 
-void KWDataDump(FILE *HelpFile,long FileLength)
+void KWDataDump(FILE *HelpFile,legacy_long FileLength)
 {
-    long i;
+    legacy_long i;
 
     for(i=0;i<FileLength;i+=4)
     {
@@ -1013,7 +1013,7 @@ void KWDataDump(FILE *HelpFile,long FileLength)
 void CatalogDump(FILE *HelpFile)
 {
     CATALOGHEADER catalog;
-    long n;
+    legacy_long n;
 
     read_CATALOGHEADER(&catalog,HelpFile);
     for(n=0;n<catalog.entries;n++)
@@ -1037,8 +1037,8 @@ void CTXOMAPDump(FILE *HelpFile)
 
 void LinkDump(FILE *HelpFile)
 {
-    long data[3];
-    int n,i;
+    legacy_long data[3];
+    legacy_int n,i;
 
     n=my_getw(HelpFile);
     for(i=0;i<n;i++)
@@ -1050,9 +1050,9 @@ void LinkDump(FILE *HelpFile)
     }
 }
 
-void AnnotationDump(FILE *HelpFile,long FileLength,const char *name)
+void AnnotationDump(FILE *HelpFile,legacy_long FileLength,const char *name)
 {
-    long l;
+    legacy_long l;
 
     printf("Annotation %s for topic 0x%08lx:\n",name,atol(name));
     for(l=0;l<FileLength;l++) putchar(getc(HelpFile));
