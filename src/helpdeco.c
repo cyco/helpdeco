@@ -1027,13 +1027,13 @@ int ExtractBitmap(char *szFilename,MFILE *f)
     int type;
     unsigned int i,n,j;
     unsigned char byType,byPacked;
-    long l,pos,offset,nextpict,FileStart;
+    long l,pos = 0,offset = 0,nextpict,FileStart;
     BITMAPFILEHEADER bmfh;
     BITMAPINFOHEADER bmih;
     APMFILEHEADER afh;
     uint16_t *wp;
-    uint16_t wMagic,mapmode,colors;
-    uint32_t dwRawSize,dwDataSize,dwHotspotOffset,dwOffsBitmap,dwHotspotSize,dwPictureOffset,xPels,yPels;
+    uint16_t wMagic,mapmode = 0,colors = 0;
+    uint32_t dwRawSize = 0,dwDataSize,dwHotspotOffset,dwOffsBitmap,dwHotspotSize,dwPictureOffset,xPels = 0,yPels = 0;
 
     FileStart=f->tell(f);
     wMagic=GetWord(f);
@@ -3180,11 +3180,11 @@ FILE *TopicDump(FILE *HelpFile,FILE *rtf,FILE *hpj,BOOL makertf)
     int16_t *iptr;
     uint16_t x1,x2,x3;
     int16_t y1;
-    long l1;
+    long l1 = 0;
     char *ptr;
     char *cmd;
     char *str;
-    long ActualTopicOffset,MaxTopicOffset;
+    long ActualTopicOffset = 0,MaxTopicOffset = 0;
     TOPICHEADER30 *TopicHdr30;
     TOPICHEADER *TopicHdr;
     long BogusTopicOffset;
@@ -3860,7 +3860,7 @@ void ContextLoad(FILE *HelpFile)
 
 void GenerateContent(FILE *HelpFile,FILE *ContentFile) /* create a simple Win95 contents file */
 {
-    VIOLAREC *WindowRec;
+    VIOLAREC *WindowRec = NULL;
     long FileLength,offset;
     int n,i,j,WindowRecs;
     BUFFER buf;
@@ -5132,7 +5132,7 @@ void ContextList(FILE *HelpFile)
     uint16_t maprecs,m;
     int j,window,len;
     BOOL morekeywords;
-    CTXOMAPREC *map;
+    CTXOMAPREC *map = NULL;
     char filename[13];
     TOPICLINK TopicLink;
     char *LinkData1;

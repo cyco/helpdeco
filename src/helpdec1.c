@@ -89,7 +89,7 @@ char *my_strdup(const char *ptr) /* save strdup function */
 
 size_t my_fread(void *ptr,long bytes,FILE *f) /* save fread function */
 {
-    size_t result;
+    size_t result = 0;
 
     if(bytes==0) return 0;
     if(bytes<0||bytes!=(size_t)bytes||(result=fread(ptr,1,(size_t)bytes,f))!=bytes)
@@ -437,7 +437,7 @@ long decompress(int method,MFILE *f,long bytes,MFILE *fTarget)
 {
     static unsigned char lzbuffer[0x1000];
     int (*Emit)(MFILE *f,char c);
-    unsigned char bits,mask;
+    unsigned char bits = 0,mask;
     int pos,len,back;
     long n;
 
@@ -967,7 +967,7 @@ void ToMapDump(FILE *HelpFile,long FileLength)
 void GroupDump(FILE *HelpFile)
 {
     GROUPHEADER GroupHeader;
-    char *ptr;
+    char *ptr = NULL;
     unsigned long i;
 
     read_GROUPHEADER(&GroupHeader,HelpFile);
