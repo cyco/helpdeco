@@ -30,10 +30,10 @@ void ChangeHTMLFont(FILE *rtf,unsigned_legacy_int i,BOOL ul,BOOL uldb)
 
     fprintf(__html_output, "</span>");
     fprintf(__html_output, "<span");
-    if(i<ctx->fonts)
+    if(i<ctx->font.count)
     {
         pos=ftell(rtf);
-        f=ctx->font+i;
+        f=ctx->font.entry+i;
         if(f->style)
         {
             // fprintf(rtf,"\\plain\\cs%d",f->style+9);
@@ -80,19 +80,20 @@ BOOL LoadFontsIntoHTML(FILE *HelpFile,FILE *rtf)
     
     FontStart=ftell(HelpFile);
     read_FONTHEADER(&FontHdr,HelpFile);
-    ctx->fontnames=FontHdr.NumFacenames;
-    len=(FontHdr.DescriptorsOffset-FontHdr.FacenamesOffset)/ctx->fontnames;
+    ctx->fontname.count=FontHdr.NumFacenames;
+    fprintf(stderr, "Found %d fonts\n", ctx->fontname.count);
+    len=(FontHdr.DescriptorsOffset-FontHdr.FacenamesOffset)/ctx->fontname.count;
        if( len > FontName_len ){
            fprintf(stderr,"malformed |FONT file\n");
            exit(1);
        }
-    ctx->fontname=my_malloc(ctx->fontnames*sizeof(char *));
-    family=my_malloc(ctx->fontnames*sizeof(unsigned char));
-    memset(family,0,ctx->fontnames*sizeof(unsigned char));
+    ctx->fontname.entry=my_malloc(ctx->fontname.count*sizeof(char *));
+    family=my_malloc(ctx->fontname.count*sizeof(unsigned char));
+    memset(family,0,ctx->fontname.count*sizeof(unsigned char));
     charmap=FALSE;
     mvbstyle=NULL;
     newstyle=NULL;
-    for(i=0;i<ctx->fontnames;i++)
+    for(i=0;i<ctx->fontname.count;i++)
     {
         fseek(HelpFile,FontStart+FontHdr.FacenamesOffset+len*i,SEEK_SET);
         my_fread(FontName,len,HelpFile);
@@ -106,18 +107,20 @@ BOOL LoadFontsIntoHTML(FILE *HelpFile,FILE *rtf)
         *ptr++='\0';
         fseek(HelpFile,FontStart+FontHdr.CharmapsOffset,SEEK_SET);
         }
-        ctx->fontname[i]=my_strdup(FontName);
+        fprintf(stderr, "\t- %s\n", FontName);
+        ctx->fontname.entry[i]=my_strdup(FontName);
     }
 
     fseek(HelpFile,FontStart+FontHdr.DescriptorsOffset,SEEK_SET);
-    ctx->colors=1;     /* auto */
-    ctx->color[0].r=1;
-    ctx->color[0].g=1;
-    ctx->color[0].b=0;
-    ctx->fonts=FontHdr.NumDescriptors;
-    if(ctx->font) free(ctx->font);
-    ctx->font=my_malloc(ctx->fonts*sizeof(FONTDESCRIPTOR));
-    memset(ctx->font,0,ctx->fonts*sizeof(FONTDESCRIPTOR));
+    ctx->color.count=1;     /* auto */
+    ctx->color.entry[0].r=1;
+    ctx->color.entry[0].g=1;
+    ctx->color.entry[0].b=0;
+    ctx->font.count=FontHdr.NumDescriptors;
+    printf("%hd descriptors found\n", ctx->font.count);
+    if(ctx->font.entry) free(ctx->font.entry);
+    ctx->font.entry=my_malloc(ctx->font.count*sizeof(FONTDESCRIPTOR));
+    memset(ctx->font.entry,0,ctx->font.count*sizeof(FONTDESCRIPTOR));
     if(FontHdr.FacenamesOffset>=16)
     {
         ctx->scaling=1;
@@ -125,7 +128,7 @@ BOOL LoadFontsIntoHTML(FILE *HelpFile,FILE *rtf)
         for(i=0;i<FontHdr.NumDescriptors;i++)
         {
         read_MVBFONT(&mvbfont,HelpFile);
-        fd=ctx->font+i;
+        fd=&ctx->font.entry[i];
         fd->FontName=mvbfont.FontName;
         fd->HalfPoints=-2*mvbfont.Height;
         fd->Bold=mvbfont.Weight>500;
@@ -158,7 +161,7 @@ BOOL LoadFontsIntoHTML(FILE *HelpFile,FILE *rtf)
         for(i=0;i<FontHdr.NumDescriptors;i++)
         {
         read_NEWFONT(&newfont,HelpFile);
-        fd=ctx->font+i;
+        fd=&ctx->font.entry[i];
         fd->Bold=newfont.Weight>500;
         fd->Italic=newfont.Italic!=0;
         fd->Underline=newfont.Underline!=0;
@@ -188,7 +191,7 @@ BOOL LoadFontsIntoHTML(FILE *HelpFile,FILE *rtf)
         for(i=0;i<FontHdr.NumDescriptors;i++)
         {
         read_OLDFONT(&oldfont,HelpFile);
-        fd=ctx->font+i;
+        fd=&ctx->font.entry[i];
         fd->Bold=(oldfont.Attributes&FONT_BOLD)!=0;
         fd->Italic=(oldfont.Attributes&FONT_ITAL)!=0;
         fd->Underline=(oldfont.Attributes&FONT_UNDR)!=0;
@@ -211,20 +214,20 @@ BOOL LoadFontsIntoHTML(FILE *HelpFile,FILE *rtf)
     }
     for(i=0;i<FontHdr.NumDescriptors;i++)
     {
-        if(ctx->font[i].FontName<ctx->fontnames)
+        if(ctx->font.entry[i].FontName<ctx->fontname.count)
         {
-        family[ctx->font[i].FontName]=ctx->font[i].FontFamily;
+        family[ctx->font.entry[i].FontName]=ctx->font.entry[i].FontFamily;
         }
     }
     ctx->DefFont=0;
     l=sizeof(BestFonts)/sizeof(BestFonts[0]);
-    if(ctx->fontname)
+    if(ctx->fontname.entry)
     {
-        for(i=0;i<ctx->fontnames;i++) if(family[i])
+        for(i=0;i<ctx->fontname.count;i++) if(family[i])
         {
         for(j=0;j<l;j++)
         {
-            if(stricmp(ctx->fontname[i],BestFonts[j])==0)
+            if(stricmp(ctx->fontname.entry[i],BestFonts[j])==0)
             {
             ctx->DefFont=i;
             l=j;
@@ -235,21 +238,24 @@ BOOL LoadFontsIntoHTML(FILE *HelpFile,FILE *rtf)
     }
 
     fprintf(__html_output, "<style>");
-    for(i=0;i<ctx->fontnames;i++) {
+    fprintf(stderr, "Writing %d fonts to style tag\n", ctx->fontname.count);
+    for(i=0;i<ctx->fontname.count;i++) {
         fprintf(__html_output, ".font-%d { "
                 "font-family: \"%s\";"
                 "%s%s%s%s%s%s%s"
                 "}\n"
                 ,i, FontFamily(family[i]),
-                ctx->font[i].Bold ? "font-weight: bold;" : "",
-                ctx->font[i].Italic ? "font-style: italic;" : "",
-                ctx->font[i].DoubleUnderline ? "text-decoration: underline; border-bottom: 1px solid" : "",
-                ctx->font[i].Underline ? "text-decoration: underline;" : "",
-                ctx->font[i].StrikeOut ? "text-decoration: line-through;" : "",
-                ctx->font[i].Underline && ctx->font[i].StrikeOut  ? "text-decoration: underline line-through;" : "",
-                ctx->font[i].SmallCaps  ? "font-variant: small-caps;" : ""
+                ctx->font.entry[i].Bold ? "font-weight: bold;" : "",
+                ctx->font.entry[i].Italic ? "font-style: italic;" : "",
+                ctx->font.entry[i].DoubleUnderline ? "text-decoration: underline; border-bottom: 1px solid" : "",
+                ctx->font.entry[i].Underline ? "text-decoration: underline;" : "",
+                ctx->font.entry[i].StrikeOut ? "text-decoration: line-through;" : "",
+                ctx->font.entry[i].Underline && ctx->font.entry[i].StrikeOut  ? "text-decoration: underline line-through;" : "",
+                ctx->font.entry[i].SmallCaps  ? "font-variant: small-caps;" : ""
         );
-        free(ctx->fontname[i]);
+        free(ctx->fontname.entry[i]);
+        
+        ctx->fontname.entry[i] = NULL;
         /* TODO: unhandled / unchecked font attributes
          unsigned char HalfPoints;
          unsigned char FontFamily;
@@ -265,7 +271,7 @@ BOOL LoadFontsIntoHTML(FILE *HelpFile,FILE *rtf)
     
     
     fprintf(__html_output, "<style>");
-    for(i=0;i<ctx->colors;i++) {
+    for(i=0;i<ctx->color.count;i++) {
         // fprintf(__html_output, ".color-%d { color: rgb(%d, %d, %d); }\n",i, color[i].r,color[i].g,color[i].b);
     }
     fprintf(__html_output, "</style>\n");
@@ -386,7 +392,6 @@ FILE *dev_null = fopen("/dev/null", "w");
 
     TOPICLINK TopicLink;
     char *LinkData1;  /* Data associated with this link */
-    legacy_long nonscroll=-1;
     char *LinkData2;  /* Second set of data */
     legacy_int fontset;
     legacy_int NextContextRec;
@@ -413,9 +418,9 @@ FILE *dev_null = fopen("/dev/null", "w");
     
     fontset=-1;
     nextbitmap=1;
-    if(ctx->browse) free(ctx->browse);
-    ctx->browse=NULL;
-    ctx->browses=0;
+    if(ctx->browse.entry) free(ctx->browse.entry);
+    ctx->browse.entry=NULL;
+    ctx->browse.count=0;
     NextContextRec=0;
     ul=uldb=FALSE;
     hotspot=NULL;
@@ -465,7 +470,7 @@ FILE *dev_null = fopen("/dev/null", "w");
         }
         else if(LinkData1&&LinkData2&&(TopicLink.RecordType==TL_DISPLAY30||TopicLink.RecordType==TL_DISPLAY||TopicLink.RecordType==TL_TABLE))
         {
-            if(ctx->AnnoFile) Annotate(TopicPos,__rtf_output);
+            if(ctx->annotation_file) Annotate(TopicPos,__rtf_output);
             ptr=LinkData1;
             scanlong(&ptr);
             if(TopicLink.RecordType==TL_DISPLAY||TopicLink.RecordType==TL_TABLE)
@@ -572,7 +577,7 @@ FILE *dev_null = fopen("/dev/null", "w");
 
                 while(1) /* ptr<LinkData1+TopicLink.DataLen1-sizeof(TOPICLINK)&&str<end) */
                 {
-                    if(*str&&fontset>=0&&fontset<ctx->fonts&&ctx->font&&ctx->font[fontset].SmallCaps) strlwr(str);
+                    if(*str&&fontset>=0&&fontset<ctx->font.count&&ctx->font.entry&&ctx->font.entry[fontset].SmallCaps) strlwr(str);
                     do
                     {
                         if(*str)
@@ -688,8 +693,8 @@ FILE *dev_null = fopen("/dev/null", "w");
                                     switch(x1)
                                     {
                                         case 1:
-                                            while(nextbitmap<ctx->extensions&&ctx->extension[nextbitmap]<0x10) nextbitmap++;
-                                            if(nextbitmap>=ctx->extensions)
+                                            while(nextbitmap<ctx->extension.count&&ctx->extension.entry[nextbitmap]<0x10) nextbitmap++;
+                                            if(nextbitmap>=ctx->extension.count)
                                             {
                                                 error("Bitmap never saved");
                                                 break;

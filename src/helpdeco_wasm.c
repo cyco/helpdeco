@@ -44,11 +44,11 @@ const char *render(char *data, size_t len, const char *path) {
     _splitpath(path,drive,dir,ctx->name,ctx->ext);
     if(ctx->ext[0]=='\0') strcpy(ctx->ext,".hlp");
     ctx->mvp=ctx->ext[1]=='M'||ctx->ext[1]=='m';
-    _makepath(ctx->HelpFileName,drive,dir,ctx->name,ctx->ext);
+    _makepath(ctx->filename,drive,dir,ctx->name,ctx->ext);
     
     if(!HelpDeCompile(f,NULL,8,NULL,0))
     {
-        fprintf(stderr,"%s isn't a valid WinHelp file ! (render)\n",ctx->HelpFileName);
+        fprintf(stderr,"%s isn't a valid WinHelp file ! (render)\n",ctx->filename);
     } else {
         fprintf(stderr, "Done, cleaning up!\n");
     }

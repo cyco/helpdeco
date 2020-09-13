@@ -402,7 +402,7 @@ legacy_long CopyBytes(MFILE *f,legacy_long bytes,FILE *out)
 
 signed char count; /* for run len decompression */
 
-legacy_int DeRun(MFILE *f,char c) /* expand runlen compressed data */
+int DeRun(MFILE *f,char c) /* expand runlen compressed data */
 {
     legacy_int i;
 
@@ -436,7 +436,7 @@ legacy_int DeRun(MFILE *f,char c) /* expand runlen compressed data */
 legacy_long decompress(legacy_int method,MFILE *f,legacy_long bytes,MFILE *fTarget)
 {
     static unsigned char lzbuffer[0x1000];
-    legacy_int (*Emit)(MFILE *f,char c);
+    int (*Emit)(MFILE *f,char c);
     unsigned char bits = 0,mask;
     legacy_int pos,len,back;
     legacy_long n;
@@ -490,7 +490,7 @@ legacy_long decompress(legacy_int method,MFILE *f,legacy_long bytes,MFILE *fTarg
     return n;
 }
 
-legacy_long DecompressIntoBuffer(legacy_int method,FILE *HelpFile,legacy_long bytes,char *ptr,legacy_long size)
+legacy_long DecompressIntoBuffer(legacy_int method,FILE *HelpFile,legacy_long bytes,void *ptr,legacy_long size)
 {
     MFILE *f;
     MFILE *mf;
@@ -532,7 +532,7 @@ void HexDump(FILE *f,legacy_long FileLength,legacy_long offset)
     }
 }
 
-void HexDumpMemory(unsigned char *bypMem,unsigned_legacy_int FileLength)
+void HexDumpMemory(void *bypMem,unsigned_legacy_int FileLength)
 {
     unsigned char b[16];
     unsigned_legacy_int l;
@@ -543,7 +543,7 @@ void HexDumpMemory(unsigned char *bypMem,unsigned_legacy_int FileLength)
     {
 	printf("%08X ",l);
 	n=(legacy_int)(FileLength-l>16?16:FileLength-l);
-	for(i=0;i<n;i++) printf("%02X ",b[i]=*bypMem++);
+	for(i=0;i<n;i++) printf("%02X ",b[i]=*(unsigned char*)bypMem++);
 	while(i++<16) printf("	 ");
 	for(i=0;i<n;i++) putchar(isprint(b[i])?b[i]:'.');
 	putchar('\n');
@@ -552,7 +552,7 @@ void HexDumpMemory(unsigned char *bypMem,unsigned_legacy_int FileLength)
 
 /* write str to stdout, replacing nonprintable characters with hex codes,
 // returning str+len. PrintString doesn't stop at NUL characters */
-char *PrintString(const char *str,unsigned_legacy_int len)
+char *PrintString(char *str,unsigned_legacy_int len)
 {
     while(len-->0)
     {
@@ -618,10 +618,10 @@ int16_t scanint(char **ptr) /* scan a compressed short */
     int16_t ret;
     if(*(*ptr)&1) {
         ret = (*(((uint16_t *)(*ptr)))>>1)-0x4000;
-        *ptr = ((uint16_t *)*ptr)+1;
+        *ptr = *ptr+sizeof(uint16_t);
     } else {
         ret = (*(((unsigned char *)(*ptr)))>>1)-0x40;
-        *ptr=((unsigned char *)*ptr)+1;
+        *ptr=*ptr+sizeof(unsigned char);
     }
     return ret;
 }
@@ -631,10 +631,10 @@ uint16_t scanword(char **ptr) /* scan a compressed unsiged short */
     uint16_t ret;
     if(*(*ptr)&1) {
         ret = (*(((uint16_t *)(*ptr)))>>1);
-        *ptr=((uint16_t *)*ptr)+1;
+        *ptr = *ptr+sizeof(uint16_t);
     } else {
         ret = (*(((unsigned char *)(*ptr)))>>1);
-        *ptr=((unsigned char *)*ptr)+1;
+        *ptr=*ptr+sizeof(unsigned char);
     }
     return ret;
 }
@@ -644,10 +644,10 @@ uint32_t scanlong(char **ptr)  /* scan a compressed long */
     uint32_t ret;
     if(*(*ptr)&1) {
         ret = (*(((uint32_t *)(*ptr)))>>1)-0x40000000;
-        *ptr=((uint32_t *)*ptr)+1;
+        *ptr = *ptr+sizeof(uint32_t);
     } else {
         ret = (*(((uint16_t *)(*ptr)))>>1)-0x4000;
-        *ptr=((uint16_t *)*ptr)+1;
+        *ptr = *ptr+sizeof(uint16_t);
     }
     return ret;
 }
@@ -821,7 +821,7 @@ void ListBaggage(FILE *HelpFile,FILE *hpj,BOOL before31) /* writes out [BAGGAGE]
     legacy_long savepos;
 
     headerwritten=FALSE;
-    leader="|bm"+before31;
+    leader=&"|bm"[before31];
     SearchFile(HelpFile,NULL,NULL);
     for(n=GetFirstPage(HelpFile,&buf,NULL);n;n=GetNextPage(HelpFile,&buf))
     {

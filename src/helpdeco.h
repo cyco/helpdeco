@@ -749,11 +749,11 @@ extern size_t StringRead(char *ptr,size_t size,MFILE *f); /* read nul terminated
 extern legacy_long copy(FILE *f,legacy_long bytes,FILE *out);
 extern legacy_long CopyBytes(MFILE *f,legacy_long bytes,FILE *out);
 extern legacy_long decompress(legacy_int method,MFILE *f,legacy_long bytes,MFILE *fTarget);
-extern legacy_long DecompressIntoBuffer(legacy_int method,FILE *HelpFile,legacy_long bytes,char *ptr,legacy_long size);
+extern legacy_long DecompressIntoBuffer(legacy_int method,FILE *HelpFile,legacy_long bytes,void *ptr,legacy_long size);
 extern legacy_long DecompressIntoFile(legacy_int method,MFILE *f,legacy_long bytes,FILE *fTarget);
 extern void HexDump(FILE *f,legacy_long FileLength,legacy_long offset);
-extern void HexDumpMemory(unsigned char *bypMem,unsigned_legacy_int FileLength);
-extern char *PrintString(const char *str,unsigned_legacy_int len);
+extern void HexDumpMemory(void *bypMem,unsigned_legacy_int FileLength);
+extern char *PrintString(char *str,unsigned_legacy_int len);
 extern BOOL GetBit(FILE *f);
 extern void putrtf(FILE *rtf,const char *str);
 extern int16_t scanint(char **ptr); /* scan a compressed short */
@@ -784,33 +784,26 @@ int32_t hash(char *name);
 
 #pragma mark -
 typedef struct {
-    FILEREF *external;
-    char HelpFileName[NAME_MAX];
+    char filename[NAME_MAX];
     char name[NAME_MAX];
     char ext[_MAX_EXT];
-    FILE *AnnoFile;
-    HASHREC *hashrec;
-    legacy_int hashrecs;
-    BROWSE *browse;
-    legacy_int browses;
+    char title[NAME_MAX];
+    char suggested_compiler[13];
+    
+    FILEREF *external;
+    FILE *annotation_file;
     legacy_int browsenums;
     legacy_long scaling;
     legacy_int rounderr;
-    START *start;
-    legacy_int starts;
-    BOOL lzcompressed,Hall;
-    BOOL before31,after31;
+    BOOL lzcompressed;
+    BOOL Hall;
+    BOOL before31;
+    BOOL after31;
     BOOL win95;
-    BOOL mvp,multi;
-    BOOL warnings,missing;
-    int32_t *Topic;
-    legacy_int Topics;                /* 16 bit: max. 16348 Topics */
-    GROUP *group;
-    legacy_int groups;
-    CONTEXTREC *ContextRec;
-    legacy_int ContextRecs;            /* 16 bit: max. 8191 Context Records */
-    ALTERNATIVE *alternative;
-    legacy_int alternatives;
+    BOOL mvp;
+    BOOL multi;
+    BOOL warnings;
+    BOOL missing;
     BOOL overwrite;
     BOOL exportLZ77;
     BOOL extractmacros;
@@ -822,33 +815,13 @@ typedef struct {
     BOOL reportderived;
     BOOL checkexternal;
     BOOL exportplain;
-    legacy_int NextKeywordRec,KeywordRecs;
-    KEYWORDREC *KeywordRec;
+    legacy_int NextKeywordRec;
     TOPICOFFSET NextKeywordOffset;
-    char helpcomp[13];
-    char HelpFileTitle[NAME_MAX];
-    char TopicTitle[256];
     char *Phrases;
-    unsigned_legacy_int *PhraseOffsets;
-    unsigned_legacy_int PhraseCount;
     legacy_long TopicFileLength;
     legacy_int TopicBlockSize; /* 2k or 4k */
     legacy_int DecompressSize; /* 4k or 16k */
-    char buffer[4096];
-    char keyword[512];
-    char *extension;
-    legacy_int extensions;
-    char **stopwordfilename;
-    legacy_int stopwordfiles;
-    char **fontname;
-    legacy_int fontnames;
     unsigned char DefFont;
-    FONTDESCRIPTOR *font;
-    legacy_int fonts;
-    struct { unsigned char r,g,b; } color[128];
-    legacy_int colors;
-    char **windowname;
-    legacy_int windownames;
     BOOL NotInAnyTopic;
     legacy_int TopicsPerRTF;
     BOOL lists['z'-'0'+1];
@@ -863,6 +836,22 @@ typedef struct {
     long TopicFileStart;
     long TopicBlockNum;
     unsigned int DecompSize;
+    
+    struct { legacy_int count; ALTERNATIVE *entry; } alternative;
+    struct { legacy_int count; BROWSE *entry; } browse;
+    struct { legacy_int count; struct { unsigned char r,g,b; } entry[128]; } color;
+    struct { legacy_int count; CONTEXTREC *entry; } context_rec;
+    struct { legacy_int count; char *entry; } extension;
+    struct { legacy_int count; FONTDESCRIPTOR *entry; } font;
+    struct { legacy_int count; char **entry; } fontname;
+    struct { legacy_int count; GROUP *entry; } group;
+    struct { legacy_int count; HASHREC *entry; } hashrec;
+    struct { unsigned_legacy_int count; unsigned_legacy_int *offset; } phrase;
+    struct { legacy_int count; START *entry; } start;
+    struct { legacy_int count; int32_t *entry; } topic;
+    struct { legacy_int count; char **entry; } windowname;
+    struct { legacy_int count; char **entry; } stopword_filename;
+    struct { legacy_int count; KEYWORDREC *entry; } keyword_rec;
 } HELPDECO_CTX;
 
 
