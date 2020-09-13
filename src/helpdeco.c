@@ -33,82 +33,52 @@ http://www.gnu.org
 // application.
 // Byte align ! Portable to little endian machines only.
 */
+HELPDECO_CTX *helpdeco_make_ctx(void) {
+    HELPDECO_CTX *ctx = calloc(1, sizeof(HELPDECO_CTX));
+    if(!ctx) {
+        fprintf(stderr, "Unable to allocate memory for helpdeco ctx");
+        exit(1);
+    }
+    
+    size_t i;
+    
+    /* initialize hash value coding oldtable */
+    memset(ctx->oldtable,0,sizeof(ctx->oldtable));
+    for(i=0;i<9;i++) ctx->oldtable['1'+i]=i+1;
+    ctx->oldtable['0']=10;
+    ctx->oldtable['.']=12;
+    ctx->oldtable['_']=13;
+    for(i=0;i<26;i++) ctx->oldtable['A'+i]=ctx->oldtable['a'+i]=17+i;
+    
+    ctx->prefixhash[0]=0;
+    for(i=1;ctx->prefix[i];i++) ctx->prefixhash[i]=hash(ctx->prefix[i]);
+    
+    ctx->extractmacros=TRUE;
+    ctx->guessing=TRUE;
+    ctx->resolvebrowse=TRUE;
+    strlcpy(ctx->index_separators, ",;", 2);
+    ctx->prefix[0] = "";
+    ctx->prefix[1] = "idh_";
+    ctx->prefix[2] = "helpid_";
+    
+    return ctx;
+}
 
-FILEREF *external;
-char HelpFileName[NAME_MAX];
-char name[NAME_MAX];
-char ext[_MAX_EXT];
-FILE *AnnoFile;
-HASHREC *hashrec;
-legacy_int hashrecs=0;
-BROWSE *browse;
-legacy_int browses;
-legacy_int browsenums;
-legacy_long scaling;
-legacy_int rounderr;
-START *start;
-legacy_int starts;
-BOOL lzcompressed,Hall;
-BOOL before31,after31;
-BOOL win95;
-BOOL mvp,multi;
-BOOL warnings,missing;
-int32_t *Topic;
-legacy_int Topics;			    /* 16 bit: max. 16348 Topics */
-GROUP *group;
-legacy_int groups;
-CONTEXTREC *ContextRec;
-legacy_int ContextRecs;		    /* 16 bit: max. 8191 Context Records */
-ALTERNATIVE *alternative;
-legacy_int alternatives;
-BOOL overwrite=FALSE;
-BOOL exportLZ77=FALSE;
-BOOL extractmacros=TRUE;
-BOOL guessing=TRUE;
-legacy_long guessed=0;
-BOOL listtopic=FALSE;
-BOOL nopagebreak=FALSE;
-BOOL resolvebrowse=TRUE;
-BOOL reportderived=FALSE;
-BOOL checkexternal=FALSE;
-BOOL exportplain=FALSE;
+void helpdeco_free_ctx(HELPDECO_CTX *ctx) {
+    if(!ctx) return;
+    
+    free(ctx);
+}
+HELPDECO_CTX *ctx;
+
 #define MAXKEYWORDS (64<<(sizeof(legacy_int)*2)) /* 16 bit: 1024, 32 bit: 16348 */
-legacy_int NextKeywordRec,KeywordRecs;
-KEYWORDREC *KeywordRec;
-TOPICOFFSET NextKeywordOffset;
-char helpcomp[13];
-char HelpFileTitle[NAME_MAX];
-char TopicTitle[256];
-char *Phrases;
-unsigned_legacy_int *PhraseOffsets;
-unsigned_legacy_int PhraseCount;
-legacy_long TopicFileLength;
-legacy_int TopicBlockSize; /* 2k or 4k */
-legacy_int DecompressSize; /* 4k or 16k */
-char buffer[4096];
-char keyword[512];
-char index_separators[40]=",;";
-char *extension;
-legacy_int extensions=0;
+
 /* index into bmpext: bit 0=multiresolution bit 1=bitmap, bit 2=metafile, bit 3=hotspot data, bit 4=embedded, bit 5=transparent */
-char *bmpext[]={"???","mrb","bmp","mrb","wmf","mrb","mrb","mrb","shg","mrb","shg","mrb","shg","mrb","shg","mrb"};
-char **stopwordfilename;
-legacy_int stopwordfiles;
-char **fontname;
-legacy_int fontnames;
-unsigned char DefFont;
-FONTDESCRIPTOR *font;
-legacy_int fonts;
-unsigned char lookup[]={0,3,1,2,4,5}; /* to translate font styles */
-struct { unsigned char r,g,b; } color[128];
-legacy_int colors;
-char **windowname;
-legacy_int windownames;
-BOOL NotInAnyTopic;
-legacy_int TopicsPerRTF;
-BOOL lists['z'-'0'+1];
-BOOL keyindex['z'-'0'+1];
-static signed char table[256]=
+const char * const bmpext[]={"???","mrb","bmp","mrb","wmf","mrb","mrb","mrb","shg","mrb","shg","mrb","shg","mrb","shg","mrb"};
+
+const unsigned char lookup[]={0,3,1,2,4,5}; /* to translate font styles */
+
+const static signed char table[256]=
 {
     '\x00', '\xD1', '\xD2', '\xD3', '\xD4', '\xD5', '\xD6', '\xD7', '\xD8', '\xD9', '\xDA', '\xDB', '\xDC', '\xDD', '\xDE', '\xDF',
     '\xE0', '\xE1', '\xE2', '\xE3', '\xE4', '\xE5', '\xE6', '\xE7', '\xE8', '\xE9', '\xEA', '\xEB', '\xEC', '\xED', '\xEE', '\xEF',
@@ -127,11 +97,7 @@ static signed char table[256]=
     '\xB0', '\xB1', '\xB2', '\xB3', '\xB4', '\xB5', '\xB6', '\xB7', '\xB8', '\xB9', '\xBA', '\xBB', '\xBC', '\xBD', '\xBE', '\xBF',
     '\xC0', '\xC1', '\xC2', '\xC3', '\xC4', '\xC5', '\xC6', '\xC7', '\xC8', '\xC9', '\xCA', '\xCB', '\xCC', '\xCD', '\xCE', '\xCF'
 };
-char oldtable[256];
-unsigned char untable[]={0,'1','2','3','4','5','6','7','8','9','0',0,'.','_',0,0,0,'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'};
-legacy_long prefixhash[8];
-char *prefix[]={"","idh_","helpid_",NULL,NULL,NULL,NULL,NULL};
-FONTDESCRIPTOR CurrentFont;
+const unsigned char untable[]={0,'1','2','3','4','5','6','7','8','9','0',0,'.','_',0,0,0,'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'};
 
 int32_t hash(char *name) /* convert 3.1/'95 topic name to hash value */
 {
@@ -155,19 +121,19 @@ char *unhash(uint32_t hash) /* deliver 3.1 context id that fits hash value */
     char ch;
 
     i=0;
-    j=hashrecs;
+    j=ctx->hashrecs;
     while(i<j)
     {
 	k=(i+j)/2;
-	if(hashrec[k].hash<(int32_t)hash)
+	if(ctx->hashrec[k].hash<(int32_t)hash)
 	{
 	    i=k+1;
 	}
-	else if(hashrec[k].hash>(int32_t)hash)
+	else if(ctx->hashrec[k].hash>(int32_t)hash)
 	{
 	    j=k;
 	}
-	else return hashrec[k].name;
+	else return ctx->hashrec[k].name;
     }
     for(i=0;i<43;i++)
     {
@@ -210,9 +176,9 @@ char *ContextId(uint32_t hash) /* unhash and verify for legal entry point */
     char *ptr;
     legacy_int i;
 
-    for(i=0;i<ContextRecs;i++)
+    for(i=0;i<ctx->ContextRecs;i++)
     {
-	if(ContextRec[i].HashValue==hash)
+	if(ctx->ContextRec[i].HashValue==hash)
 	{
 	    return unhash(hash);
 	}
@@ -229,47 +195,47 @@ void AddTopic(char *TopicName,BOOL derived) /* adds a known topic name to hash d
 
     x=hash(TopicName);
     i=0;
-    j=hashrecs;
+    j=ctx->hashrecs;
     while(i<j)
     {
 	k=(i+j)/2;
-	if(hashrec[k].hash<x)
+	if(ctx->hashrec[k].hash<x)
 	{
 	    i=k+1;
 	}
-	else if(hashrec[k].hash>x)
+	else if(ctx->hashrec[k].hash>x)
 	{
 	    j=k;
 	}
 	else
 	{
-	    if(stricmp(TopicName,hashrec[k].name)!=0)
+	    if(stricmp(TopicName,ctx->hashrec[k].name)!=0)
 	    {
-		if(!hashrec[k].derived)
+		if(!ctx->hashrec[k].derived)
 		{
-		    if(!derived) fprintf(stderr,"ContextId %s already defined as %s\n",TopicName,hashrec[k].name);
+		    if(!derived) fprintf(stderr,"ContextId %s already defined as %s\n",TopicName,ctx->hashrec[k].name);
 		    return;
 		}
 		if(derived) return;
-		free(hashrec[k].name);
-		hashrec[k].name=my_strdup(TopicName);
+		free(ctx->hashrec[k].name);
+		ctx->hashrec[k].name=my_strdup(TopicName);
 	    }
-	    if(!derived&&hashrec[k].derived)
+	    if(!derived&&ctx->hashrec[k].derived)
 	    {
-		guessed--;
-		hashrec[k].derived=FALSE;
+		ctx->guessed--;
+		ctx->hashrec[k].derived=FALSE;
 	    }
 	    return;
 	}
     }
     /* %100 to decrease memory fragmentation */
-    if(hashrecs%100==0) hashrec=my_realloc(hashrec,(hashrecs+100)*sizeof(HASHREC));
-    if(i<hashrecs) memmove(hashrec+i+1,hashrec+i,sizeof(HASHREC)*(hashrecs-i));
-    hashrec[i].name=my_strdup(TopicName);
-    hashrec[i].derived=derived;
-    hashrec[i].hash=x;
-    if(derived) guessed++;
-    hashrecs++;
+    if(ctx->hashrecs%100==0) ctx->hashrec=my_realloc(ctx->hashrec,(ctx->hashrecs+100)*sizeof(HASHREC));
+    if(i<ctx->hashrecs) memmove(ctx->hashrec+i+1,ctx->hashrec+i,sizeof(HASHREC)*(ctx->hashrecs-i));
+    ctx->hashrec[i].name=my_strdup(TopicName);
+    ctx->hashrec[i].derived=derived;
+    ctx->hashrec[i].hash=x;
+    if(derived) ctx->guessed++;
+    ctx->hashrecs++;
 }
 
 /* ContextRec is sorted by TopicOffset. Binary search for an entry for
@@ -280,21 +246,21 @@ legacy_int FindContext(int32_t topic)
     legacy_int i,lwb,upb;
 
     lwb=0;
-    upb=ContextRecs;
+    upb=ctx->ContextRecs;
     while(lwb<upb)
     {
 	i=(lwb+upb)/2;
-	if(ContextRec[i].TopicOffset>topic)
+	if(ctx->ContextRec[i].TopicOffset>topic)
 	{
 	    upb=i;
 	}
-	else if(ContextRec[i].TopicOffset<topic)
+	else if(ctx->ContextRec[i].TopicOffset<topic)
 	{
 	    lwb=i+1;
 	}
 	else
 	{
-	    while(i>0&&ContextRec[i-1].TopicOffset==topic) i--;
+	    while(i>0&&ctx->ContextRec[i-1].TopicOffset==topic) i--;
 	    return i;
 	}
     }
@@ -342,27 +308,27 @@ BOOL Derive(unsigned char *str,uint32_t desiredhash,char *buffer)
 
     l=2;
     s=strlen(str);
-    for(i=!win95;i<l;i++) /* three variants what to do with illegal characters */
+    for(i=!ctx->win95;i<l;i++) /* three variants what to do with illegal characters */
     {                /* but only if an illegal character found (see below) */
-	for(j=0;prefix[j];j++)
+	for(j=0;ctx->prefix[j];j++)
 	{
 	    k=0;
 	    while(str[k])
 	    {
-		hash=prefixhash[j];
-		strcpy(buffer,prefix[j]);
+		hash=ctx->prefixhash[j];
+		strcpy(buffer,ctx->prefix[j]);
 		ptr=strchr(buffer,'\0');
 		for(m=k;str[m];m++)
 		{
 		    ch=str[m];
 		    if(i)
 		    {
-			n=oldtable[ch];
+			n=ctx->oldtable[ch];
 			if(n==0)
 			{
 			    if(i==2)
 			    {
-				n=oldtable[ch='_'];
+				n=ctx->oldtable[ch='_'];
 			    }
 			    else
 			    {
@@ -402,9 +368,9 @@ BOOL Derive(unsigned char *str,uint32_t desiredhash,char *buffer)
 		}
 		if(i)
 		{
-		    while(oldtable[ch=str[k]]) k++;
+		    while(ctx->oldtable[ch=str[k]]) k++;
 		    if(ch) l=3;
-		    while((ch=str[k])!='\0'&&!oldtable[ch]) k++;
+		    while((ch=str[k])!='\0'&&!ctx->oldtable[ch]) k++;
 		}
 		else /* win95 */
 		{
@@ -428,29 +394,29 @@ void Guess(char *str,TOPICOFFSET topic)
     {
 	do
 	{
-	    hash=ContextRec[i].HashValue;
+	    hash=ctx->ContextRec[i].HashValue;
 	    j=0;
-	    k=hashrecs;
+	    k=ctx->hashrecs;
 	    while(j<k)
 	    {
 		m=(j+k)/2;
-		if(hashrec[m].hash<hash)
+		if(ctx->hashrec[m].hash<hash)
 		{
 		    j=m+1;
 		}
-		else if(hashrec[m].hash>hash)
+		else if(ctx->hashrec[m].hash>hash)
 		{
 		    k=m;
 		}
 		else break;
 	    }
-	    if(j>=k) if(Derive(str,hash,buffer))
+	    if(j>=k) if(Derive(str,hash,ctx->buffer))
 	    {
-		if(reportderived) printf("Derived %s\n",buffer);
-		AddTopic(buffer,TRUE);
+		if(ctx->reportderived) printf("Derived %s\n",ctx->buffer);
+		AddTopic(ctx->buffer,TRUE);
 	    }
 	}
-	while(++i<ContextRecs&&ContextRec[i].TopicOffset==topic);
+	while(++i<ctx->ContextRecs&&ctx->ContextRec[i].TopicOffset==topic);
     }
 }
 
@@ -469,32 +435,32 @@ void SysLoad(FILE *HelpFile) /* gets global values from SYSTEM file */
 	exit(1);
     }
     read_SYSTEMHEADER(&SysHdr,HelpFile);
-    before31=SysHdr.Minor<16;
-    after31=SysHdr.Minor>21;
-    multi=SysHdr.Minor==27;
-    lzcompressed=!before31&&(SysHdr.Flags==4||SysHdr.Flags==8);
-    win95=SysHdr.Minor==33&&!mvp;
-    windownames=0;
-    windowname=NULL;
-    if(before31)
+    ctx->before31=SysHdr.Minor<16;
+    ctx->after31=SysHdr.Minor>21;
+    ctx->multi=SysHdr.Minor==27;
+    ctx->lzcompressed=!ctx->before31&&(SysHdr.Flags==4||SysHdr.Flags==8);
+    ctx->win95=SysHdr.Minor==33&&!ctx->mvp;
+    ctx->windownames=0;
+    ctx->windowname=NULL;
+    if(ctx->before31)
     {
-	DecompressSize=TopicBlockSize=2048;
+	ctx->DecompressSize=ctx->TopicBlockSize=2048;
     }
     else
     {
-	DecompressSize=0x4000;
+	ctx->DecompressSize=0x4000;
 	if(SysHdr.Flags==8)
 	{
-	    TopicBlockSize=2048;
+	    ctx->TopicBlockSize=2048;
 	}
 	else
 	{
-	    TopicBlockSize=4096;
+	    ctx->TopicBlockSize=4096;
 	}
     }
-    if(before31)
+    if(ctx->before31)
     {
-	my_gets(HelpFileTitle,33,HelpFile);
+	my_gets(ctx->HelpFileTitle,33,HelpFile);
     }
     else
     {
@@ -503,20 +469,20 @@ void SysLoad(FILE *HelpFile) /* gets global values from SYSTEM file */
 	    switch(SysRec->RecordType)
 	    {
 	    case 0x0001:
-		strlcpy(HelpFileTitle,SysRec->Data,sizeof(HelpFileTitle));
+		strlcpy(ctx->HelpFileTitle,SysRec->Data,sizeof(ctx->HelpFileTitle));
 		break;
 	    case 0x0006:
 		SWin=(SECWINDOW *)SysRec->Data;
-		windowname=my_realloc(windowname,(windownames+1)*sizeof(char *));
-		windowname[windownames]=NULL;
+		ctx->windowname=my_realloc(ctx->windowname,(ctx->windownames+1)*sizeof(char *));
+		ctx->windowname[ctx->windownames]=NULL;
 		if(SWin->Flags&WSYSFLAG_NAME)
 		{
-		    windowname[windownames]=my_strdup(SWin->Name);
+		    ctx->windowname[ctx->windownames]=my_strdup(SWin->Name);
 		}
-		windownames++;
+		ctx->windownames++;
 		break;
 	    case 0x000E:
-		keyindex[SysRec->Data[1]-'0']=TRUE;
+		ctx->keyindex[SysRec->Data[1]-'0']=TRUE;
 		break;
 	    }
 	}
@@ -527,7 +493,7 @@ void SysLoad(FILE *HelpFile) /* gets global values from SYSTEM file */
 	sprintf(kwbtree,"|%cWBTREE",i);
 	if(SearchFile(HelpFile,kwdata,NULL)&&SearchFile(HelpFile,kwbtree,NULL))
 	{
-	    lists[i-'0']=TRUE;
+	    ctx->lists[i-'0']=TRUE;
 	}
     }
 }
@@ -630,7 +596,7 @@ void StoreReference(char *filename,legacy_int type,char *id,int32_t hash)
     FILEREF *ref;
     PLACEREC *place;
 
-    for(ref=external;ref;ref=ref->next)
+    for(ref=ctx->external;ref;ref=ref->next)
     {
 	if(filenamecmp(filename,ref->filename)==0) break;
     }
@@ -639,8 +605,8 @@ void StoreReference(char *filename,legacy_int type,char *id,int32_t hash)
 	ref=my_malloc(sizeof(FILEREF)+strlen(filename));
 	strcpy(ref->filename,filename);
 	ref->check=NULL;
-	ref->next=external;
-	external=ref;
+	ref->next=ctx->external;
+	ctx->external=ref;
     }
     for(ptr=ref->check;ptr;ptr=ptr->next)
     {
@@ -656,10 +622,10 @@ void StoreReference(char *filename,legacy_int type,char *id,int32_t hash)
 	ptr->next=ref->check;
 	ref->check=ptr;
     }
-    if(listtopic&&TopicTitle[0])
+    if(ctx->listtopic&&ctx->TopicTitle[0])
     {
-	place=my_malloc(sizeof(PLACEREC)+strlen(TopicTitle));
-	strcpy(place->topicname,TopicTitle);
+	place=my_malloc(sizeof(PLACEREC)+strlen(ctx->TopicTitle));
+	strcpy(place->topicname,ctx->TopicTitle);
 	place->next=ptr->here;
 	ptr->here=place;
     }
@@ -679,7 +645,7 @@ void CheckReferences(void)
     BTREENODEHEADER CurrNode;
     CONTEXTREC ContextRec;
 
-    for(ref=external;ref;ref=ref->next)
+    for(ref=ctx->external;ref;ref=ref->next)
     {
 	f=fopen(ref->filename,"rb");
 	if(!f)
@@ -770,8 +736,8 @@ void ListReferences(void)
     FILEREF *ref;
     CHECKREC *ptr;
 
-    hashrecs=0;
-    for(ref=external;ref;ref=ref->next)
+    ctx->hashrecs=0;
+    for(ref=ctx->external;ref;ref=ref->next)
     {
 	for(ptr=ref->check;ptr;ptr=ptr->next)
 	{
@@ -854,7 +820,7 @@ char *findMatchingChar(char *p) /* searches for matching '`', '"', or '('. */
 /* scan macro string for topic names and external references */
 BOOL CheckMacroX(char *ptr)
 {
-    static char *macro[]=
+    const static char * const macro[]=
     {
 	"AddAccelerator(ssm","AA(ssm",
 	"AppendItem(sssm","AI(sssm",
@@ -943,7 +909,7 @@ BOOL CheckMacroX(char *ptr)
 		}
 		else if(macro[i][namelen+1+n]=='c')
 		{
-		    if(extractmacros)
+		    if(ctx->extractmacros)
 		    {
 			while(parm[n][0]==' ') parm[n]++;
 			for(l=strlen(parm[n]);l>0&&parm[n][l-1]==' ';l--) ;
@@ -1009,7 +975,7 @@ void CheckMacro(char *ptr)
 {
     char *temp;
 
-    if(!multi)
+    if(!ctx->multi)
     {
 	temp=my_strdup(ptr);
 	if(!CheckMacroX(temp)) fprintf(stderr,"Bad macro: %s\n",ptr);
@@ -1044,7 +1010,7 @@ legacy_int ExtractBitmap(char *szFilename,MFILE *f)
     }
     fTarget=NULL;
     n=GetWord(f);
-    type=!exportplain&&n>1; /* contains multiple resolutions */
+    type=!ctx->exportplain&&n>1; /* contains multiple resolutions */
     /* do not depend on wMagic, because it is sometimes incorrect */
     nextpict=4+4*n;
     for(j=0;j<n;j++)
@@ -1063,9 +1029,9 @@ legacy_int ExtractBitmap(char *szFilename,MFILE *f)
 	    bmih.biSize=sizeof(bmih);
 	    xPels=GetCDWord(f);
 	    /* HC30 doesn't like certain PelsPerMeter */
-	    if(!before31) bmih.biXPelsPerMeter=(xPels*79+1)/2;
+	    if(!ctx->before31) bmih.biXPelsPerMeter=(xPels*79+1)/2;
 	    yPels=GetCDWord(f);
-	    if(!before31) bmih.biYPelsPerMeter=(yPels*79+1)/2;
+	    if(!ctx->before31) bmih.biYPelsPerMeter=(yPels*79+1)/2;
 	    bmih.biPlanes=GetCWord(f);
 	    bmih.biBitCount=GetCWord(f);
 	    bmih.biWidth=GetCDWord(f);
@@ -1073,14 +1039,14 @@ legacy_int ExtractBitmap(char *szFilename,MFILE *f)
 	    colors=(legacy_int)(bmih.biClrUsed=GetCDWord(f));
 	    if(!colors) colors=(uint16_t)1<<bmih.biBitCount;
 	    bmih.biClrImportant=GetCDWord(f);
-	    if(after31&&bmih.biClrImportant==1) type|=0x20; /* contains transparent bitmap */
+	    if(ctx->after31&&bmih.biClrImportant==1) type|=0x20; /* contains transparent bitmap */
 	    dwDataSize=GetCDWord(f);
 	    dwHotspotSize=GetCDWord(f);
 	    dwPictureOffset=GetDWord(f);
 	    dwHotspotOffset=GetDWord(f);
-	    if((exportplain||n==1)&&(dwHotspotOffset==0||dwHotspotSize==0))
+	    if((ctx->exportplain||n==1)&&(dwHotspotOffset==0||dwHotspotSize==0))
 	    {
-		if(checkexternal) break;
+		if(ctx->checkexternal) break;
 		strcat(szFilename,".bmp");
 		fTarget=my_fopen(szFilename,"wb");
 		if(fTarget)
@@ -1130,7 +1096,7 @@ legacy_int ExtractBitmap(char *szFilename,MFILE *f)
 			    {
 				CopyBytes(f,width,fTarget);
 			    }
-			    if(pad) fwrite(buffer,pad,1,fTarget);
+			    if(pad) fwrite(ctx->buffer,pad,1,fTarget);
 			}
 		    }
 		    else
@@ -1158,9 +1124,9 @@ legacy_int ExtractBitmap(char *szFilename,MFILE *f)
 	    dwHotspotSize=GetCDWord(f);
 	    dwPictureOffset=GetDWord(f);
 	    dwHotspotOffset=GetDWord(f);
-	    if((exportplain||n==1)&&(dwHotspotOffset==0||dwHotspotSize==0))
+	    if((ctx->exportplain||n==1)&&(dwHotspotOffset==0||dwHotspotSize==0))
 	    {
-		if(checkexternal) break;
+		if(ctx->checkexternal) break;
 		afh.dwKey=0x9AC6CDD7;
 		afh.wInch=2540;
 		wp=(uint16_t *)&afh;
@@ -1181,7 +1147,7 @@ legacy_int ExtractBitmap(char *szFilename,MFILE *f)
 	    break;
 	}
 	type|=8; /* contains hotspot info (set before accessing bmpext) */
-	if(!checkexternal)
+	if(!ctx->checkexternal)
 	{
 	    if(!fTarget)
 	    {
@@ -1196,7 +1162,7 @@ legacy_int ExtractBitmap(char *szFilename,MFILE *f)
 	    putdw(nextpict,fTarget);
 	    fseek(fTarget,nextpict,SEEK_SET);
 	    putc(byType,fTarget);
-	    if(exportLZ77)
+	    if(ctx->exportLZ77)
 	    {
 		putc(byPacked,fTarget);
 	    }
@@ -1230,7 +1196,7 @@ legacy_int ExtractBitmap(char *szFilename,MFILE *f)
 	    if(byType==6) CopyBytes(f,colors*4,fTarget);
 	    offset=ftell(fTarget);
 	    f->seek(f,FileStart+dwOffsBitmap+dwPictureOffset);
-	    if(exportLZ77)
+	    if(ctx->exportLZ77)
 	    {
 		dwDataSize=CopyBytes(f,dwDataSize,fTarget);
 	    }
@@ -1258,7 +1224,7 @@ legacy_int ExtractBitmap(char *szFilename,MFILE *f)
 		MacroDataSize=GetDWord(f);
 		hotspot=my_malloc(hotspots*sizeof(HOTSPOT));
 		f->read(f,hotspot,sizeof(HOTSPOT)*hotspots);
-		if(checkexternal)
+		if(ctx->checkexternal)
 		{
 		    while(MacroDataSize-->0) f->get(f);
 		}
@@ -1272,14 +1238,14 @@ legacy_int ExtractBitmap(char *szFilename,MFILE *f)
 		}
 		for(n=0;n<hotspots;n++)
 		{
-		    j=StringRead(buffer,sizeof(buffer),f)+1;
-		    l=j+StringRead(buffer+j,sizeof(buffer)-j,f)+1;
-		    if(fTarget) fwrite(buffer,l,1,fTarget);
-		    if(extractmacros) switch(hotspot[n].id0)
+		    j=StringRead(ctx->buffer,sizeof(ctx->buffer),f)+1;
+		    l=j+StringRead(ctx->buffer+j,sizeof(ctx->buffer)-j,f)+1;
+		    if(fTarget) fwrite(ctx->buffer,l,1,fTarget);
+		    if(ctx->extractmacros) switch(hotspot[n].id0)
 		    {
 		    case 0xC8: /* macro (never seen) */
 		    case 0xCC: /* macro without font change */
-			CheckMacro(buffer+j);
+			CheckMacro(ctx->buffer+j);
 			break;
 		    case 0xE0: /* popup jump HC30 */
 		    case 0xE1: /* topic jump HC30 */
@@ -1287,11 +1253,11 @@ legacy_int ExtractBitmap(char *szFilename,MFILE *f)
 		    case 0xE3: /* topic jump HC31 */
 		    case 0xE6: /* popup jump without font change */
 		    case 0xE7: /* topic jump without font change */
-			if(hash(buffer+j)!=hotspot[n].hash)
+			if(hash(ctx->buffer+j)!=hotspot[n].hash)
 			{
-			    fprintf(stderr,"Wrong hash %08lx instead %08lx for '%s'\n",hotspot[n].hash,hash(buffer+j),buffer+j);
+			    fprintf(stderr,"Wrong hash %08lx instead %08lx for '%s'\n",hotspot[n].hash,hash(ctx->buffer+j),ctx->buffer+j);
 			}
-			AddTopic(buffer+j,FALSE);
+			AddTopic(ctx->buffer+j,FALSE);
 			break;
 		    case 0xEA: /* popup jump into external file */
 		    case 0xEB: /* topic jump into external file / secondary window */
@@ -1302,28 +1268,28 @@ legacy_int ExtractBitmap(char *szFilename,MFILE *f)
 			}
 			else
 			{
-			    filename=strchr(buffer+j,'@');
+			    filename=strchr(ctx->buffer+j,'@');
 			    if(filename) *filename++='\0';
-			    ptr=strchr(buffer+j,'>');
+			    ptr=strchr(ctx->buffer+j,'>');
 			    if(ptr) *ptr='\0';
 			    if(filename)
 			    {
-				StoreReference(filename,TOPIC,buffer+j,hash(buffer+j));
+				StoreReference(filename,TOPIC,ctx->buffer+j,hash(ctx->buffer+j));
 			    }
 			    else
 			    {
-				AddTopic(buffer+j,FALSE);
+				AddTopic(ctx->buffer+j,FALSE);
 			    }
 			    break;
 			}
 		    default:
-			error("Unknown hotspot %02x %02x %02x X=%u Y=%u W=%u H=%u %08lx,%s,%s",hotspot[n].id0,hotspot[n].id1,hotspot[n].id2,hotspot[n].x,hotspot[n].y,hotspot[n].w,hotspot[n].h,hotspot[n].hash,buffer,buffer+j);
+			error("Unknown hotspot %02x %02x %02x X=%u Y=%u W=%u H=%u %08lx,%s,%s",hotspot[n].id0,hotspot[n].id1,hotspot[n].id2,hotspot[n].x,hotspot[n].y,hotspot[n].w,hotspot[n].h,hotspot[n].hash,ctx->buffer,ctx->buffer+j);
 		    }
 		}
 		free(hotspot);
 	    }
 	}
-	if(!checkexternal)
+	if(!ctx->checkexternal)
 	{
 	    dwPictureOffset=offset-nextpict;
 	    nextpict=ftell(fTarget);
@@ -1346,19 +1312,19 @@ char *getbitmapname(unsigned_legacy_int n) /* retrieve extension of exported bit
 {
     static char name[12];
 
-    if(n<extensions&&extension[n])
+    if(n<ctx->extensions&&ctx->extension[n])
     {
-	sprintf(name,"bm%u.%s",n,bmpext[extension[n]&0x0F]);
+	sprintf(name,"bm%u.%s",n,bmpext[ctx->extension[n]&0x0F]);
     }
     else if(n==65535U)
     {
-	missing=TRUE;
+	ctx->missing=TRUE;
 	fputs("There was a picture file rejected on creation of helpfile.\n",stderr);
 	strcpy(name,"missing.bmp");
     }
     else /* should never happen */
     {
-	warnings=TRUE;
+	ctx->warnings=TRUE;
 	fprintf(stderr,"Bitmap bm%u not exported\n",n);
 	sprintf(name,"bm%u.bmp",n);
     }
@@ -1369,12 +1335,12 @@ void ListBitmaps(FILE *hpj) /* writes out [BITMAPS] section */
 {
     legacy_int i;
 
-    if(hpj&&extensions)
+    if(hpj&&ctx->extensions)
     {
 	fputs("[BITMAPS]\n",hpj);
-	for(i=0;i<extensions;i++) if(extension[i])
+	for(i=0;i<ctx->extensions;i++) if(ctx->extension[i])
 	{
-	    fprintf(hpj,"bm%u.%s\n",i,bmpext[extension[i]&0x0F]);
+	    fprintf(hpj,"bm%u.%s\n",i,bmpext[ctx->extension[i]&0x0F]);
 	}
 	putc('\n',hpj);
     }
@@ -1390,7 +1356,7 @@ void ExportBitmaps(FILE *HelpFile) /* export all bitmaps */
     legacy_int i,num,n,type;
     legacy_long savepos;
 
-    leader="|bm"+before31;
+    leader="|bm"+ctx->before31;
     SearchFile(HelpFile,NULL,NULL);
     for(n=GetFirstPage(HelpFile,&buf,NULL);n;n=GetNextPage(HelpFile,&buf))
     {
@@ -1409,12 +1375,12 @@ void ExportBitmaps(FILE *HelpFile) /* export all bitmaps */
 		    if(type)
 		    {
 			num=atoi(FileName+(FileName[0]=='|')+2);
-			if(num>=extensions)
+			if(num>=ctx->extensions)
 			{
-			    extension=my_realloc(extension,(num+1)*sizeof(char));
-			    while(extensions<=num) extension[extensions++]=0;
+			    ctx->extension=my_realloc(ctx->extension,(num+1)*sizeof(char));
+			    while(ctx->extensions<=num) ctx->extension[ctx->extensions++]=0;
 			}
-			extension[num]=type;
+			ctx->extension[num]=type;
 		    }
 		}
 		fseek(HelpFile,savepos,SEEK_SET);
@@ -1428,10 +1394,10 @@ char *TopicName(int32_t topic)
     static char name[20];
     legacy_int i;
 
-    if(before31)
+    if(ctx->before31)
     {
-	if(topic==0) topic=Topic[0];
-	for(i=16;i<Topics;i++) if(Topic[i]==topic)
+	if(topic==0) topic=ctx->Topic[0];
+	for(i=16;i<ctx->Topics;i++) if(ctx->Topic[i]==topic)
 	{
 	    sprintf(name,"TOPIC%d",i);
 	    return name;
@@ -1441,13 +1407,13 @@ char *TopicName(int32_t topic)
     {
 	if(topic==-1)
 	{
-	    NotInAnyTopic=TRUE;
+	    ctx->NotInAnyTopic=TRUE;
 	    return "21KSYK4"; /* evaluates to -1 without generating help compiler warning */
 	}
 	i=FindContext(topic);
 	if(i!=-1)
 	{
-	    return unhash(ContextRec[i].HashValue);
+	    return unhash(ctx->ContextRec[i].HashValue);
 	}
     }
     if(topic) fprintf(stderr,"Can not find topic offset %08lx\n",topic);
@@ -1456,8 +1422,8 @@ char *TopicName(int32_t topic)
 
 char *GetWindowName(legacy_long n) /* secondary window name from window number */
 {
-    if(windowname==NULL||n<0||n>=windownames||windowname[n]==NULL) return "main";
-    return windowname[n];
+    if(ctx->windowname==NULL||n<0||n>=ctx->windownames||ctx->windowname[n]==NULL) return "main";
+    return ctx->windowname[n];
 }
 
 /* create HPJ file from contents of |SYSTEM internal file */
@@ -1478,37 +1444,37 @@ void SysList(FILE *HelpFile,FILE *hpj,char *IconFileName)
 	read_SYSTEMHEADER(&SysHdr,HelpFile);
 	if(SysHdr.Minor==15)
 	{
-	    strcpy(helpcomp,"HC30");
+	    strcpy(ctx->helpcomp,"HC30");
 	}
 	else if(SysHdr.Minor==21)
 	{
-	    strcpy(helpcomp,"HC31/HCP");
+	    strcpy(ctx->helpcomp,"HC31/HCP");
 	}
 	else if(SysHdr.Minor==27)
 	{
-	    strcpy(helpcomp,"WMVC/MVCC");
+	    strcpy(ctx->helpcomp,"WMVC/MVCC");
 	}
 	else if(SysHdr.Minor==33)
 	{
-	    if(mvp)
+	    if(ctx->mvp)
 	    {
-		strcpy(helpcomp,"MVC");
+		strcpy(ctx->helpcomp,"MVC");
 	    }
 	    else
 	    {
-		strcpy(helpcomp,"HCRTF");
+		strcpy(ctx->helpcomp,"HCRTF");
 	    }
 	}
 	fputs("[OPTIONS]\n",hpj);
-	if(before31) /* If 3.0 get title */
+	if(ctx->before31) /* If 3.0 get title */
 	{
-	    my_gets(HelpFileTitle,33,HelpFile);
-	    if(HelpFileTitle[0]!='\0'&&HelpFileTitle[0]!='\n')
+	    my_gets(ctx->HelpFileTitle,33,HelpFile);
+	    if(ctx->HelpFileTitle[0]!='\0'&&ctx->HelpFileTitle[0]!='\n')
 	    {
-		fprintf(hpj,"TITLE=%s\n",HelpFileTitle);
+		fprintf(hpj,"TITLE=%s\n",ctx->HelpFileTitle);
 	    }
 	    fprintf(hpj,"INDEX=%s\n",TopicName(0));
-	    if(PhraseCount)
+	    if(ctx->PhraseCount)
 	    {
 		fputs("COMPRESS=TRUE\n",hpj);
 	    }
@@ -1516,7 +1482,7 @@ void SysList(FILE *HelpFile,FILE *hpj,char *IconFileName)
 	    {
 		fputs("COMPRESS=FALSE\n",hpj);
 	    }
-	    for(i='A';i<='z';i++) if(lists[i-'0']&&i!='K')
+	    for(i='A';i<='z';i++) if(ctx->lists[i-'0']&&i!='K')
 	    {
 		fprintf(hpj,"MULTIKEY=%c\n",i);
 	    }
@@ -1564,16 +1530,16 @@ void SysList(FILE *HelpFile,FILE *hpj,char *IconFileName)
 		    if(SysRec->Data[0]) fprintf(hpj,"CITATION=%s\n",SysRec->Data);
 		    break;
 		case 0x0009:
-		    if(!mvp) fprintf(hpj,"LCID=0x%X 0x%X 0x%X\n",*(int16_t *)(SysRec->Data+8),*(int16_t *)SysRec->Data,*(int16_t *)(SysRec->Data+2));
+		    if(!ctx->mvp) fprintf(hpj,"LCID=0x%X 0x%X 0x%X\n",*(int16_t *)(SysRec->Data+8),*(int16_t *)SysRec->Data,*(int16_t *)(SysRec->Data+2));
 		    break;
 		case 0x000A:
-		    if(!mvp&&SysRec->Data[0]) fprintf(hpj,"CNT=%s\n",SysRec->Data);
+		    if(!ctx->mvp&&SysRec->Data[0]) fprintf(hpj,"CNT=%s\n",SysRec->Data);
 		    break;
 		case 0x000B:
 //		    if(!mvp) fprintf(hpj,"CHARSET=%d\n",*(unsigned char *)(SysRec->Data+1));
 		    break;
 		case 0x000C:
-		    if(mvp)
+		    if(ctx->mvp)
 		    {
 			fbreak=1;
 		    }
@@ -1583,17 +1549,17 @@ void SysList(FILE *HelpFile,FILE *hpj,char *IconFileName)
 		    }
 		    break;
 		case 0x000D:
-		    if(mvp) groups++;
+		    if(ctx->mvp) ctx->groups++;
 		    break;
 		case 0x000E:
-		    if(mvp)
+		    if(ctx->mvp)
 		    {
 			keywords=1;
 		    }
 		    else
 		    {
 			fprintf(hpj,"INDEX_SEPARATORS=\"%s\"\n",SysRec->Data);
-			strlcpy(index_separators,SysRec->Data,sizeof(index_separators));
+			strlcpy(ctx->index_separators,SysRec->Data,sizeof(ctx->index_separators));
 		    }
 		    break;
 		case 0x0012:
@@ -1604,18 +1570,18 @@ void SysList(FILE *HelpFile,FILE *hpj,char *IconFileName)
 		    break;
 		}
 	    }
-	    if(win95)
+	    if(ctx->win95)
 	    {
 		i=0;
-		if(lzcompressed) i|=8;
-		if(Hall) i|=4; else if(PhraseCount) i|=2;
+		if(ctx->lzcompressed) i|=8;
+		if(ctx->Hall) i|=4; else if(ctx->PhraseCount) i|=2;
 		fprintf(hpj,"COMPRESS=%d\n",i);
 	    }
-	    else if(!lzcompressed)
+	    else if(!ctx->lzcompressed)
 	    {
 		fputs("COMPRESS=OFF\n",hpj);
 	    }
-	    else if(PhraseCount)
+	    else if(ctx->PhraseCount)
 	    {
 		fputs("COMPRESS=HIGH\n",hpj);
 	    }
@@ -1624,7 +1590,7 @@ void SysList(FILE *HelpFile,FILE *hpj,char *IconFileName)
 		fputs("COMPRESS=MEDIUM\n",hpj);
 	    }
 	    if(SysHdr.Flags==8) fputs("CDROMOPT=TRUE\n",hpj);
-	    for(i='A';i<='z';i++) if(lists[i-'0']&&i!='K'&&(i!='A'||!win95))
+	    for(i='A';i<='z';i++) if(ctx->lists[i-'0']&&i!='K'&&(i!='A'||!ctx->win95))
 	    {
 		fprintf(hpj,"MULTIKEY=%c\n",i);
 	    }
@@ -1692,24 +1658,24 @@ void SysList(FILE *HelpFile,FILE *hpj,char *IconFileName)
 					fprintf(hpj,",%s",ptr+1);
 					if(SearchFile(HelpFile,ptr,NULL))
 					{
-					    for(n=0;n<stopwordfiles;n++)
+					    for(n=0;n<ctx->stopwordfiles;n++)
 					    {
-						if(strcmp(stopwordfilename[n],ptr)==0) break;
+						if(strcmp(ctx->stopwordfilename[n],ptr)==0) break;
 					    }
-					    if(n==stopwordfiles)
+					    if(n==ctx->stopwordfiles)
 					    {
-						stopwordfilename=my_realloc(stopwordfilename,(stopwordfiles+1)*sizeof(char *));
-						stopwordfilename[stopwordfiles++]=my_strdup(ptr);
+						ctx->stopwordfilename=my_realloc(ctx->stopwordfilename,(ctx->stopwordfiles+1)*sizeof(char *));
+						ctx->stopwordfilename[ctx->stopwordfiles++]=my_strdup(ptr);
 						f=my_fopen(ptr+1,"wt");
 						if(f)
 						{
 						    read_STOPHEADER(&StopHdr,HelpFile);
-						    for(n=0;n<StopHdr.BytesUsed;n+=1+strlen(buffer))
+						    for(n=0;n<StopHdr.BytesUsed;n+=1+strlen(ctx->buffer))
 						    {
 							i=getc(HelpFile);
-							my_fread(buffer,i,HelpFile);
-							buffer[i]='\0';
-							fprintf(f,"%s\n",buffer);
+							my_fread(ctx->buffer,i,HelpFile);
+							ctx->buffer[i]='\0';
+							fprintf(f,"%s\n",ctx->buffer);
 						    }
 						    my_fclose(f);
 						}
@@ -1726,9 +1692,9 @@ void SysList(FILE *HelpFile,FILE *hpj,char *IconFileName)
 		}
 		putc('\n',hpj);
 	    }
-	    if((groups||multi)&&(browsenums>1))
+	    if((ctx->groups||ctx->multi)&&(ctx->browsenums>1))
 	    {
-		group=my_malloc(groups*sizeof(GROUP));
+		ctx->group=my_malloc(ctx->groups*sizeof(GROUP));
 		fputs("[GROUPS]\n",hpj);
 		i=0;
 		for(SysRec=GetFirstSystemRecord(HelpFile);SysRec;SysRec=GetNextSystemRecord(SysRec))
@@ -1737,7 +1703,7 @@ void SysList(FILE *HelpFile,FILE *hpj,char *IconFileName)
 		    {
 			ptr=strchr(SysRec->Data,' ');
 			if(ptr) *ptr++='\0';
-			groups=SearchFile(HelpFile,SysRec->Data,NULL);
+			ctx->groups=SearchFile(HelpFile,SysRec->Data,NULL);
 			n=strcspn(SysRec->Data,".");
 			SysRec->Data[n]='\0';
 			if(ptr&&strcmp(ptr,"\"\" ")==0)
@@ -1748,24 +1714,24 @@ void SysList(FILE *HelpFile,FILE *hpj,char *IconFileName)
 			{
 			    fprintf(hpj,"group=%s,%s\n",SysRec->Data,ptr);
 			}
-			group[i].Name=my_strdup(SysRec->Data);
-			if(groups)
+			ctx->group[i].Name=my_strdup(SysRec->Data);
+			if(ctx->groups)
 			{
-			    read_GROUPHEADER(&group[i].GroupHeader,HelpFile);
-			    if(group[i].GroupHeader.GroupType==2)
+			    read_GROUPHEADER(&ctx->group[i].GroupHeader,HelpFile);
+			    if(ctx->group[i].GroupHeader.GroupType==2)
 			    {
-				group[i].Bitmap=my_malloc(group[i].GroupHeader.BitmapSize);
-				my_fread(group[i].Bitmap,group[i].GroupHeader.BitmapSize,HelpFile);
+				ctx->group[i].Bitmap=my_malloc(ctx->group[i].GroupHeader.BitmapSize);
+				my_fread(ctx->group[i].Bitmap,ctx->group[i].GroupHeader.BitmapSize,HelpFile);
 			    }
 			}
 			else
 			{
-			    group[i].GroupHeader.GroupType=0;
+			    ctx->group[i].GroupHeader.GroupType=0;
 			}
 			i++;
 		    }
 		}
-		if(multi) for(i=1;i<browsenums;i++) fprintf(hpj,"group=BROWSE%04x\n",i);
+		if(ctx->multi) for(i=1;i<ctx->browsenums;i++) fprintf(hpj,"group=BROWSE%04x\n",i);
 		if(SearchFile(HelpFile,"|GMACROS",&FileLength))
 		{
 		    legacy_long len;
@@ -1782,15 +1748,15 @@ void SysList(FILE *HelpFile,FILE *hpj,char *IconFileName)
 			if(len<off) break;
 			if(off>8)
 			{
-			    my_fread(buffer,off-8,HelpFile);
-			    buffer[off-8]='\0';
-			    fprintf(hpj,"entry=%s\n",buffer);
+			    my_fread(ctx->buffer,off-8,HelpFile);
+			    ctx->buffer[off-8]='\0';
+			    fprintf(hpj,"entry=%s\n",ctx->buffer);
 			}
 			if(len>off)
 			{
-			    my_fread(buffer,len-off,HelpFile);
-			    buffer[len-off]='\0';
-			    fprintf(hpj,"exit=%s\n",buffer);
+			    my_fread(ctx->buffer,len-off,HelpFile);
+			    ctx->buffer[len-off]='\0';
+			    fprintf(hpj,"exit=%s\n",ctx->buffer);
 			}
 		    }
 		}
@@ -1837,10 +1803,10 @@ void SysList(FILE *HelpFile,FILE *hpj,char *IconFileName)
 		{
 		    fprintf(hpj,"[CONFIG:%d]\n",i);
 		    /* may use [CONFIG-GetWindowName] instead, but WindowName need not be defined */
-		    for(n=0;n<FileLength;n+=strlen(buffer)+1)
+		    for(n=0;n<FileLength;n+=strlen(ctx->buffer)+1)
 		    {
-			my_gets(buffer,sizeof(buffer),HelpFile);
-			fprintf(hpj,"%s\n",buffer);
+			my_gets(ctx->buffer,sizeof(ctx->buffer),HelpFile);
+			fprintf(hpj,"%s\n",ctx->buffer);
 		    }
 		    putc('\n',hpj);
 		}
@@ -1871,21 +1837,21 @@ BOOL PhraseLoad(FILE *HelpFile)
 	    {
 		fprintf(stderr,"PhrImage FileSize %ld, in PhrIndex.FileHdr %ld\n",PhrIndexHdr.phrimagecompressedsize,FileLength);
 	    }
-	    PhraseCount=(unsigned_legacy_int)PhrIndexHdr.entries;
-	    PhraseOffsets=my_malloc(sizeof(unsigned_legacy_int)*(PhraseCount+1));
-	    Phrases=my_malloc(PhrIndexHdr.phrimagesize);
+	    ctx->PhraseCount=(unsigned_legacy_int)PhrIndexHdr.entries;
+	    ctx->PhraseOffsets=my_malloc(sizeof(unsigned_legacy_int)*(ctx->PhraseCount+1));
+	    ctx->Phrases=my_malloc(PhrIndexHdr.phrimagesize);
 	    if(PhrIndexHdr.phrimagesize==PhrIndexHdr.phrimagecompressedsize)
 	    {
-		my_fread(Phrases,PhrIndexHdr.phrimagesize,HelpFile);
+		my_fread(ctx->Phrases,PhrIndexHdr.phrimagesize,HelpFile);
 	    }
 	    else
 	    {
-		DecompressIntoBuffer(2,HelpFile,FileLength,Phrases,PhrIndexHdr.phrimagesize);
+		DecompressIntoBuffer(2,HelpFile,FileLength,ctx->Phrases,PhrIndexHdr.phrimagesize);
 	    }
 	    fseek(HelpFile,SavePos,SEEK_SET);
 	    GetBit(NULL);
 	    offset=0;
-	    PhraseOffsets[0]=offset;
+	    ctx->PhraseOffsets[0]=offset;
 	    for(l=0;l<PhrIndexHdr.entries;l++)
 	    {
 		for(n=1;GetBit(HelpFile);n+=1<<PhrIndexHdr.bits) ;
@@ -1895,28 +1861,28 @@ BOOL PhraseLoad(FILE *HelpFile)
 		if(PhrIndexHdr.bits>3) if(GetBit(HelpFile)) n+=8;
 		if(PhrIndexHdr.bits>4) if(GetBit(HelpFile)) n+=16;
 		offset+=n;
-		PhraseOffsets[(legacy_int)l+1]=offset;
+		ctx->PhraseOffsets[(legacy_int)l+1]=offset;
 	    }
 	}
-	Hall=TRUE;
-	fprintf(stderr,"%u phrases loaded\n",PhraseCount);
+	ctx->Hall=TRUE;
+	fprintf(stderr,"%u phrases loaded\n",ctx->PhraseCount);
     }
     else if(SearchFile(HelpFile,"|Phrases",&FileLength))
     {
-	PhraseCount=my_getw(HelpFile);
-	newphrases=PhraseCount==0x0800; /* VC4.0: MSDEV\HELP\MSDEV40.MVB */
-	if(newphrases) PhraseCount=my_getw(HelpFile);
+	ctx->PhraseCount=my_getw(HelpFile);
+	newphrases=ctx->PhraseCount==0x0800; /* VC4.0: MSDEV\HELP\MSDEV40.MVB */
+	if(newphrases) ctx->PhraseCount=my_getw(HelpFile);
 	if(my_getw(HelpFile)!=0x0100)
 	{
 	    error("Unknown |Phrases file structure");
 	    return FALSE;
 	}
-	if(PhraseCount)
+	if(ctx->PhraseCount)
 	{
-	    if(before31)
+	    if(ctx->before31)
 	    {
-		offset=(PhraseCount+1)*sizeof(int16_t);
-		FileLength-=(PhraseCount+1)*sizeof(int16_t)+4;
+		offset=(ctx->PhraseCount+1)*sizeof(int16_t);
+		FileLength-=(ctx->PhraseCount+1)*sizeof(int16_t)+4;
 		l=FileLength;
 	    }
 	    else
@@ -1925,22 +1891,22 @@ BOOL PhraseLoad(FILE *HelpFile)
 		if(newphrases)
 		{
 		    my_fread(&junk,sizeof(junk),HelpFile);
-		    offset=(PhraseCount+1)*sizeof(int16_t);
-		    FileLength-=(PhraseCount+1)*sizeof(int16_t)+sizeof(junk)+10;
+		    offset=(ctx->PhraseCount+1)*sizeof(int16_t);
+		    FileLength-=(ctx->PhraseCount+1)*sizeof(int16_t)+sizeof(junk)+10;
 		}
 		else
 		{
-		    offset=(PhraseCount+1)*sizeof(int16_t);
-		    FileLength-=(PhraseCount+1)*sizeof(int16_t)+8;
+		    offset=(ctx->PhraseCount+1)*sizeof(int16_t);
+		    FileLength-=(ctx->PhraseCount+1)*sizeof(int16_t)+8;
 		}
 	    }
-	    PhraseOffsets=my_malloc(sizeof(unsigned_legacy_int)*(PhraseCount+1));
-	    for(n=0;n<=PhraseCount;n++) PhraseOffsets[n]=my_getw(HelpFile)-offset;
-	    Phrases=my_malloc(l);
-	    DecompressIntoBuffer((before31?0:2),HelpFile,FileLength,Phrases,l);
-	    fprintf(stderr,"%u phrases loaded\n",PhraseCount);
+	    ctx->PhraseOffsets=my_malloc(sizeof(unsigned_legacy_int)*(ctx->PhraseCount+1));
+	    for(n=0;n<=ctx->PhraseCount;n++) ctx->PhraseOffsets[n]=my_getw(HelpFile)-offset;
+	    ctx->Phrases=my_malloc(l);
+	    DecompressIntoBuffer((ctx->before31?0:2),HelpFile,FileLength,ctx->Phrases,l);
+	    fprintf(stderr,"%u phrases loaded\n",ctx->PhraseCount);
 	}
-	Hall=FALSE;
+	ctx->Hall=FALSE;
     }
     return TRUE;
 }
@@ -1952,13 +1918,13 @@ char *PrintPhrase(unsigned_legacy_int PhraseNum,char *out,FILE *f)
     char *ptr;
     size_t len;
 
-    if(PhraseNum>=PhraseCount)
+    if(PhraseNum>=ctx->PhraseCount)
     {
 	error("Phrase %u does not exist",PhraseNum);
 	return out;
     }
-    ptr=Phrases+PhraseOffsets[PhraseNum];
-    len=PhraseOffsets[PhraseNum+1]-PhraseOffsets[PhraseNum];
+    ptr=ctx->Phrases+ctx->PhraseOffsets[PhraseNum];
+    len=ctx->PhraseOffsets[PhraseNum+1]-ctx->PhraseOffsets[PhraseNum];
     if(out)
     {
 	memcpy(out,ptr,len);
@@ -1981,12 +1947,12 @@ void PhraseList(char *FileName)
     FILE *f;
     unsigned_legacy_int n;
 
-    if(PhraseCount)
+    if(ctx->PhraseCount)
     {
 	f=my_fopen(FileName,"wt");
 	if(f)
 	{
-	    for(n=0;n<PhraseCount;n++)
+	    for(n=0;n<ctx->PhraseCount;n++)
 	    {
 		PrintPhrase(n,NULL,f);
 		putc('\n',f);
@@ -1996,9 +1962,9 @@ void PhraseList(char *FileName)
     }
 }
 
-char *FontFamily(unsigned_legacy_int i)
+const char *FontFamily(unsigned_legacy_int i)
 {
-    static char *familyname[]={"nil","roman","swiss","modern","script","decor","tech"};
+    const static char * const familyname[]={"nil","roman","swiss","modern","script","decor","tech"};
 
     if(i>0&&i<7) return familyname[i];
     return familyname[0];
@@ -2009,16 +1975,16 @@ unsigned char AddColor(unsigned char r,unsigned char g,unsigned char b)
 {
     legacy_int n;
 
-    for(n=0;n<colors;n++)
+    for(n=0;n<ctx->colors;n++)
     {
-	if(r==color[n].r&&g==color[n].g&&b==color[n].b) break;
+	if(r==ctx->color[n].r&&g==ctx->color[n].g&&b==ctx->color[n].b) break;
     }
-    if(n==colors)
+    if(n==ctx->colors)
     {
-	color[colors].r=r;
-	color[colors].g=g;
-	color[colors].b=b;
-	colors++;
+	ctx->color[ctx->colors].r=r;
+	ctx->color[ctx->colors].g=g;
+	ctx->color[ctx->colors].b=b;
+	ctx->colors++;
     }
     return n;
 }
@@ -2027,7 +1993,7 @@ unsigned char AddColor(unsigned char r,unsigned char g,unsigned char b)
 // writing fonttbl, colortbl, and styletbl to rtf file */
 void FontLoadRTF(FILE *HelpFile,FILE *rtf,FILE *hpj)
 {
-    static char *BestFonts[]={"Arial","Times New Roman","MS Sans Serif","MS Serif","Helv","TmsRmn","MS Sans Serif","Helvetica","Times Roman","Times"};
+    const static char * const BestFonts[]={"Arial","Times New Roman","MS Sans Serif","MS Serif","Helv","TmsRmn","MS Sans Serif","Helvetica","Times Roman","Times"};
     legacy_int default_font = 0;
     CHARMAPHEADER CharmapHeader;
     FONTHEADER FontHdr;
@@ -2053,19 +2019,19 @@ void FontLoadRTF(FILE *HelpFile,FILE *rtf,FILE *hpj)
     {
 	FontStart=ftell(HelpFile);
 	read_FONTHEADER(&FontHdr,HelpFile);
-	fontnames=FontHdr.NumFacenames;
-	len=(FontHdr.DescriptorsOffset-FontHdr.FacenamesOffset)/fontnames;
+	ctx->fontnames=FontHdr.NumFacenames;
+	len=(FontHdr.DescriptorsOffset-FontHdr.FacenamesOffset)/ctx->fontnames;
        if( len > FontName_len ){
            fprintf(stderr,"malformed |FONT file\n");
            exit(1);
        }
-	fontname=my_malloc(fontnames*sizeof(char *));
-	family=my_malloc(fontnames*sizeof(unsigned char));
-	memset(family,0,fontnames*sizeof(unsigned char));
+	ctx->fontname=my_malloc(ctx->fontnames*sizeof(char *));
+	family=my_malloc(ctx->fontnames*sizeof(unsigned char));
+	memset(family,0,ctx->fontnames*sizeof(unsigned char));
 	charmap=FALSE;
 	mvbstyle=NULL;
 	newstyle=NULL;
-	for(i=0;i<fontnames;i++)
+	for(i=0;i<ctx->fontnames;i++)
 	{
 	    fseek(HelpFile,FontStart+FontHdr.FacenamesOffset+len*i,SEEK_SET);
 	    my_fread(FontName,len,HelpFile);
@@ -2103,7 +2069,7 @@ void FontLoadRTF(FILE *HelpFile,FILE *rtf,FILE *hpj)
 		    }
 		}
 	    }
-	    fontname[i]=my_strdup(FontName);
+	    ctx->fontname[i]=my_strdup(FontName);
 	}
 	if(charmap) putc('\n',hpj);
 	if(hpj&&FontHdr.FacenamesOffset>=16) for(j=0;j<FontHdr.NumCharmaps;j++)
@@ -2147,22 +2113,22 @@ void FontLoadRTF(FILE *HelpFile,FILE *rtf,FILE *hpj)
 	    }
 	}
 	fseek(HelpFile,FontStart+FontHdr.DescriptorsOffset,SEEK_SET);
-	colors=1;     /* auto */
-	color[0].r=1;
-	color[0].g=1;
-	color[0].b=0;
-	fonts=FontHdr.NumDescriptors;
-	if(font) free(font);
-	font=my_malloc(fonts*sizeof(FONTDESCRIPTOR));
-	memset(font,0,fonts*sizeof(FONTDESCRIPTOR));
+	ctx->colors=1;     /* auto */
+	ctx->color[0].r=1;
+	ctx->color[0].g=1;
+	ctx->color[0].b=0;
+	ctx->fonts=FontHdr.NumDescriptors;
+	if(ctx->font) free(ctx->font);
+	ctx->font=my_malloc(ctx->fonts*sizeof(FONTDESCRIPTOR));
+	memset(ctx->font,0,ctx->fonts*sizeof(FONTDESCRIPTOR));
 	if(FontHdr.FacenamesOffset>=16)
 	{
-	    scaling=1;
-	    rounderr=0;
+	    ctx->scaling=1;
+	    ctx->rounderr=0;
 	    for(i=0;i<FontHdr.NumDescriptors;i++)
 	    {
 		read_MVBFONT(&mvbfont,HelpFile);
-		fd=font+i;
+		fd=ctx->font+i;
 		fd->FontName=mvbfont.FontName;
 		fd->HalfPoints=-2*mvbfont.Height;
 		fd->Bold=mvbfont.Weight>500;
@@ -2190,12 +2156,12 @@ void FontLoadRTF(FILE *HelpFile,FILE *rtf,FILE *hpj)
 	}
 	else if(FontHdr.FacenamesOffset>=12)
 	{
-	    scaling=1;
-	    rounderr=0;
+	    ctx->scaling=1;
+	    ctx->rounderr=0;
 	    for(i=0;i<FontHdr.NumDescriptors;i++)
 	    {
 		read_NEWFONT(&newfont,HelpFile);
-		fd=font+i;
+		fd=ctx->font+i;
 		fd->Bold=newfont.Weight>500;
 		fd->Italic=newfont.Italic!=0;
 		fd->Underline=newfont.Underline!=0;
@@ -2220,12 +2186,12 @@ void FontLoadRTF(FILE *HelpFile,FILE *rtf,FILE *hpj)
 	}
 	else
 	{
-	    scaling=10;
-	    rounderr=5;
+	    ctx->scaling=10;
+	    ctx->rounderr=5;
 	    for(i=0;i<FontHdr.NumDescriptors;i++)
 	    {
 		read_OLDFONT(&oldfont,HelpFile);
-		fd=font+i;
+		fd=ctx->font+i;
 		fd->Bold=(oldfont.Attributes&FONT_BOLD)!=0;
 		fd->Italic=(oldfont.Attributes&FONT_ITAL)!=0;
 		fd->Underline=(oldfont.Attributes&FONT_UNDR)!=0;
@@ -2248,43 +2214,43 @@ void FontLoadRTF(FILE *HelpFile,FILE *rtf,FILE *hpj)
 	}
 	for(i=0;i<FontHdr.NumDescriptors;i++)
 	{
-	    if(font[i].FontName<fontnames)
+	    if(ctx->font[i].FontName<ctx->fontnames)
 	    {
-		family[font[i].FontName]=font[i].FontFamily;
+		family[ctx->font[i].FontName]=ctx->font[i].FontFamily;
 	    }
 	}
-	DefFont=0;
+	ctx->DefFont=0;
 	l=sizeof(BestFonts)/sizeof(BestFonts[0]);
-	if(fontname)
+	if(ctx->fontname)
 	{
-	    for(i=0;i<fontnames;i++) if(family[i])
+	    for(i=0;i<ctx->fontnames;i++) if(family[i])
 	    {
 		for(j=0;j<l;j++)
 		{
-		    if(stricmp(fontname[i],BestFonts[j])==0)
+		    if(stricmp(ctx->fontname[i],BestFonts[j])==0)
 		    {
-			DefFont=i;
+			ctx->DefFont=i;
 			l=j;
 			break;
 		    }
 		}
 	    }
 	}
-	fprintf(rtf,"{\\rtf1\\ansi\\deff%d\n{\\fonttbl",DefFont);
-	for(i=0;i<fontnames;i++)
+	fprintf(rtf,"{\\rtf1\\ansi\\deff%d\n{\\fonttbl",ctx->DefFont);
+	for(i=0;i<ctx->fontnames;i++)
 	{
-	    fprintf(rtf,"{\\f%d\\f%s %s;}",i,FontFamily(family[i]),fontname[i]);
-	    free(fontname[i]);
+	    fprintf(rtf,"{\\f%d\\f%s %s;}",i,FontFamily(family[i]),ctx->fontname[i]);
+	    free(ctx->fontname[i]);
 	}
-	free(fontname);
+	free(ctx->fontname);
 	fputs("}\n",rtf);
-	if(colors>1)
+	if(ctx->colors>1)
 	{
 	    fputs("{\\colortbl;",rtf);
-	    for(i=1;i<colors;i++) fprintf(rtf,"\\red%d\\green%d\\blue%d;",color[i].r,color[i].g,color[i].b);
+	    for(i=1;i<ctx->colors;i++) fprintf(rtf,"\\red%d\\green%d\\blue%d;",ctx->color[i].r,ctx->color[i].g,ctx->color[i].b);
 	    fputs("}\n",rtf);
 	}
-	fprintf(rtf,"{\\stylesheet{\\fs%d \\snext0 Normal;}\n",font[0].HalfPoints);
+	fprintf(rtf,"{\\stylesheet{\\fs%d \\snext0 Normal;}\n",ctx->font[0].HalfPoints);
 	if(mvbstyle)
 	{
 	    for(i=0;i<FontHdr.NumFormats;i++)
@@ -2372,11 +2338,11 @@ void FontLoadRTF(FILE *HelpFile,FILE *rtf,FILE *hpj)
 	}
 	if(family) free(family);
 	fputs("}\\pard\\plain\n",rtf);
-	memset(&CurrentFont,0,sizeof(CurrentFont));
-	CurrentFont.FontName=DefFont;
+	memset(&ctx->CurrentFont,0,sizeof(ctx->CurrentFont));
+	ctx->CurrentFont.FontName=ctx->DefFont;
 	if(hpj)
 	{
-	    fprintf(stderr,"%u font names, %u font descriptors",fontnames,FontHdr.NumDescriptors);
+	    fprintf(stderr,"%u font names, %u font descriptors",ctx->fontnames,FontHdr.NumDescriptors);
 	    if(FontHdr.FacenamesOffset>=12) printf(", %u font styles",FontHdr.NumFormats);
 	    fputs(" loaded\n",stderr);
 	}
@@ -2388,51 +2354,46 @@ void FontLoadRTF(FILE *HelpFile,FILE *rtf,FILE *hpj)
 // TopicRead handles LZ77 decompression and the crossing of topic blocks */
 legacy_long TopicRead(FILE *HelpFile,legacy_long TopicPos,void *dest,legacy_long NumBytes)
 {
-    static TOPICBLOCKHEADER TopicBlockHeader;
     static unsigned char TopicBuffer[0x4000];
-    static long TopicFileStart;
-    static long TopicBlockNum;
     unsigned int TopicBlockOffset;
-    static unsigned int DecompSize;
-    static long LastTopicPos;
     unsigned int n;
 
-    if(!TopicFileStart) /* first call: HelpFile is at start of |TOPIC */
+    if(!ctx->TopicFileStart) /* first call: HelpFile is at start of |TOPIC */
     {
-	TopicFileStart=ftell(HelpFile);
-	TopicBlockNum=-1;
+	ctx->TopicFileStart=ftell(HelpFile);
+	ctx->TopicBlockNum=-1;
     }
-    if(!TopicPos) TopicPos=LastTopicPos; /* continue where left off */
-    if((TopicPos-sizeof(TOPICBLOCKHEADER))/DecompressSize!=TopicBlockNum) /* other topic block */
+    if(!TopicPos) TopicPos=ctx->LastTopicPos; /* continue where left off */
+    if((TopicPos-sizeof(TOPICBLOCKHEADER))/ctx->DecompressSize!=ctx->TopicBlockNum) /* other topic block */
     {
-	TopicBlockNum=(TopicPos-sizeof(TOPICBLOCKHEADER))/DecompressSize;
-	if(TopicBlockNum*TopicBlockSize>=TopicFileLength) return 0;
-	fseek(HelpFile,TopicFileStart+TopicBlockNum*TopicBlockSize,SEEK_SET);
-	n=TopicBlockSize;
-	if(n+TopicBlockNum*TopicBlockSize>TopicFileLength)
+	ctx->TopicBlockNum=(TopicPos-sizeof(TOPICBLOCKHEADER))/ctx->DecompressSize;
+	if(ctx->TopicBlockNum*ctx->TopicBlockSize>=ctx->TopicFileLength) return 0;
+	fseek(HelpFile,ctx->TopicFileStart+ctx->TopicBlockNum*ctx->TopicBlockSize,SEEK_SET);
+	n=ctx->TopicBlockSize;
+	if(n+ctx->TopicBlockNum*ctx->TopicBlockSize>ctx->TopicFileLength)
 	{
-	    n=(unsigned_legacy_int)(TopicFileLength-TopicBlockNum*TopicBlockSize);
+	    n=(unsigned_legacy_int)(ctx->TopicFileLength-ctx->TopicBlockNum*ctx->TopicBlockSize);
 	}
-	read_TOPICBLOCKHEADER(&TopicBlockHeader,HelpFile);
+	read_TOPICBLOCKHEADER(&ctx->TopicBlockHeader,HelpFile);
 	n-=sizeof(TOPICBLOCKHEADER);
-	if(lzcompressed)
+	if(ctx->lzcompressed)
 	{
-	    DecompSize=DecompressIntoBuffer(2,HelpFile,n,TopicBuffer,sizeof(TopicBuffer));
+	    ctx->DecompSize=DecompressIntoBuffer(2,HelpFile,n,TopicBuffer,sizeof(TopicBuffer));
 	}
 	else
 	{
-	    DecompSize=my_fread(TopicBuffer,n,HelpFile);
+	    ctx->DecompSize=my_fread(TopicBuffer,n,HelpFile);
 	}
     }
-    TopicBlockOffset=(TopicPos-sizeof(TOPICBLOCKHEADER))%DecompressSize;
-    if(TopicBlockOffset+NumBytes>DecompSize) /* more than available in this block */
+    TopicBlockOffset=(TopicPos-sizeof(TOPICBLOCKHEADER))%ctx->DecompressSize;
+    if(TopicBlockOffset+NumBytes>ctx->DecompSize) /* more than available in this block */
     {
-	n=DecompSize-TopicBlockOffset;
+	n=ctx->DecompSize-TopicBlockOffset;
 	if(n) memcpy(dest,TopicBuffer+TopicBlockOffset,n);
-	return n+TopicRead(HelpFile,(TopicBlockNum+1)*DecompressSize+sizeof(TOPICBLOCKHEADER),(char *)dest+n,NumBytes-n);
+	return n+TopicRead(HelpFile,(ctx->TopicBlockNum+1)*ctx->DecompressSize+sizeof(TOPICBLOCKHEADER),(char *)dest+n,NumBytes-n);
     }
     if(NumBytes) memcpy(dest,TopicBuffer+TopicBlockOffset,NumBytes);
-    LastTopicPos=TopicPos+NumBytes;
+    ctx->LastTopicPos=TopicPos+NumBytes;
     return NumBytes;
 }
 
@@ -2441,7 +2402,7 @@ char *PhraseReplace(unsigned char *str,legacy_long len,char *out)
 {
     legacy_int CurChar;
 
-    if(Hall)
+    if(ctx->Hall)
     {
 	while(len)
 	{
@@ -2551,10 +2512,10 @@ void Annotate(legacy_long pos,FILE *rtf)
     legacy_long l;
 
     sprintf(FileName,"%ld!0",pos);
-    if(SearchFile(AnnoFile,FileName,&FileLength))
+    if(SearchFile(ctx->AnnoFile,FileName,&FileLength))
     {
 	fputs("{\\v {\\*\\atnid ANN}\\chatn {\\*\\annotation \\pard\\plain {\\chatn }",rtf);
-	for(l=0;l<FileLength&&(i=getc(AnnoFile))!=-1;l++)
+	for(l=0;l<FileLength&&(i=getc(ctx->AnnoFile))!=-1;l++)
 	{
 	    if(i==0x0D)
 	    {
@@ -2593,31 +2554,31 @@ void CollectKeywords(FILE *HelpFile)
 
     fputs("Collecting keywords...",stderr);
     savepos=ftell(HelpFile);
-    if(KeywordRec) /* free old keywords */
+    if(ctx->KeywordRec) /* free old keywords */
     {
-	for(i=0;i<KeywordRecs;i++)
+	for(i=0;i<ctx->KeywordRecs;i++)
 	{
-	    if(KeywordRec[i].Keyword) free(KeywordRec[i].Keyword);
+	    if(ctx->KeywordRec[i].Keyword) free(ctx->KeywordRec[i].Keyword);
 	}
     }
     else
     {
-	KeywordRec=my_malloc(MAXKEYWORDS*sizeof(KEYWORDREC));
+	ctx->KeywordRec=my_malloc(MAXKEYWORDS*sizeof(KEYWORDREC));
     }
-    NextKeywordRec=KeywordRecs=0;
-    from=NextKeywordOffset;
-    NextKeywordOffset=0x7FFFFFFFL;
+    ctx->NextKeywordRec=ctx->KeywordRecs=0;
+    from=ctx->NextKeywordOffset;
+    ctx->NextKeywordOffset=0x7FFFFFFFL;
     for(k=0;k<2;k++) for(map='0';map<='z';map++)
     {
 	if(k)
 	{
-	    if(!keyindex[map-'0']) continue;
+	    if(!ctx->keyindex[map-'0']) continue;
 	    sprintf(kwdata,"|%cKWDATA",map);
 	    sprintf(kwbtree,"|%cKWBTREE",map);
 	}
 	else
 	{
-	    if(!lists[map-'0']) continue;
+	    if(!ctx->lists[map-'0']) continue;
 	    sprintf(kwdata,"|%cWDATA",map);
 	    sprintf(kwbtree,"|%cWBTREE",map);
 	}
@@ -2631,36 +2592,36 @@ void CollectKeywords(FILE *HelpFile)
 		{
 		    for(i=0;i<n;i++)
 		    {
-			my_gets(keyword,sizeof(keyword),HelpFile);
+			my_gets(ctx->keyword,sizeof(ctx->keyword),HelpFile);
 			m=my_getw(HelpFile);
 			KWDataOffset=getdw(HelpFile);
 			for(j=0;j<m;j++)
 			{
 			    if(keytopic[KWDataOffset/4+j]>=from)
 			    {
-				if(KeywordRecs>=MAXKEYWORDS)
+				if(ctx->KeywordRecs>=MAXKEYWORDS)
 				{
-				    NextKeywordOffset=KeywordRec[KeywordRecs-1].TopicOffset;
-				    while(KeywordRec[KeywordRecs-1].TopicOffset==NextKeywordOffset)
+				    ctx->NextKeywordOffset=ctx->KeywordRec[ctx->KeywordRecs-1].TopicOffset;
+				    while(ctx->KeywordRec[ctx->KeywordRecs-1].TopicOffset==ctx->NextKeywordOffset)
 				    {
-					KeywordRecs--;
-					if(KeywordRec[KeywordRecs].Keyword) free(KeywordRec[KeywordRecs].Keyword);
+					ctx->KeywordRecs--;
+					if(ctx->KeywordRec[ctx->KeywordRecs].Keyword) free(ctx->KeywordRec[ctx->KeywordRecs].Keyword);
 				    }
 				}
-				l=KeywordRecs;
-				while(l>0&&KeywordRec[l-1].TopicOffset>keytopic[KWDataOffset/4+j])
+				l=ctx->KeywordRecs;
+				while(l>0&&ctx->KeywordRec[l-1].TopicOffset>keytopic[KWDataOffset/4+j])
 				{
-				    KeywordRec[l].KeyIndex=KeywordRec[l-1].KeyIndex;
-				    KeywordRec[l].Footnote=KeywordRec[l-1].Footnote;
-				    KeywordRec[l].Keyword=KeywordRec[l-1].Keyword;
-				    KeywordRec[l].TopicOffset=KeywordRec[l-1].TopicOffset;
+				    ctx->KeywordRec[l].KeyIndex=ctx->KeywordRec[l-1].KeyIndex;
+				    ctx->KeywordRec[l].Footnote=ctx->KeywordRec[l-1].Footnote;
+				    ctx->KeywordRec[l].Keyword=ctx->KeywordRec[l-1].Keyword;
+				    ctx->KeywordRec[l].TopicOffset=ctx->KeywordRec[l-1].TopicOffset;
 				    l--;
 				}
-				KeywordRec[l].KeyIndex=k>0;
-				KeywordRec[l].Footnote=map;
-				KeywordRec[l].Keyword=my_strdup(keyword);
-				KeywordRec[l].TopicOffset=keytopic[KWDataOffset/4+j];
-				KeywordRecs++;
+				ctx->KeywordRec[l].KeyIndex=k>0;
+				ctx->KeywordRec[l].Footnote=map;
+				ctx->KeywordRec[l].Keyword=my_strdup(ctx->keyword);
+				ctx->KeywordRec[l].TopicOffset=keytopic[KWDataOffset/4+j];
+				ctx->KeywordRecs++;
 			    }
 			}
 		    }
@@ -2679,15 +2640,15 @@ void ListKeywords(FILE *HelpFile,FILE *rtf,legacy_long TopicOffset)
 {
     legacy_int len,footnote,keyindex;
 
-    if(NextKeywordRec>=KeywordRecs)
+    if(ctx->NextKeywordRec>=ctx->KeywordRecs)
     {
-	if(NextKeywordOffset==0x7FFFFFFFL) return;
+	if(ctx->NextKeywordOffset==0x7FFFFFFFL) return;
 	CollectKeywords(HelpFile);
     }
     footnote=keyindex=len=0;
-    while(NextKeywordRec<KeywordRecs&&KeywordRec[NextKeywordRec].TopicOffset<=TopicOffset)
+    while(ctx->NextKeywordRec<ctx->KeywordRecs&&ctx->KeywordRec[ctx->NextKeywordRec].TopicOffset<=TopicOffset)
     {
-	if(len>0&&(KeywordRec[NextKeywordRec].Footnote!=footnote||KeywordRec[NextKeywordRec].KeyIndex!=keyindex||len+strlen(KeywordRec[NextKeywordRec].Keyword)>(after31?1023:254)))
+	if(len>0&&(ctx->KeywordRec[ctx->NextKeywordRec].Footnote!=footnote||ctx->KeywordRec[ctx->NextKeywordRec].KeyIndex!=keyindex||len+strlen(ctx->KeywordRec[ctx->NextKeywordRec].Keyword)>(ctx->after31?1023:254)))
 	{
 	    fputs("}\n",rtf);
 	    len=0;
@@ -2696,19 +2657,19 @@ void ListKeywords(FILE *HelpFile,FILE *rtf,legacy_long TopicOffset)
 	{
 	    putc(';',rtf);
 	}
-	else if(KeywordRec[NextKeywordRec].KeyIndex)
+	else if(ctx->KeywordRec[ctx->NextKeywordRec].KeyIndex)
 	{
-	    fprintf(rtf,"{\\up K}{\\footnote\\pard\\plain{\\up K} %c:",KeywordRec[NextKeywordRec].Footnote);
+	    fprintf(rtf,"{\\up K}{\\footnote\\pard\\plain{\\up K} %c:",ctx->KeywordRec[ctx->NextKeywordRec].Footnote);
 	}
 	else
 	{
-	    fprintf(rtf,"{\\up %c}{\\footnote\\pard\\plain{\\up %c} ",KeywordRec[NextKeywordRec].Footnote,KeywordRec[NextKeywordRec].Footnote);
+	    fprintf(rtf,"{\\up %c}{\\footnote\\pard\\plain{\\up %c} ",ctx->KeywordRec[ctx->NextKeywordRec].Footnote,ctx->KeywordRec[ctx->NextKeywordRec].Footnote);
 	}
-	len+=strlen(KeywordRec[NextKeywordRec].Keyword)+1;
-	putrtf(rtf,KeywordRec[NextKeywordRec].Keyword);
-	footnote=KeywordRec[NextKeywordRec].Footnote;
-	keyindex=KeywordRec[NextKeywordRec].KeyIndex;
-	NextKeywordRec++;
+	len+=strlen(ctx->KeywordRec[ctx->NextKeywordRec].Keyword)+1;
+	putrtf(rtf,ctx->KeywordRec[ctx->NextKeywordRec].Keyword);
+	footnote=ctx->KeywordRec[ctx->NextKeywordRec].Footnote;
+	keyindex=ctx->KeywordRec[ctx->NextKeywordRec].KeyIndex;
+	ctx->NextKeywordRec++;
     }
     if(len) fputs("}\n",rtf);
 }
@@ -2789,21 +2750,21 @@ legacy_int ListWindows(FILE *HelpFile,legacy_long TopicOffset)
 // and subnumber assigned. */
 void AddStart(legacy_long StartTopic,legacy_int BrowseNum,legacy_int Count)
 {
-    start=my_realloc(start,(starts+1)*sizeof(START));
-    start[starts].StartTopic=StartTopic;
-    start[starts].BrowseNum=BrowseNum;
-    start[starts].Start=Count;
-    starts++;
+    ctx->start=my_realloc(ctx->start,(ctx->starts+1)*sizeof(START));
+    ctx->start[ctx->starts].StartTopic=StartTopic;
+    ctx->start[ctx->starts].BrowseNum=BrowseNum;
+    ctx->start[ctx->starts].Start=Count;
+    ctx->starts++;
 }
 
 void FixStart(legacy_int BrowseNum,legacy_int NewBrowseNum,legacy_int AddCount)
 {
     legacy_int i;
 
-    for(i=0;i<starts;i++) if(start[i].BrowseNum==BrowseNum)
+    for(i=0;i<ctx->starts;i++) if(ctx->start[i].BrowseNum==BrowseNum)
     {
-	start[i].BrowseNum=NewBrowseNum;
-	start[i].Start+=AddCount;
+	ctx->start[i].BrowseNum=NewBrowseNum;
+	ctx->start[i].Start+=AddCount;
     }
 }
 
@@ -2811,49 +2772,49 @@ void AddBrowse(legacy_long StartTopic,legacy_long NextTopic,legacy_long PrevTopi
 {
     legacy_int i;
 
-    for(i=0;i<browses;i++) if(browse[i].StartTopic==-1) break; /* empty space in array ? */
-    if(i==browses) /* no empty space, add to array */
+    for(i=0;i<ctx->browses;i++) if(ctx->browse[i].StartTopic==-1) break; /* empty space in array ? */
+    if(i==ctx->browses) /* no empty space, add to array */
     {
-	browse=my_realloc(browse,++browses*sizeof(BROWSE));
+	ctx->browse=my_realloc(ctx->browse,++ctx->browses*sizeof(BROWSE));
     }
-    browse[i].StartTopic=StartTopic;
-    browse[i].NextTopic=NextTopic;
-    browse[i].PrevTopic=PrevTopic;
-    browse[i].BrowseNum=browsenums++;
-    browse[i].Start=1;
-    browse[i].Count=1;
+    ctx->browse[i].StartTopic=StartTopic;
+    ctx->browse[i].NextTopic=NextTopic;
+    ctx->browse[i].PrevTopic=PrevTopic;
+    ctx->browse[i].BrowseNum=ctx->browsenums++;
+    ctx->browse[i].Start=1;
+    ctx->browse[i].Count=1;
 }
 
 void MergeBrowse(legacy_long TopicOffset,legacy_long OtherTopicOffset,legacy_long NextTopic,legacy_long PrevTopic)
 {
     legacy_int i,j;
 
-    for(i=0;i<browses;i++) if(browse[i].StartTopic!=-1)
+    for(i=0;i<ctx->browses;i++) if(ctx->browse[i].StartTopic!=-1)
     {
-	if(browse[i].NextTopic==TopicOffset||browse[i].NextTopic==OtherTopicOffset) break;
+	if(ctx->browse[i].NextTopic==TopicOffset||ctx->browse[i].NextTopic==OtherTopicOffset) break;
     }
-    for(j=0;j<browses;j++) if(browse[j].StartTopic!=-1)
+    for(j=0;j<ctx->browses;j++) if(ctx->browse[j].StartTopic!=-1)
     {
-	if(browse[j].PrevTopic==TopicOffset||browse[j].PrevTopic==OtherTopicOffset) break;
+	if(ctx->browse[j].PrevTopic==TopicOffset||ctx->browse[j].PrevTopic==OtherTopicOffset) break;
     }
-    if(i<browses&&j<browses)
+    if(i<ctx->browses&&j<ctx->browses)
     {
-	browse[i].Count++;
-	browse[i].NextTopic=browse[j].NextTopic;
-	FixStart(browse[j].BrowseNum,browse[i].BrowseNum,browse[i].Count);
-	browse[j].Start+=browse[i].Count;
-	AddStart(browse[j].StartTopic,browse[i].BrowseNum,browse[j].Start);
-	browse[i].Count+=browse[j].Count;
-	browse[j].StartTopic=-1;
-	if(browse[i].NextTopic==-1&&browse[i].PrevTopic==-1)
+	ctx->browse[i].Count++;
+	ctx->browse[i].NextTopic=ctx->browse[j].NextTopic;
+	FixStart(ctx->browse[j].BrowseNum,ctx->browse[i].BrowseNum,ctx->browse[i].Count);
+	ctx->browse[j].Start+=ctx->browse[i].Count;
+	AddStart(ctx->browse[j].StartTopic,ctx->browse[i].BrowseNum,ctx->browse[j].Start);
+	ctx->browse[i].Count+=ctx->browse[j].Count;
+	ctx->browse[j].StartTopic=-1;
+	if(ctx->browse[i].NextTopic==-1&&ctx->browse[i].PrevTopic==-1)
 	{
-	    AddStart(browse[i].StartTopic,browse[i].BrowseNum,browse[i].Start);
-	    browse[i].StartTopic=-1;
+	    AddStart(ctx->browse[i].StartTopic,ctx->browse[i].BrowseNum,ctx->browse[i].Start);
+	    ctx->browse[i].StartTopic=-1;
 	}
     }
     else
     {
-	warnings=TRUE;
+	ctx->warnings=TRUE;
 	fprintf(stderr,"Can not merge %08lx %08lx %08lx\n",TopicOffset,NextTopic,PrevTopic);
     }
 }
@@ -2862,27 +2823,27 @@ void LinkBrowse(legacy_long TopicOffset,legacy_long OtherTopicOffset,legacy_long
 {
     legacy_int i;
 
-    for(i=0;i<browses;i++) if(browse[i].StartTopic!=-1)
+    for(i=0;i<ctx->browses;i++) if(ctx->browse[i].StartTopic!=-1)
     {
-	if(browse[i].NextTopic==TopicOffset||browse[i].NextTopic==OtherTopicOffset) break;
+	if(ctx->browse[i].NextTopic==TopicOffset||ctx->browse[i].NextTopic==OtherTopicOffset) break;
     }
-    if(i<browses)
+    if(i<ctx->browses)
     {
-	browse[i].NextTopic=NextTopic;
-	browse[i].Count++;
-	if(browse[i].NextTopic==-1&&browse[i].PrevTopic==-1)
+	ctx->browse[i].NextTopic=NextTopic;
+	ctx->browse[i].Count++;
+	if(ctx->browse[i].NextTopic==-1&&ctx->browse[i].PrevTopic==-1)
 	{
-	    AddStart(browse[i].StartTopic,browse[i].BrowseNum,browse[i].Start);
-	    browse[i].StartTopic=-1;
+	    AddStart(ctx->browse[i].StartTopic,ctx->browse[i].BrowseNum,ctx->browse[i].Start);
+	    ctx->browse[i].StartTopic=-1;
 	}
     }
     else
     {
-	warnings=TRUE;
+	ctx->warnings=TRUE;
 	fprintf(stderr,"Can not link %08lx %08lx %08lx\n",TopicOffset,NextTopic,PrevTopic);
-	for(i=0;i<browses;i++) if(browse[i].StartTopic!=-1)
+	for(i=0;i<ctx->browses;i++) if(ctx->browse[i].StartTopic!=-1)
 	{
-	    fprintf(stderr,"Open browse %08lx %08lx\n",browse[i].PrevTopic,browse[i].NextTopic);
+	    fprintf(stderr,"Open browse %08lx %08lx\n",ctx->browse[i].PrevTopic,ctx->browse[i].NextTopic);
 	}
     }
 }
@@ -2891,25 +2852,25 @@ void BackLinkBrowse(legacy_long TopicOffset,legacy_long OtherTopicOffset,legacy_
 {
     legacy_int i;
 
-    for(i=0;i<browses;i++) if(browse[i].StartTopic!=-1)
+    for(i=0;i<ctx->browses;i++) if(ctx->browse[i].StartTopic!=-1)
     {
-	if(browse[i].PrevTopic==TopicOffset||browse[i].PrevTopic==OtherTopicOffset) break;
+	if(ctx->browse[i].PrevTopic==TopicOffset||ctx->browse[i].PrevTopic==OtherTopicOffset) break;
     }
-    if(i<browses)
+    if(i<ctx->browses)
     {
-	browse[i].PrevTopic=PrevTopic;
-	browse[i].Count++;
-	browse[i].Start++;
-	FixStart(browse[i].BrowseNum,browse[i].BrowseNum,1);
-	if(browse[i].NextTopic==-1&&browse[i].PrevTopic==-1)
+	ctx->browse[i].PrevTopic=PrevTopic;
+	ctx->browse[i].Count++;
+	ctx->browse[i].Start++;
+	FixStart(ctx->browse[i].BrowseNum,ctx->browse[i].BrowseNum,1);
+	if(ctx->browse[i].NextTopic==-1&&ctx->browse[i].PrevTopic==-1)
 	{
-	    AddStart(browse[i].StartTopic,browse[i].BrowseNum,browse[i].Start);
-	    browse[i].StartTopic=-1;
+	    AddStart(ctx->browse[i].StartTopic,ctx->browse[i].BrowseNum,ctx->browse[i].Start);
+	    ctx->browse[i].StartTopic=-1;
 	}
     }
     else
     {
-	warnings=TRUE;
+	ctx->warnings=TRUE;
 	fprintf(stderr,"Can not backlink %08lx %08lx %08lx\n",TopicOffset,NextTopic,PrevTopic);
     }
 }
@@ -2920,22 +2881,22 @@ uint32_t AddLink(legacy_long StartTopic,legacy_long NextTopic,legacy_long PrevTo
     uint32_t result;
 
     result=0;
-    for(i=0;i<browses;i++) if(browse[i].StartTopic==-1) break;
-    if(i==browses) browse=my_realloc(browse,++browses*sizeof(BROWSE));
-    for(j=0;j<starts;j++) if(start[j].StartTopic==StartTopic) break;
-    if(j<starts)
+    for(i=0;i<ctx->browses;i++) if(ctx->browse[i].StartTopic==-1) break;
+    if(i==ctx->browses) ctx->browse=my_realloc(ctx->browse,++ctx->browses*sizeof(BROWSE));
+    for(j=0;j<ctx->starts;j++) if(ctx->start[j].StartTopic==StartTopic) break;
+    if(j<ctx->starts)
     {
-	browse[i].StartTopic=start[j].StartTopic;
-	browse[i].BrowseNum=start[j].BrowseNum;
-	browse[i].Start=start[j].Start;
-	browse[i].Count=start[j].Start;
-	browse[i].NextTopic=NextTopic;
-	browse[i].PrevTopic=PrevTopic;
-	result=browse[i].BrowseNum+((legacy_long)browse[i].Start<<16);
+	ctx->browse[i].StartTopic=ctx->start[j].StartTopic;
+	ctx->browse[i].BrowseNum=ctx->start[j].BrowseNum;
+	ctx->browse[i].Start=ctx->start[j].Start;
+	ctx->browse[i].Count=ctx->start[j].Start;
+	ctx->browse[i].NextTopic=NextTopic;
+	ctx->browse[i].PrevTopic=PrevTopic;
+	result=ctx->browse[i].BrowseNum+((legacy_long)ctx->browse[i].Start<<16);
     }
     else
     {
-	warnings=TRUE;
+	ctx->warnings=TRUE;
 	fprintf(stderr,"Browse start %08lx not found\n",StartTopic);
     }
     return result;
@@ -2947,31 +2908,31 @@ uint32_t MergeLink(legacy_long TopicOffset,legacy_long OtherTopicOffset,legacy_l
     uint32_t result;
 
     result=0;
-    for(i=0;i<browses;i++) if(browse[i].StartTopic!=-1)
+    for(i=0;i<ctx->browses;i++) if(ctx->browse[i].StartTopic!=-1)
     {
-	if(browse[i].NextTopic==TopicOffset||browse[i].NextTopic==OtherTopicOffset) break;
+	if(ctx->browse[i].NextTopic==TopicOffset||ctx->browse[i].NextTopic==OtherTopicOffset) break;
     }
-    for(j=0;j<browses;j++) if(browse[j].StartTopic!=-1)
+    for(j=0;j<ctx->browses;j++) if(ctx->browse[j].StartTopic!=-1)
     {
-	if(browse[j].PrevTopic==TopicOffset||browse[j].PrevTopic==OtherTopicOffset) break;
+	if(ctx->browse[j].PrevTopic==TopicOffset||ctx->browse[j].PrevTopic==OtherTopicOffset) break;
     }
-    if(i<browses&&j<browses)
+    if(i<ctx->browses&&j<ctx->browses)
     {
-	browse[i].Count++;
-	browse[j].Start--;
-	if(browse[i].Count!=browse[j].Start)
+	ctx->browse[i].Count++;
+	ctx->browse[j].Start--;
+	if(ctx->browse[i].Count!=ctx->browse[j].Start)
 	{
-	    warnings=TRUE;
-	    fprintf(stderr,"Prev browse end %d doen't match next browse start %d\n",browse[i].Count,browse[j].Start);
+	    ctx->warnings=TRUE;
+	    fprintf(stderr,"Prev browse end %d doen't match next browse start %d\n",ctx->browse[i].Count,ctx->browse[j].Start);
 	}
-	result=browse[i].BrowseNum+((legacy_long)browse[i].Count<<16);
-	browse[i].NextTopic=browse[j].NextTopic;
-	browse[i].Count=browse[j].Count;
-	browse[j].StartTopic=-1;
+	result=ctx->browse[i].BrowseNum+((legacy_long)ctx->browse[i].Count<<16);
+	ctx->browse[i].NextTopic=ctx->browse[j].NextTopic;
+	ctx->browse[i].Count=ctx->browse[j].Count;
+	ctx->browse[j].StartTopic=-1;
     }
     else
     {
-	warnings=TRUE;
+	ctx->warnings=TRUE;
 	fprintf(stderr,"Can not merge %08lx %08lx %08lx\n",TopicOffset,NextTopic,PrevTopic);
     }
     return result;
@@ -2983,23 +2944,23 @@ uint32_t LinkLink(legacy_long TopicOffset,legacy_long OtherTopicOffset,legacy_lo
     uint32_t result;
 
     result=0;
-    for(i=0;i<browses;i++) if(browse[i].StartTopic!=-1)
+    for(i=0;i<ctx->browses;i++) if(ctx->browse[i].StartTopic!=-1)
     {
-	if(browse[i].NextTopic==TopicOffset||browse[i].NextTopic==OtherTopicOffset) break;
+	if(ctx->browse[i].NextTopic==TopicOffset||ctx->browse[i].NextTopic==OtherTopicOffset) break;
     }
-    if(i<browses)
+    if(i<ctx->browses)
     {
-	browse[i].NextTopic=NextTopic;
-	browse[i].Count++;
-	result=browse[i].BrowseNum+((legacy_long)browse[i].Count<<16);
-	if(browse[i].NextTopic==-1&&browse[i].PrevTopic==-1)
+	ctx->browse[i].NextTopic=NextTopic;
+	ctx->browse[i].Count++;
+	result=ctx->browse[i].BrowseNum+((legacy_long)ctx->browse[i].Count<<16);
+	if(ctx->browse[i].NextTopic==-1&&ctx->browse[i].PrevTopic==-1)
 	{
-	    browse[i].StartTopic=-1;
+	    ctx->browse[i].StartTopic=-1;
 	}
     }
     else
     {
-	warnings=TRUE;
+	ctx->warnings=TRUE;
 	fprintf(stderr,"Can not link %08lx %08lx %08lx\n",TopicOffset,NextTopic,PrevTopic);
     }
     return result;
@@ -3011,23 +2972,23 @@ uint32_t BackLinkLink(legacy_long TopicOffset,legacy_long OtherTopicOffset,legac
     uint32_t result;
 
     result=0;
-    for(i=0;i<browses;i++) if(browse[i].StartTopic!=-1)
+    for(i=0;i<ctx->browses;i++) if(ctx->browse[i].StartTopic!=-1)
     {
-	if(browse[i].PrevTopic==TopicOffset||browse[i].PrevTopic==OtherTopicOffset) break;
+	if(ctx->browse[i].PrevTopic==TopicOffset||ctx->browse[i].PrevTopic==OtherTopicOffset) break;
     }
-    if(i<browses)
+    if(i<ctx->browses)
     {
-	browse[i].PrevTopic=PrevTopic;
-	browse[i].Start--;
-	result=browse[i].BrowseNum+((legacy_long)browse[i].Start<<16);
-	if(browse[i].NextTopic==-1&&browse[i].PrevTopic==-1)
+	ctx->browse[i].PrevTopic=PrevTopic;
+	ctx->browse[i].Start--;
+	result=ctx->browse[i].BrowseNum+((legacy_long)ctx->browse[i].Start<<16);
+	if(ctx->browse[i].NextTopic==-1&&ctx->browse[i].PrevTopic==-1)
 	{
-	    browse[i].StartTopic=-1;
+	    ctx->browse[i].StartTopic=-1;
 	}
     }
     else
     {
-	warnings=TRUE;
+	ctx->warnings=TRUE;
 	fprintf(stderr,"Can not backlink %08lx %08lx %08lx\n",TopicOffset,NextTopic,PrevTopic);
     }
     return result;
@@ -3038,7 +2999,7 @@ void BuildRTFName(char *buffer,legacy_int i)
 {
     char num[7];
 
-    strcpy(buffer,name);
+    strcpy(buffer,ctx->name);
     if(i)
     {
     snprintf(num, 7, "%d", i);
@@ -3058,10 +3019,10 @@ void ChangeFont(FILE *rtf,unsigned_legacy_int i,BOOL ul,BOOL uldb)
     FONTDESCRIPTOR *f;
     legacy_long pos;
 
-    if(i<fonts)
+    if(i<ctx->fonts)
     {
 	pos=ftell(rtf);
-	f=font+i;
+	f=ctx->font+i;
 	if(f->style)
 	{
 	    fprintf(rtf,"\\plain\\cs%d",f->style+9);
@@ -3070,45 +3031,45 @@ void ChangeFont(FILE *rtf,unsigned_legacy_int i,BOOL ul,BOOL uldb)
 	else
 	{
 	    /* HC30 can't reset, so reset using \plain */
-	    if((CurrentFont.Bold&&!f->Bold)
-	    || (CurrentFont.Italic&&!f->Italic)
-	    || (CurrentFont.Underline&&!(!uldb&&(ul||f->Underline)))
-	    || (CurrentFont.StrikeOut&&!f->StrikeOut)
-	    || (CurrentFont.DoubleUnderline&&!(uldb||f->DoubleUnderline))
-	    || (CurrentFont.SmallCaps&&!f->SmallCaps)
-	    || (CurrentFont.FontName&&!f->FontName)
-	    || (CurrentFont.textcolor&&!f->textcolor)
-	    || (CurrentFont.backcolor&&!f->backcolor)
-	    || (CurrentFont.up&&!f->up)
-	    || (CurrentFont.style&&!f->style))
+	    if((ctx->CurrentFont.Bold&&!f->Bold)
+	    || (ctx->CurrentFont.Italic&&!f->Italic)
+	    || (ctx->CurrentFont.Underline&&!(!uldb&&(ul||f->Underline)))
+	    || (ctx->CurrentFont.StrikeOut&&!f->StrikeOut)
+	    || (ctx->CurrentFont.DoubleUnderline&&!(uldb||f->DoubleUnderline))
+	    || (ctx->CurrentFont.SmallCaps&&!f->SmallCaps)
+	    || (ctx->CurrentFont.FontName&&!f->FontName)
+	    || (ctx->CurrentFont.textcolor&&!f->textcolor)
+	    || (ctx->CurrentFont.backcolor&&!f->backcolor)
+	    || (ctx->CurrentFont.up&&!f->up)
+	    || (ctx->CurrentFont.style&&!f->style))
 	    {
 		fputs("\\plain",rtf);
-		memset(&CurrentFont,0,sizeof(CurrentFont));
-		CurrentFont.FontName=DefFont;
+		memset(&ctx->CurrentFont,0,sizeof(ctx->CurrentFont));
+		ctx->CurrentFont.FontName=ctx->DefFont;
 	    }
-	    if(f->FontName!=CurrentFont.FontName) fprintf(rtf,"\\f%d",f->FontName);
-	    if(f->Italic&&!CurrentFont.Italic) fputs("\\i",rtf);
-	    if(f->Bold&&!CurrentFont.Bold) fputs("\\b",rtf);
-	    if(!uldb&&(ul||f->Underline)&&!CurrentFont.Bold) fputs("\\ul",rtf);
-	    if(f->StrikeOut&&!CurrentFont.StrikeOut) fputs("\\strike",rtf);
-	    if((uldb||f->DoubleUnderline)&&!CurrentFont.DoubleUnderline) fputs("\\uldb",rtf);
-	    if(f->SmallCaps&&!CurrentFont.SmallCaps) fputs("\\scaps",rtf);
-	    if(f->expndtw!=CurrentFont.expndtw) fprintf(rtf,"\\expndtw%d",f->expndtw);
-	    if(f->up!=CurrentFont.up)
+	    if(f->FontName!=ctx->CurrentFont.FontName) fprintf(rtf,"\\f%d",f->FontName);
+	    if(f->Italic&&!ctx->CurrentFont.Italic) fputs("\\i",rtf);
+	    if(f->Bold&&!ctx->CurrentFont.Bold) fputs("\\b",rtf);
+	    if(!uldb&&(ul||f->Underline)&&!ctx->CurrentFont.Bold) fputs("\\ul",rtf);
+	    if(f->StrikeOut&&!ctx->CurrentFont.StrikeOut) fputs("\\strike",rtf);
+	    if((uldb||f->DoubleUnderline)&&!ctx->CurrentFont.DoubleUnderline) fputs("\\uldb",rtf);
+	    if(f->SmallCaps&&!ctx->CurrentFont.SmallCaps) fputs("\\scaps",rtf);
+	    if(f->expndtw!=ctx->CurrentFont.expndtw) fprintf(rtf,"\\expndtw%d",f->expndtw);
+	    if(f->up!=ctx->CurrentFont.up)
 	    {
 		if(f->up>0) fprintf(rtf,"\\up%d",f->up);
 		else if(f->up<0) fprintf(rtf,"\\dn%d",-f->up);
 	    }
-	    if(f->HalfPoints!=CurrentFont.HalfPoints) fprintf(rtf,"\\fs%d",f->HalfPoints);
-	    if(f->textcolor!=CurrentFont.textcolor) fprintf(rtf,"\\cf%d",f->textcolor);
-	    if(f->backcolor!=CurrentFont.backcolor) fprintf(rtf,"\\cb%d",f->backcolor);
+	    if(f->HalfPoints!=ctx->CurrentFont.HalfPoints) fprintf(rtf,"\\fs%d",f->HalfPoints);
+	    if(f->textcolor!=ctx->CurrentFont.textcolor) fprintf(rtf,"\\cf%d",f->textcolor);
+	    if(f->backcolor!=ctx->CurrentFont.backcolor) fprintf(rtf,"\\cb%d",f->backcolor);
 	}
-	memcpy(&CurrentFont,f,sizeof(CurrentFont));
-	if(ul) CurrentFont.Underline=1;
+	memcpy(&ctx->CurrentFont,f,sizeof(ctx->CurrentFont));
+	if(ul) ctx->CurrentFont.Underline=1;
 	if(uldb)
 	{
-	    CurrentFont.Underline=0;
-	    CurrentFont.DoubleUnderline=1;
+	    ctx->CurrentFont.Underline=0;
+	    ctx->CurrentFont.DoubleUnderline=1;
 	}
 	if(ftell(rtf)!=pos) putc(' ',rtf);
     }
@@ -3122,9 +3083,9 @@ void ListGroups(FILE *rtf,legacy_long TopicNum,uint32_t BrowseNum)
     BOOL grouplisted;
 
     grouplisted=FALSE;
-    for(i=0;i<groups;i++) if(group[i].GroupHeader.GroupType==1||group[i].GroupHeader.GroupType==2)
+    for(i=0;i<ctx->groups;i++) if(ctx->group[i].GroupHeader.GroupType==1||ctx->group[i].GroupHeader.GroupType==2)
     {
-	if((TopicNum>=group[i].GroupHeader.FirstTopic&&TopicNum<=group[i].GroupHeader.LastTopic)&&((group[i].GroupHeader.GroupType==1||group[i].GroupHeader.GroupType==2)&&(group[i].Bitmap[TopicNum>>3]&(1<<(TopicNum&7)))))
+	if((TopicNum>=ctx->group[i].GroupHeader.FirstTopic&&TopicNum<=ctx->group[i].GroupHeader.LastTopic)&&((ctx->group[i].GroupHeader.GroupType==1||ctx->group[i].GroupHeader.GroupType==2)&&(ctx->group[i].Bitmap[TopicNum>>3]&(1<<(TopicNum&7)))))
 	{
 	    if(!grouplisted)
 	    {
@@ -3132,7 +3093,7 @@ void ListGroups(FILE *rtf,legacy_long TopicNum,uint32_t BrowseNum)
 		if(BrowseNum) fprintf(rtf,"BROWSE%04x:%04x",(uint16_t)BrowseNum,(uint16_t)(BrowseNum>>16));
 		grouplisted=TRUE;
 	    }
-	    fprintf(rtf,";%s",group[i].Name);
+	    fprintf(rtf,";%s",ctx->group[i].Name);
 	}
     }
     if(grouplisted)
@@ -3151,9 +3112,9 @@ TOPICOFFSET NextTopicOffset(TOPICOFFSET TopicOffset,TOPICPOS NextBlock,TOPICPOS 
 {
     /* it should never be necessary to subtract sizeof(TOPICBLOCKHEADER), as no
     // TOPICLINK may start in the last (12..21) bytes, but just to make shure... */
-    if((NextBlock-sizeof(TOPICBLOCKHEADER))/DecompressSize!=(TopicPos-sizeof(TOPICBLOCKHEADER))/DecompressSize)
+    if((NextBlock-sizeof(TOPICBLOCKHEADER))/ctx->DecompressSize!=(TopicPos-sizeof(TOPICBLOCKHEADER))/ctx->DecompressSize)
     {
-	return ((NextBlock-sizeof(TOPICBLOCKHEADER))/DecompressSize)*0x8000;
+	return ((NextBlock-sizeof(TOPICBLOCKHEADER))/ctx->DecompressSize)*0x8000;
     }
     return TopicOffset;
 }
@@ -3189,13 +3150,13 @@ FILE *TopicDumpRTF(FILE *HelpFile,FILE *rtf,FILE *hpj,BOOL makertf)
     TOPICHEADER *TopicHdr;
     legacy_long BogusTopicOffset;
 
-    if(SearchFile(HelpFile,"|TOPIC",&TopicFileLength))
+    if(SearchFile(HelpFile,"|TOPIC",&ctx->TopicFileLength))
     {
 	fontset=-1;
 	nextbitmap=1;
-	if(browse) free(browse);
-	browse=NULL;
-	browses=0;
+	if(ctx->browse) free(ctx->browse);
+	ctx->browse=NULL;
+	ctx->browses=0;
 	NextContextRec=0;
 	ul=uldb=FALSE;
 	hotspot=NULL;
@@ -3206,9 +3167,9 @@ FILE *TopicDumpRTF(FILE *HelpFile,FILE *rtf,FILE *hpj,BOOL makertf)
 	NumberOfRTF=1;
 	while(TopicRead(HelpFile,TopicPos,&TopicLink,sizeof(TopicLink))==sizeof(TOPICLINK))
 	{
-	    if(before31)
+	    if(ctx->before31)
 	    {
-		if(TopicPos+TopicLink.NextBlock>=TopicFileLength) break;
+		if(TopicPos+TopicLink.NextBlock>=ctx->TopicFileLength) break;
 	    }
 	    else
 	    {
@@ -3228,19 +3189,19 @@ FILE *TopicDumpRTF(FILE *HelpFile,FILE *rtf,FILE *hpj,BOOL makertf)
 	    else LinkData2=NULL;
 	    if(LinkData1&&TopicLink.RecordType==TL_TOPICHDR) /* display a Topic Header record */
 	    {
-		if(TopicsPerRTF&&++TopicInRTF>=TopicsPerRTF)
+		if(ctx->TopicsPerRTF&&++TopicInRTF>=ctx->TopicsPerRTF)
 		{
 		    putc('}',rtf);
 		    my_fclose(rtf);
-		    BuildRTFName(buffer,++NumberOfRTF);
-		    if(hpj) fprintf(hpj,"%s\n",buffer);
-		    rtf=my_fopen(buffer,"wt");
+		    BuildRTFName(ctx->buffer,++NumberOfRTF);
+		    if(hpj) fprintf(hpj,"%s\n",ctx->buffer);
+		    rtf=my_fopen(ctx->buffer,"wt");
 		    FontLoadRTF(HelpFile,rtf,NULL);
 		    TopicInRTF=0;
 		}
 		else if(!firsttopic)
 		{
-		     if(makertf&&nopagebreak)
+		     if(makertf&&ctx->nopagebreak)
 		     {
 			 fputs("\\par\n",rtf);
 		     }
@@ -3254,11 +3215,11 @@ FILE *TopicDumpRTF(FILE *HelpFile,FILE *rtf,FILE *hpj,BOOL makertf)
 		if(!makertf)
 		{
 		    BrowseNum=0;
-		    if(before31)
+		    if(ctx->before31)
 		    {
 			TopicHdr30=(TOPICHEADER30 *)LinkData1;
 			fprintf(rtf,"{\\up #}{\\footnote\\pard\\plain{\\up #} TOPIC%ld}\n",TopicNum);
-			if(resolvebrowse)
+			if(ctx->resolvebrowse)
 			{
 			    if((TopicHdr30->NextTopicNum>TopicNum&&TopicHdr30->PrevTopicNum>TopicNum)
 			    || (TopicHdr30->NextTopicNum==-1&&TopicHdr30->PrevTopicNum>TopicNum)
@@ -3293,7 +3254,7 @@ FILE *TopicDumpRTF(FILE *HelpFile,FILE *rtf,FILE *hpj,BOOL makertf)
 			{
 			    nonscroll=TopicHdr->NextTopic;
 			}
-			if(resolvebrowse)
+			if(ctx->resolvebrowse)
 			{
 			    if((TopicHdr->BrowseFor>TopicOffset&&TopicHdr->BrowseBck>TopicOffset)
 			    || (TopicHdr->BrowseFor==-1&&TopicHdr->BrowseBck>TopicOffset)
@@ -3327,7 +3288,7 @@ FILE *TopicDumpRTF(FILE *HelpFile,FILE *rtf,FILE *hpj,BOOL makertf)
 			for(i=strlen(LinkData2)+1;i<TopicLink.DataLen2;i+=strlen(LinkData2+i)+1)
 			{
 			    fputs("{\\up !}{\\footnote\\pard\\plain{\\up !} ",rtf);
-			    if(!after31&&strlen(LinkData2+i)>254)
+			    if(!ctx->after31&&strlen(LinkData2+i)>254)
 			    {
 				printf("Help compiler will issue Warning 3511: Macro '%s' exceeds limit of 254 characters\n",LinkData2+i);
 			    }
@@ -3335,12 +3296,12 @@ FILE *TopicDumpRTF(FILE *HelpFile,FILE *rtf,FILE *hpj,BOOL makertf)
 			    fputs("}\n",rtf);
 			}
 		    }
-		    while(NextContextRec<ContextRecs&&ContextRec[NextContextRec].TopicOffset<=TopicOffset)
+		    while(NextContextRec<ctx->ContextRecs&&ctx->ContextRec[NextContextRec].TopicOffset<=TopicOffset)
 		    {
 			fputs("{\\up #}{\\footnote\\pard\\plain{\\up #} ",rtf);
-                        putrtf(rtf,unhash(ContextRec[NextContextRec].HashValue));
+                        putrtf(rtf,unhash(ctx->ContextRec[NextContextRec].HashValue));
                         fputs("}\n",rtf);
-			if(!mvp) while(NextContextRec+1<ContextRecs&&ContextRec[NextContextRec].TopicOffset==ContextRec[NextContextRec+1].TopicOffset)
+			if(!ctx->mvp) while(NextContextRec+1<ctx->ContextRecs&&ctx->ContextRec[NextContextRec].TopicOffset==ctx->ContextRec[NextContextRec+1].TopicOffset)
 			{
 			    NextContextRec++;
 			}
@@ -3353,7 +3314,7 @@ FILE *TopicDumpRTF(FILE *HelpFile,FILE *rtf,FILE *hpj,BOOL makertf)
 	    }
 	    else if(LinkData1&&LinkData2&&(TopicLink.RecordType==TL_DISPLAY30||TopicLink.RecordType==TL_DISPLAY||TopicLink.RecordType==TL_TABLE))
 	    {
-		if(AnnoFile) Annotate(TopicPos,rtf);
+		if(ctx->AnnoFile) Annotate(TopicPos,rtf);
 		ptr=LinkData1;
 		scanlong(&ptr);
 		if(TopicLink.RecordType==TL_DISPLAY||TopicLink.RecordType==TL_TABLE)
@@ -3385,17 +3346,17 @@ FILE *TopicDumpRTF(FILE *HelpFile,FILE *rtf,FILE *hpj,BOOL makertf)
 		    if(cols>1)
 		    {
 			x1=iptr[0]+iptr[1]+iptr[3]/2;
-			fprintf(rtf,"\\trgaph%ld\\trleft%ld \\cellx%ld\\cellx%ld",((iptr[3]*scaling-rounderr)*l1)/32767,(((iptr[1]-iptr[3])*scaling-rounderr)*l1-32767)/32767,((x1*scaling-rounderr)*l1)/32767,(((x1+iptr[2]+iptr[3])*scaling-rounderr)*l1)/32767);
+			fprintf(rtf,"\\trgaph%ld\\trleft%ld \\cellx%ld\\cellx%ld",((iptr[3]*ctx->scaling-ctx->rounderr)*l1)/32767,(((iptr[1]-iptr[3])*ctx->scaling-ctx->rounderr)*l1-32767)/32767,((x1*ctx->scaling-ctx->rounderr)*l1)/32767,(((x1+iptr[2]+iptr[3])*ctx->scaling-ctx->rounderr)*l1)/32767);
 			x1+=iptr[2]+iptr[3];
 			for(col=2;col<cols;col++)
 			{
 			    x1+=iptr[2*col]+iptr[2*col+1];
-			    fprintf(rtf,"\\cellx%ld",((x1*scaling-rounderr)*l1)/32767);
+			    fprintf(rtf,"\\cellx%ld",((x1*ctx->scaling-ctx->rounderr)*l1)/32767);
 			}
 		    }
 		    else
 		    {
-			fprintf(rtf,"\\trleft%ld \\cellx%ld ",((iptr[1]*scaling-rounderr)*l1-32767)/32767,((iptr[0]*scaling-rounderr)*l1)/32767);
+			fprintf(rtf,"\\trleft%ld \\cellx%ld ",((iptr[1]*ctx->scaling-ctx->rounderr)*l1-32767)/32767,((iptr[0]*ctx->scaling-ctx->rounderr)*l1)/32767);
 		    }
 		    ptr=(char *)(iptr+2*cols);
 		}
@@ -3418,12 +3379,12 @@ FILE *TopicDumpRTF(FILE *HelpFile,FILE *rtf,FILE *hpj,BOOL makertf)
 		    if(x2&0x0400) fputs("\\qr",rtf);
 		    if(x2&0x0800) fputs("\\qc",rtf);
 		    if(x2&0x0001) scanlong(&ptr);
-		    if(x2&0x0002) fprintf(rtf,"\\sb%ld",scanint(&ptr)*scaling-rounderr);
-		    if(x2&0x0004) fprintf(rtf,"\\sa%ld",scanint(&ptr)*scaling-rounderr);
-		    if(x2&0x0008) fprintf(rtf,"\\sl%ld",scanint(&ptr)*scaling-rounderr);
-		    if(x2&0x0010) fprintf(rtf,"\\li%ld",scanint(&ptr)*scaling-rounderr);
-		    if(x2&0x0020) fprintf(rtf,"\\ri%ld",scanint(&ptr)*scaling-rounderr);
-		    if(x2&0x0040) fprintf(rtf,"\\fi%ld",scanint(&ptr)*scaling-rounderr);
+		    if(x2&0x0002) fprintf(rtf,"\\sb%ld",scanint(&ptr)*ctx->scaling-ctx->rounderr);
+		    if(x2&0x0004) fprintf(rtf,"\\sa%ld",scanint(&ptr)*ctx->scaling-ctx->rounderr);
+		    if(x2&0x0008) fprintf(rtf,"\\sl%ld",scanint(&ptr)*ctx->scaling-ctx->rounderr);
+		    if(x2&0x0010) fprintf(rtf,"\\li%ld",scanint(&ptr)*ctx->scaling-ctx->rounderr);
+		    if(x2&0x0020) fprintf(rtf,"\\ri%ld",scanint(&ptr)*ctx->scaling-ctx->rounderr);
+		    if(x2&0x0040) fprintf(rtf,"\\fi%ld",scanint(&ptr)*ctx->scaling-ctx->rounderr);
 		    if(x2&0x0100)
 		    {
 			x1=(unsigned char)*ptr++;
@@ -3454,29 +3415,29 @@ FILE *TopicDumpRTF(FILE *HelpFile,FILE *rtf,FILE *hpj,BOOL makertf)
 				    break;
 				}
 			    }
-			    fprintf(rtf,"\\tx%ld",(x1&0x3FFF)*scaling-rounderr);
+			    fprintf(rtf,"\\tx%ld",(x1&0x3FFF)*ctx->scaling-ctx->rounderr);
 			}
 		    }
 		    putc(' ',rtf);
 		    while(1) /* ptr<LinkData1+TopicLink.DataLen1-sizeof(TOPICLINK)&&str<end) */
 		    {
-			if(*str&&fontset>=0&&fontset<fonts&&font&&font[fontset].SmallCaps) strlwr(str);
+			if(*str&&fontset>=0&&fontset<ctx->fonts&&ctx->font&&ctx->font[fontset].SmallCaps) strlwr(str);
 			do
 			{
 			    if(!makertf)
 			    {
-				while(NextContextRec<ContextRecs&&ContextRec[NextContextRec].TopicOffset<=ActualTopicOffset&&ContextRec[NextContextRec].TopicOffset<MaxTopicOffset)
+				while(NextContextRec<ctx->ContextRecs&&ctx->ContextRec[NextContextRec].TopicOffset<=ActualTopicOffset&&ctx->ContextRec[NextContextRec].TopicOffset<MaxTopicOffset)
 				{
 				    fputs("{\\up #}{\\footnote\\pard\\plain{\\up #} ",rtf);
-                                    putrtf(rtf,unhash(ContextRec[NextContextRec].HashValue));
+                                    putrtf(rtf,unhash(ctx->ContextRec[NextContextRec].HashValue));
                                     fputs("}\n",rtf);
-				    if(!mvp) while(NextContextRec+1<ContextRecs&&ContextRec[NextContextRec].TopicOffset==ContextRec[NextContextRec+1].TopicOffset)
+				    if(!ctx->mvp) while(NextContextRec+1<ctx->ContextRecs&&ctx->ContextRec[NextContextRec].TopicOffset==ctx->ContextRec[NextContextRec+1].TopicOffset)
 				    {
 					NextContextRec++;
 				    }
 				    NextContextRec++;
 				}
-				if(!before31) ListKeywords(HelpFile,rtf,ActualTopicOffset<MaxTopicOffset?ActualTopicOffset:MaxTopicOffset-1);
+				if(!ctx->before31) ListKeywords(HelpFile,rtf,ActualTopicOffset<MaxTopicOffset?ActualTopicOffset:MaxTopicOffset-1);
 			    }
 			    if(*str)
 			    {
@@ -3595,8 +3556,8 @@ FILE *TopicDumpRTF(FILE *HelpFile,FILE *rtf,FILE *hpj,BOOL makertf)
 				switch(x1)
 				{
 				case 1:
-				    while(nextbitmap<extensions&&extension[nextbitmap]<0x10) nextbitmap++;
-				    if(nextbitmap>=extensions)
+				    while(nextbitmap<ctx->extensions&&ctx->extension[nextbitmap]<0x10) nextbitmap++;
+				    if(nextbitmap>=ctx->extensions)
 				    {
 					error("Bitmap never saved");
 					break;
@@ -3623,7 +3584,7 @@ FILE *TopicDumpRTF(FILE *HelpFile,FILE *rtf,FILE *hpj,BOOL makertf)
 				    }
 				    else
 				    {
-					if(x2<extensions&&(extension[x2]&0x20))
+					if(x2<ctx->extensions&&(ctx->extension[x2]&0x20))
 					{
 					    if(strcmp(cmd,"bmc")==0) cmd="bmct";
 					    else if(strcmp(cmd,"bml")==0) cmd="bmlt";
@@ -3668,7 +3629,7 @@ FILE *TopicDumpRTF(FILE *HelpFile,FILE *rtf,FILE *hpj,BOOL makertf)
 			case 0x89: /* end of hotspot */
 			    if(!makertf)
 			    {
-				if(hotspot[0]=='%'&&fontset>=0&&fontset<fonts&&font[fontset].Underline)
+				if(hotspot[0]=='%'&&fontset>=0&&fontset<ctx->fonts&&ctx->font[fontset].Underline)
 				{
 				    hotspot[0]='*';
 				}
@@ -3676,12 +3637,12 @@ FILE *TopicDumpRTF(FILE *HelpFile,FILE *rtf,FILE *hpj,BOOL makertf)
 			    ChangeFont(rtf,fontset,ul=FALSE,uldb=FALSE);
 			    if(!makertf)
 			    {
-				if(!after31&&strlen(hotspot)>255)
+				if(!ctx->after31&&strlen(hotspot)>255)
 				{
 				    puts("Help compiler will issue Warning 4072: Context string exceeds limit of 255 characters");
 				}
 				fputs("{\\v ",rtf);
-                                putrtf(rtf,multi&&(hotspot[0]=='%'||hotspot[0]=='*')?hotspot+1:hotspot);
+                                putrtf(rtf,ctx->multi&&(hotspot[0]=='%'||hotspot[0]=='*')?hotspot+1:hotspot);
                                 fputc('}',rtf);
 			    }
 			    ptr++;
@@ -3802,7 +3763,7 @@ FILE *TopicDumpRTF(FILE *HelpFile,FILE *rtf,FILE *hpj,BOOL makertf)
 	    }
 	    if(LinkData1) free(LinkData1);
 	    if(LinkData2) free(LinkData2);
-	    if(before31)
+	    if(ctx->before31)
 	    {
 		TopicPos+=TopicLink.NextBlock;
 	    }
@@ -3834,27 +3795,27 @@ void ContextLoad(FILE *HelpFile)
 	n=GetFirstPage(HelpFile,&buf,&entries);
 	if(entries)
 	{
-	    ContextRec=my_malloc(entries*sizeof(CONTEXTREC));
-	    ContextRecs=0;
+	    ctx->ContextRec=my_malloc(entries*sizeof(CONTEXTREC));
+	    ctx->ContextRecs=0;
 	    while(n)
 	    {
-               if( ContextRecs+n > entries ){
+               if( ctx->ContextRecs+n > entries ){
                    fprintf(stderr,"malformed |CONTEXT file\n");
                    exit(1);
                }
-		read_CONTEXTRECs(ContextRec+ContextRecs,n,HelpFile);
-		ContextRecs+=n;
+		read_CONTEXTRECs(ctx->ContextRec+ctx->ContextRecs,n,HelpFile);
+		ctx->ContextRecs+=n;
 		n=GetNextPage(HelpFile,&buf);
 	    }
-	    fprintf(stderr,"%d topic offsets and hash values loaded\n",ContextRecs);
-	    qsort(ContextRec,ContextRecs,sizeof(CONTEXTREC),ContextRecCmp);
+	    fprintf(stderr,"%d topic offsets and hash values loaded\n",ctx->ContextRecs);
+	    qsort(ctx->ContextRec,ctx->ContextRecs,sizeof(CONTEXTREC),ContextRecCmp);
 	}
     }
     else if(SearchFile(HelpFile,"|TOMAP",&entries))
     {
-	Topic=my_malloc(entries);
-	my_fread(Topic,entries,HelpFile);
-	Topics=(legacy_int)(entries/sizeof(int32_t));
+	ctx->Topic=my_malloc(entries);
+	my_fread(ctx->Topic,entries,HelpFile);
+	ctx->Topics=(legacy_int)(entries/sizeof(int32_t));
     }
 }
 
@@ -3866,8 +3827,8 @@ void GenerateContent(FILE *HelpFile,FILE *ContentFile) /* create a simple Win95 
     BUFFER buf;
     char *ptr;
 
-    fprintf(ContentFile,":Base %s%s>main\n",name,ext);
-    if(HelpFileTitle[0]) fprintf(ContentFile,":Title %s\n",HelpFileTitle);
+    fprintf(ContentFile,":Base %s%s>main\n",ctx->name,ctx->ext);
+    if(ctx->HelpFileTitle[0]) fprintf(ContentFile,":Title %s\n",ctx->HelpFileTitle);
     WindowRecs=0;
     if(SearchFile(HelpFile,"|VIOLA",NULL))
     {
@@ -3890,12 +3851,12 @@ void GenerateContent(FILE *HelpFile,FILE *ContentFile) /* create a simple Win95 
 	    for(i=0;i<n;i++)
 	    {
 		offset=getdw(HelpFile);
-		if(my_gets(buffer,sizeof(buffer),HelpFile))
+		if(my_gets(ctx->buffer,sizeof(ctx->buffer),HelpFile))
 		{
 		    ptr=TopicName(offset);
 		    if(ptr)
 		    {
-			fprintf(ContentFile,"1 %s=%s",buffer,ptr);
+			fprintf(ContentFile,"1 %s=%s",ctx->buffer,ptr);
 			for(j=0;j<WindowRecs;j++)
 			{
 			    if(WindowRec[j].TopicOffset==offset)
@@ -3935,8 +3896,8 @@ void ListRose(FILE *HelpFile,FILE *hpj)
 		{
 		    for(i=0;i<n;i++)
 		    {
-			my_gets(keyword,sizeof(keyword),HelpFile);
-			for(hash=0,ptr=(unsigned char *)keyword;*ptr;ptr++)
+			my_gets(ctx->keyword,sizeof(ctx->keyword),HelpFile);
+			for(hash=0,ptr=(unsigned char *)ctx->keyword;*ptr;ptr++)
 			{
 			    hash=hash*43+table[*ptr];
 			}
@@ -3953,16 +3914,16 @@ void ListRose(FILE *HelpFile,FILE *hpj)
 				    for(e=0;e<l;e++)
 				    {
 					h=getdw(HelpFile);
-					my_gets(buffer,sizeof(buffer),HelpFile);
+					my_gets(ctx->buffer,sizeof(ctx->buffer),HelpFile);
 					if(h==hash)
 					{
-					    fprintf(hpj,"%s\n%s\n",keyword,buffer);
-					    my_gets(buffer,sizeof(buffer),HelpFile);
-					    fprintf(hpj,"%s\n",buffer);
+					    fprintf(hpj,"%s\n%s\n",ctx->keyword,ctx->buffer);
+					    my_gets(ctx->buffer,sizeof(ctx->buffer),HelpFile);
+					    fprintf(hpj,"%s\n",ctx->buffer);
 					}
 					else
 					{
-					    my_gets(buffer,sizeof(buffer),HelpFile);
+					    my_gets(ctx->buffer,sizeof(ctx->buffer),HelpFile);
 					}
 				    }
 				}
@@ -3983,7 +3944,7 @@ void ListRose(FILE *HelpFile,FILE *hpj)
 // of the help file with known format of contents for debugging reasons */
 void PrintNewFont(legacy_int i,NEWFONT *newfont)
 {
-    printf("%3d: %-32.32s %6ld %-6s %02X%02X%02X %02X%02X%02X ",i,fontname[newfont->FontName],newfont->Height,FontFamily(newfont->PitchAndFamily>>4),newfont->FGRGB[2],newfont->FGRGB[1],newfont->FGRGB[0],newfont->BGRGB[2],newfont->BGRGB[1],newfont->BGRGB[0]);
+    printf("%3d: %-32.32s %6ld %-6s %02X%02X%02X %02X%02X%02X ",i,ctx->fontname[newfont->FontName],newfont->Height,FontFamily(newfont->PitchAndFamily>>4),newfont->FGRGB[2],newfont->FGRGB[1],newfont->FGRGB[0],newfont->BGRGB[2],newfont->BGRGB[1],newfont->BGRGB[0]);
     if(newfont->Weight>500) putchar('b');
     if(newfont->Italic) putchar('i');
     if(newfont->Underline) putchar('u');
@@ -3995,7 +3956,7 @@ void PrintNewFont(legacy_int i,NEWFONT *newfont)
 
 void PrintMvbFont(legacy_int i,MVBFONT *mvbfont)
 {
-    printf("%3d: %-32.32s %6ld %-6s %02X%02X%02X %02X%02X%02X ",i,fontname[mvbfont->FontName],mvbfont->Height,FontFamily(mvbfont->PitchAndFamily>>4),mvbfont->FGRGB[2],mvbfont->FGRGB[1],mvbfont->FGRGB[0],mvbfont->BGRGB[2],mvbfont->BGRGB[1],mvbfont->BGRGB[0]);
+    printf("%3d: %-32.32s %6ld %-6s %02X%02X%02X %02X%02X%02X ",i,ctx->fontname[mvbfont->FontName],mvbfont->Height,FontFamily(mvbfont->PitchAndFamily>>4),mvbfont->FGRGB[2],mvbfont->FGRGB[1],mvbfont->FGRGB[0],mvbfont->BGRGB[2],mvbfont->BGRGB[1],mvbfont->BGRGB[0]);
     if(mvbfont->Weight>500) putchar('b');
     if(mvbfont->Italic) putchar('i');
     if(mvbfont->Underline) putchar('u');
@@ -4020,14 +3981,14 @@ void FontDump(FILE *HelpFile)
     FileStart=ftell(HelpFile);
     read_FONTHEADER(&FontHdr,HelpFile);
     n=(FontHdr.DescriptorsOffset-FontHdr.FacenamesOffset)/FontHdr.NumFacenames;
-    fontname=my_malloc(FontHdr.NumFacenames*sizeof(char *));
+    ctx->fontname=my_malloc(FontHdr.NumFacenames*sizeof(char *));
     fseek(HelpFile,FileStart+FontHdr.FacenamesOffset,SEEK_SET);
     for(i=0;i<FontHdr.NumFacenames;i++)
     {
-	my_fread(buffer,n,HelpFile);
-	buffer[n]='\0';
-	printf("Font name %d: %s\n",i,buffer);
-	fontname[i]=my_strdup(buffer);
+	my_fread(ctx->buffer,n,HelpFile);
+	ctx->buffer[n]='\0';
+	printf("Font name %d: %s\n",i,ctx->buffer);
+	ctx->fontname[i]=my_strdup(ctx->buffer);
     }
     puts("Font Facename 			Height Family Foregr Backgr Style");
     fseek(HelpFile,FileStart+FontHdr.DescriptorsOffset,SEEK_SET);
@@ -4070,7 +4031,7 @@ void FontDump(FILE *HelpFile)
 	for(i=0;i<FontHdr.NumDescriptors;i++)
 	{
 	    read_OLDFONT(&oldfont,HelpFile);
-	    printf("%3d: %-32.32s %4d.%d %-6s %02X%02X%02X %02X%02X%02X ",i,fontname[oldfont.FontName],oldfont.HalfPoints/2,(oldfont.HalfPoints&1)*5,FontFamily(oldfont.FontFamily<6?lookup[oldfont.FontFamily]:oldfont.FontFamily),oldfont.FGRGB[2],oldfont.FGRGB[1],oldfont.FGRGB[0],oldfont.BGRGB[2],oldfont.BGRGB[1],oldfont.BGRGB[0]);
+	    printf("%3d: %-32.32s %4d.%d %-6s %02X%02X%02X %02X%02X%02X ",i,ctx->fontname[oldfont.FontName],oldfont.HalfPoints/2,(oldfont.HalfPoints&1)*5,FontFamily(oldfont.FontFamily<6?lookup[oldfont.FontFamily]:oldfont.FontFamily),oldfont.FGRGB[2],oldfont.FGRGB[1],oldfont.FGRGB[0],oldfont.BGRGB[2],oldfont.BGRGB[1],oldfont.BGRGB[0]);
 	    if(oldfont.Attributes&FONT_BOLD) putchar('b');
 	    if(oldfont.Attributes&FONT_ITAL) putchar('i');
 	    if(oldfont.Attributes&FONT_UNDR) putchar('u');
@@ -4150,8 +4111,8 @@ void BTreeDump(FILE *HelpFile,char text[])
 		    }
 		    else if(format[j]=='s')
 		    {
-			my_gets(buffer,sizeof(buffer),HelpFile);
-			printf(format,buffer);
+			my_gets(ctx->buffer,sizeof(ctx->buffer),HelpFile);
+			printf(format,ctx->buffer);
 		    }
 		    else if(strchr(format,'l'))
 		    {
@@ -4177,7 +4138,7 @@ void PhraseDump(void)
 {
     unsigned_legacy_int n;
 
-    for(n=0;n<PhraseCount;n++)
+    for(n=0;n<ctx->PhraseCount;n++)
     {
 	printf("%-5d - ",n);
 	PrintPhrase(n,NULL,NULL);
@@ -4207,7 +4168,7 @@ void SysDump(FILE *HelpFile)
     }
     else if(SysHdr.Minor==33)
     {
-	if(mvp)
+	if(ctx->mvp)
 	{
 	    ptr="MVC";
 	}
@@ -4226,8 +4187,8 @@ void SysDump(FILE *HelpFile)
     }
     if(SysHdr.Minor<16)
     {
-	my_gets(HelpFileTitle,33,HelpFile);
-	printf("TITLE=%s\n",HelpFileTitle);
+	my_gets(ctx->HelpFileTitle,33,HelpFile);
+	printf("TITLE=%s\n",ctx->HelpFileTitle);
     }
     else for(SysRec=GetFirstSystemRecord(HelpFile);SysRec;SysRec=GetNextSystemRecord(SysRec))
     {
@@ -4268,16 +4229,16 @@ void SysDump(FILE *HelpFile)
 	    printf("CITATION=%s\n",SysRec->Data);
 	    break;
 	case 0x0009:
-	    if(!mvp) printf("LCID=0x%X 0x%X 0x%X\n",*(int16_t *)(SysRec->Data+8),*(int16_t *)SysRec->Data,*(int16_t *)(SysRec->Data+2));
+	    if(!ctx->mvp) printf("LCID=0x%X 0x%X 0x%X\n",*(int16_t *)(SysRec->Data+8),*(int16_t *)SysRec->Data,*(int16_t *)(SysRec->Data+2));
 	    break;
 	case 0x000A:
-	    if(!mvp) printf("CNT=%s\n",SysRec->Data);
+	    if(!ctx->mvp) printf("CNT=%s\n",SysRec->Data);
 	    break;
 	case 0x000B:
 //	    if(!mvp) printf("CHARSET=%d\n",*(unsigned char *)(SysRec->Data+1));
 	    break;
 	case 0x000C:
-	    if(mvp)
+	    if(ctx->mvp)
 	    {
 		printf("[FTINDEX] dtype %s\n",SysRec->Data);
 	    }
@@ -4287,10 +4248,10 @@ void SysDump(FILE *HelpFile)
 	    }
 	    break;
 	case 0x000D:
-	    if(mvp) printf("[GROUPS] %s\n",SysRec->Data);
+	    if(ctx->mvp) printf("[GROUPS] %s\n",SysRec->Data);
 	    break;
 	case 0x000E:
-	    if(mvp)
+	    if(ctx->mvp)
 	    {
 		printf("[KEYINDEX] keyword=%c, \"%s\"\n",SysRec->Data[1],SysRec->Data+30);
 	    }
@@ -4338,7 +4299,7 @@ void DumpTopic(FILE *HelpFile,legacy_long TopicPos)
     legacy_long TopicNum;
     legacy_long TopicOffset;
 
-    if(!SearchFile(HelpFile,"|TOPIC",&TopicFileLength)) return;
+    if(!SearchFile(HelpFile,"|TOPIC",&ctx->TopicFileLength)) return;
     TopicOffset=0;
     if(TopicPos<12) TopicPos=12;
     TopicNum=16;
@@ -4362,7 +4323,7 @@ void DumpTopic(FILE *HelpFile,legacy_long TopicPos)
 	if(LinkData1) HexDumpMemory(LinkData1,TopicLink.DataLen1-sizeof(TOPICLINK));
 	if(TopicLink.RecordType==TL_TOPICHDR)
 	{
-	    if(before31)
+	    if(ctx->before31)
 	    {
 		TopicHdr30=(TOPICHEADER30 *)LinkData1;
 		puts("============================================================================");
@@ -4662,10 +4623,10 @@ void DumpTopic(FILE *HelpFile,legacy_long TopicPos)
 	}
 	if(LinkData1) free(LinkData1);
 	if(LinkData2) free(LinkData2);
-	if(before31)
+	if(ctx->before31)
 	{
 	    TopicPos+=TopicLink.NextBlock;
-	    if(TopicPos>=TopicFileLength) break;
+	    if(TopicPos>=ctx->TopicFileLength) break;
 	}
 	else
 	{
@@ -4682,9 +4643,9 @@ void AliasList(FILE *hpj) /* write [ALIAS] section to HPJ file */
     BOOL headerwritten;
 
     headerwritten=FALSE;
-    for(i=0;i<ContextRecs;i=n)
+    for(i=0;i<ctx->ContextRecs;i=n)
     {
-	for(n=i+1;n<ContextRecs&&ContextRec[i].TopicOffset==ContextRec[n].TopicOffset;n++)
+	for(n=i+1;n<ctx->ContextRecs&&ctx->ContextRec[i].TopicOffset==ctx->ContextRec[n].TopicOffset;n++)
 	{
 	    if(!headerwritten)
 	    {
@@ -4692,8 +4653,8 @@ void AliasList(FILE *hpj) /* write [ALIAS] section to HPJ file */
 		fputs("[ALIAS]\n",hpj);
 		headerwritten=TRUE;
 	    }
-	    fprintf(hpj,"%s=",unhash(ContextRec[n].HashValue));
-	    fprintf(hpj,"%s\n",unhash(ContextRec[i].HashValue));
+	    fprintf(hpj,"%s=",unhash(ctx->ContextRec[n].HashValue));
+	    fprintf(hpj,"%s\n",unhash(ctx->ContextRec[i].HashValue));
 	}
     }
     if(headerwritten) putc('\n',hpj);
@@ -4744,13 +4705,13 @@ void GuessFromKeywords(FILE *HelpFile)
     {
 	if(k)
 	{
-	    if(!keyindex[map-'0']) continue;
+	    if(!ctx->keyindex[map-'0']) continue;
 	    sprintf(kwdata,"|%cKWDATA",map);
 	    sprintf(kwbtree,"|%cKWBTREE",map);
 	}
 	else
 	{
-	    if(!lists[map-'0']) continue;
+	    if(!ctx->lists[map-'0']) continue;
 	    sprintf(kwdata,"|%cWDATA",map);
 	    sprintf(kwbtree,"|%cWBTREE",map);
 	}
@@ -4764,7 +4725,7 @@ void GuessFromKeywords(FILE *HelpFile)
 		{
 		    for(i=0;i<n;i++)
 		    {
-			my_gets(keyword,sizeof(keyword),HelpFile);
+			my_gets(ctx->keyword,sizeof(ctx->keyword),HelpFile);
 			m=my_getw(HelpFile);
 			KWDataOffset=getdw(HelpFile);
                        if( KWDataOffset/4+m > FileLength ){
@@ -4774,12 +4735,12 @@ void GuessFromKeywords(FILE *HelpFile)
 			for(j=0;j<m;j++)
 			{
 			    TopicOffset=keytopic[KWDataOffset/4+j];
-			    Guess(keyword,TopicOffset);
-			    for(l=0;l<alternatives;l++)
+			    Guess(ctx->keyword,TopicOffset);
+			    for(l=0;l<ctx->alternatives;l++)
 			    {
-				if(alternative[l].OtherTopicOffset==TopicOffset)
+				if(ctx->alternative[l].OtherTopicOffset==TopicOffset)
 				{
-				    Guess(keyword,alternative[l].TopicOffset);
+				    Guess(ctx->keyword,ctx->alternative[l].TopicOffset);
 				}
 			    }
 			}
@@ -4790,9 +4751,9 @@ void GuessFromKeywords(FILE *HelpFile)
 	    }
 	}
     }
-    if(guessed>0)
+    if(ctx->guessed>0)
     {
-	fprintf(stderr,"%ld context ids found\n",guessed);
+	fprintf(stderr,"%ld context ids found\n",ctx->guessed);
     }
     else
     {
@@ -4820,13 +4781,13 @@ void FirstPass(FILE *HelpFile)
     int16_t y1;
     MFILE *f;
 
-    if(extractmacros)
+    if(ctx->extractmacros)
     {
 	for(SysRec=GetFirstSystemRecord(HelpFile);SysRec;SysRec=GetNextSystemRecord(SysRec))
 	{
 	    if(SysRec->RecordType==0x0004)
 	    {
-		strcpy(TopicTitle,"[CONFIG] section");
+		strcpy(ctx->TopicTitle,"[CONFIG] section");
 		CheckMacro(SysRec->Data);
 	    }
 	}
@@ -4837,24 +4798,24 @@ void FirstPass(FILE *HelpFile)
 		for(i=0;i<n;i++)
 		{
 		    getdw(HelpFile);
-		    my_gets(buffer,sizeof(buffer),HelpFile);
-		    AddTopic(buffer,FALSE);
+		    my_gets(ctx->buffer,sizeof(ctx->buffer),HelpFile);
+		    AddTopic(ctx->buffer,FALSE);
 		}
 	    }
-	    guessing=FALSE; /* it's not necessary to guess context ids if you know them */
+	    ctx->guessing=FALSE; /* it's not necessary to guess context ids if you know them */
 	}
     }
-    browses=0;
-    browsenums=1;
-    if(!SearchFile(HelpFile,"|TOPIC",&TopicFileLength)) return;
+    ctx->browses=0;
+    ctx->browsenums=1;
+    if(!SearchFile(HelpFile,"|TOPIC",&ctx->TopicFileLength)) return;
     TopicOffset=0;
     TopicPos=12;
     TopicNum=16;
     while(TopicRead(HelpFile,TopicPos,&TopicLink,sizeof(TopicLink))==sizeof(TOPICLINK))
     {
-	if(before31)
+	if(ctx->before31)
 	{
-	    if(TopicPos+TopicLink.NextBlock>=TopicFileLength) break;
+	    if(TopicPos+TopicLink.NextBlock>=ctx->TopicFileLength) break;
 	}
 	else
 	{
@@ -4875,10 +4836,10 @@ void FirstPass(FILE *HelpFile)
 	if(TopicLink.RecordType==TL_TOPICHDR) /* display a topic header record */
 	{
 	    fprintf(stderr,"\rTopic %ld...",TopicNum-15);
-	    if(before31)
+	    if(ctx->before31)
 	    {
 		TopicHdr30=(TOPICHEADER30 *)LinkData1;
-		if(resolvebrowse)
+		if(ctx->resolvebrowse)
 		{
 		    if((TopicHdr30->NextTopicNum>TopicNum&&TopicHdr30->PrevTopicNum>TopicNum)
 		    || (TopicHdr30->NextTopicNum==-1&&TopicHdr30->PrevTopicNum>TopicNum)
@@ -4905,13 +4866,13 @@ void FirstPass(FILE *HelpFile)
 		BogusTopicOffset=NextTopicOffset(TopicOffset,TopicLink.NextBlock,TopicPos);
 		if(BogusTopicOffset!=TopicOffset)
 		{
-		    alternative=my_realloc(alternative,(alternatives+1)*sizeof(ALTERNATIVE));
-		    alternative[alternatives].TopicOffset=TopicOffset;
-		    alternative[alternatives].OtherTopicOffset=BogusTopicOffset;
-		    alternatives++;
+		    ctx->alternative=my_realloc(ctx->alternative,(ctx->alternatives+1)*sizeof(ALTERNATIVE));
+		    ctx->alternative[ctx->alternatives].TopicOffset=TopicOffset;
+		    ctx->alternative[ctx->alternatives].OtherTopicOffset=BogusTopicOffset;
+		    ctx->alternatives++;
 		}
 		TopicHdr=(TOPICHEADER *)LinkData1;
-		if(resolvebrowse)
+		if(ctx->resolvebrowse)
 		{
 		    if((TopicHdr->BrowseFor>TopicOffset&&TopicHdr->BrowseBck>TopicOffset)
 		    || (TopicHdr->BrowseFor==-1&&TopicHdr->BrowseBck>TopicOffset)
@@ -4932,12 +4893,12 @@ void FirstPass(FILE *HelpFile)
 			LinkBrowse(TopicOffset,BogusTopicOffset,TopicHdr->BrowseFor,TopicHdr->BrowseBck);
 		    }
 		}
-		if(extractmacros)
+		if(ctx->extractmacros)
 		{
 		    if(TopicLink.DataLen2&&*LinkData2)
 		    {
-			strlcpy(TopicTitle,LinkData2,sizeof(TopicTitle));
-			if(guessing)
+			strlcpy(ctx->TopicTitle,LinkData2,sizeof(ctx->TopicTitle));
+			if(ctx->guessing)
 			{
 			    Guess(LinkData2,TopicOffset);
 			    if(BogusTopicOffset!=TopicOffset)
@@ -4948,7 +4909,7 @@ void FirstPass(FILE *HelpFile)
 		    }
 		    else
 		    {
-			strcpy(TopicTitle,"<< untitled topic >>");
+			strcpy(ctx->TopicTitle,"<< untitled topic >>");
 		    }
 		    if(TopicLink.DataLen2)
 		    {
@@ -5042,17 +5003,17 @@ void FirstPass(FILE *HelpFile)
 			    switch(((uint16_t *)ptr)[0])
 			    {
 			    case 1:
-				for(x2=1;x2<extensions;x2++) if(!extension[x2]) break;
-				if(x2>=extensions)
+				for(x2=1;x2<ctx->extensions;x2++) if(!ctx->extension[x2]) break;
+				if(x2>=ctx->extensions)
 				{
-				    extension=my_realloc(extension,(x2+1)*sizeof(char));
-				    while(extensions<=x2) extension[extensions++]=0;
+				    ctx->extension=my_realloc(ctx->extension,(x2+1)*sizeof(char));
+				    while(ctx->extensions<=x2) ctx->extension[ctx->extensions++]=0;
 				}
 				sprintf(filename,"bm%u",x2);
 				f=CreateMap(ptr+2,l1-2);
 				x1=ExtractBitmap(filename,f);
 				CloseMap(f);
-				extension[x2]=x1|0x10;
+				ctx->extension[x2]=x1|0x10;
 				break;
 			    }
 			    break;
@@ -5108,7 +5069,7 @@ void FirstPass(FILE *HelpFile)
 	}
 	if(LinkData1) free(LinkData1);
 	if(LinkData2) free(LinkData2);
-	if(before31)
+	if(ctx->before31)
 	{
 	    TopicPos+=TopicLink.NextBlock;
 	}
@@ -5156,9 +5117,9 @@ void ContextList(FILE *HelpFile)
     {
 	 maprecs=0;
     }
-    strcpy(filename,name);
-    strcat(filename,ext);
-    if(!SearchFile(HelpFile,"|TOPIC",&TopicFileLength)) return;
+    strcpy(filename,ctx->name);
+    strcat(filename,ctx->ext);
+    if(!SearchFile(HelpFile,"|TOPIC",&ctx->TopicFileLength)) return;
     TopicOffset=0;
     TopicPos=12;
     TopicNum=1;
@@ -5184,15 +5145,15 @@ void ContextList(FILE *HelpFile)
 	if(TopicLink.NextBlock<=0||TopicLink.RecordType==TL_TOPICHDR) /* display a topic header record */
 	{
 	    if(TopicNum>1) putchar('\n');
-	    if(before31) TopicOffset=TopicPos;
+	    if(ctx->before31) TopicOffset=TopicPos;
 	    while(m<maprecs&&map[m].TopicOffset<TopicOffset)
 	    {
 		printf("  WinHelp(wnd,\"%s\",HELP_CONTEXT,%lu)\n",filename,map[m].MapID);
 		m++;
 	    }
-	    if(!before31)
+	    if(!ctx->before31)
 	    {
-		while(j<ContextRecs&&ContextRec[j].TopicOffset<TopicOffset)
+		while(j<ctx->ContextRecs&&ctx->ContextRec[j].TopicOffset<TopicOffset)
 		{
 		    if(len==80)
 		    {
@@ -5204,14 +5165,14 @@ void ContextList(FILE *HelpFile)
 		    }
 		    printf("Id(`%s",filename);
 		    if(window!=-1) printf(">%s",GetWindowName(window));
-		    printf("',`%s')\n",unhash(ContextRec[j].HashValue));
+		    printf("',`%s')\n",unhash(ctx->ContextRec[j].HashValue));
 		    j++;
 		}
 		if(morekeywords)
 		{
-		    if(NextKeywordRec>=KeywordRecs)
+		    if(ctx->NextKeywordRec>=ctx->KeywordRecs)
 		    {
-			if(NextKeywordOffset<0x7FFFFFFFL)
+			if(ctx->NextKeywordOffset<0x7FFFFFFFL)
 			{
 			    CollectKeywords(HelpFile);
 			}
@@ -5220,17 +5181,17 @@ void ContextList(FILE *HelpFile)
 			    morekeywords=FALSE;
 			}
 		    }
-		    while(NextKeywordRec<KeywordRecs&&KeywordRec[NextKeywordRec].TopicOffset<TopicOffset)
+		    while(ctx->NextKeywordRec<ctx->KeywordRecs&&ctx->KeywordRec[ctx->NextKeywordRec].TopicOffset<TopicOffset)
 		    {
-			if(KeywordRec[NextKeywordRec].Footnote=='K')
+			if(ctx->KeywordRec[ctx->NextKeywordRec].Footnote=='K')
 			{
-			    printf("  JumpKeyword(`%s',`%s')\n",filename,KeywordRec[NextKeywordRec].Keyword);
+			    printf("  JumpKeyword(`%s',`%s')\n",filename,ctx->KeywordRec[ctx->NextKeywordRec].Keyword);
 			}
-			else if(KeywordRec[NextKeywordRec].Footnote=='A')
+			else if(ctx->KeywordRec[ctx->NextKeywordRec].Footnote=='A')
 			{
-			    printf("  ALink(`%s@%s')\n",KeywordRec[NextKeywordRec].Keyword,filename);
+			    printf("  ALink(`%s@%s')\n",ctx->KeywordRec[ctx->NextKeywordRec].Keyword,filename);
 			}
-			NextKeywordRec++;
+			ctx->NextKeywordRec++;
 		    }
 		}
 		window=ListWindows(HelpFile,TopicOffset);
@@ -5263,9 +5224,9 @@ void ContextList(FILE *HelpFile)
 	}
 	if(LinkData1) free(LinkData1);
 	if(LinkData2) free(LinkData2);
-	if(before31)
+	if(ctx->before31)
 	{
-	    if(TopicPos+TopicLink.NextBlock>=TopicFileLength) break;
+	    if(TopicPos+TopicLink.NextBlock>=ctx->TopicFileLength) break;
 	    TopicPos+=TopicLink.NextBlock;
 	}
 	else
@@ -5294,16 +5255,16 @@ BOOL HelpDeCompile(FILE *HelpFile,char *dumpfile,legacy_int mode,char *exportnam
 	{
 	case 0:
 	    SysLoad(HelpFile);
-	    fprintf(stderr,"Decompiling %s...\n",HelpFileTitle);
+	    fprintf(stderr,"Decompiling %s...\n",ctx->HelpFileTitle);
 	    ContextLoad(HelpFile);
 	    PhraseLoad(HelpFile);
 	    ExportBitmaps(HelpFile);
 	    fputs("Pass 1...\n",stderr);
 	    FirstPass(HelpFile); /* valid only after ExportBitmaps */
 	    putc('\n',stderr);
-	    if(!before31&&guessing) GuessFromKeywords(HelpFile); /* after FirstPass, before SysList */
-	    strcpy(hpjfilename,name);
-	    if(mvp)
+	    if(!ctx->before31&&ctx->guessing) GuessFromKeywords(HelpFile); /* after FirstPass, before SysList */
+	    strcpy(hpjfilename,ctx->name);
+	    if(ctx->mvp)
 	    {
 		strcat(hpjfilename,".mvp");
 	    }
@@ -5314,15 +5275,15 @@ BOOL HelpDeCompile(FILE *HelpFile,char *dumpfile,legacy_int mode,char *exportnam
 	    hpj=my_fopen(hpjfilename,"wt");
 	    if(hpj)
 	    {
-		strcpy(filename,name);
+		strcpy(filename,ctx->name);
 		strcat(filename,".ico");
 		SysList(HelpFile,hpj,filename); /* after ContextLoad */
-		ListBaggage(HelpFile,hpj,before31);
-		if(!mvp) AliasList(hpj); /* after ContextLoad, before TopicDump */
-		strcpy(filename,name);
+		ListBaggage(HelpFile,hpj,ctx->before31);
+		if(!ctx->mvp) AliasList(hpj); /* after ContextLoad, before TopicDump */
+		strcpy(filename,ctx->name);
 		strcat(filename,".ph");
 		PhraseList(filename); /* after PhraseLoad */
-		BuildRTFName(filename,TopicsPerRTF>0);
+		BuildRTFName(filename,ctx->TopicsPerRTF>0);
 		rtf=my_fopen(filename,"wt");
 		if(rtf)
 		{
@@ -5334,15 +5295,15 @@ BOOL HelpDeCompile(FILE *HelpFile,char *dumpfile,legacy_int mode,char *exportnam
 		    putc('\n',stderr);
 		    my_fclose(rtf);
 		}
-		NotInAnyTopic=FALSE;
+		ctx->NotInAnyTopic=FALSE;
 		CTXOMAPList(HelpFile,hpj);
-		if(extensions&&before31) ListBitmaps(hpj);
-		if(win95) ListRose(HelpFile,hpj);
+		if(ctx->extensions&&ctx->before31) ListBitmaps(hpj);
+		if(ctx->win95) ListRose(HelpFile,hpj);
 		my_fclose(hpj);
 	    }
-	    if(PhraseOffsets)
+	    if(ctx->PhraseOffsets)
 	    {
-		if(win95)
+		if(ctx->win95)
 		{
 		    puts("Help Compiler will issue Note HC1002: Using existing phrase table");
 		}
@@ -5351,18 +5312,18 @@ BOOL HelpDeCompile(FILE *HelpFile,char *dumpfile,legacy_int mode,char *exportnam
 		    puts("Help Compiler will issue Warning 5098: Using old key-phrase table");
 		}
 	    }
-	    if(missing) puts("Help Compiler will issue Error 1230: File 'missing.bmp' not found");
-	    if(NotInAnyTopic) puts("Help Compiler will issue Warning 4098: Context string(s) in [MAP] section not defined in any topic");
-	    if(!extractmacros) puts("Help Compiler may issue Warning 4131: Hash conflict between 'x' and 'y'.");
-	    if(warnings)
+	    if(ctx->missing) puts("Help Compiler will issue Error 1230: File 'missing.bmp' not found");
+	    if(ctx->NotInAnyTopic) puts("Help Compiler will issue Warning 4098: Context string(s) in [MAP] section not defined in any topic");
+	    if(!ctx->extractmacros) puts("Help Compiler may issue Warning 4131: Hash conflict between 'x' and 'y'.");
+	    if(ctx->warnings)
 	    {
-		printf("HELPDECO had problems with %s. Rebuilt helpfile may behave bad.\n",HelpFileName);
+		printf("HELPDECO had problems with %s. Rebuilt helpfile may behave bad.\n",ctx->HelpFileName);
 	    }
-	    if(helpcomp[0])
+	    if(ctx->helpcomp[0])
 	    {
-		if(win95&&SearchFile(HelpFile,"|Petra",NULL)) strcat(helpcomp," /a");
-		printf("Use %s %s to recompile ",helpcomp,hpjfilename);
-		if(AnnoFile) fputs("annotated ",stdout);
+		if(ctx->win95&&SearchFile(HelpFile,"|Petra",NULL)) strcat(ctx->helpcomp," /a");
+		printf("Use %s %s to recompile ",ctx->helpcomp,hpjfilename);
+		if(ctx->AnnoFile) fputs("annotated ",stdout);
 		puts("helpfile.");
 	    }
 	    break;
@@ -5374,11 +5335,11 @@ BOOL HelpDeCompile(FILE *HelpFile,char *dumpfile,legacy_int mode,char *exportnam
 	    break;
 	case 3: /* create lookalike RTF */
 	    SysLoad(HelpFile);
-	    fprintf(stderr,"Writing %s...\n",HelpFileTitle);
-	    exportplain=TRUE;
+	    fprintf(stderr,"Writing %s...\n",ctx->HelpFileTitle);
+	    ctx->exportplain=TRUE;
 	    ExportBitmaps(HelpFile);
 	    PhraseLoad(HelpFile);
-	    BuildRTFName(filename,TopicsPerRTF>0);
+	    BuildRTFName(filename,ctx->TopicsPerRTF>0);
 	    rtf=my_fopen(filename,"wt");
 	    if(rtf)
 	    {
@@ -5391,15 +5352,15 @@ BOOL HelpDeCompile(FILE *HelpFile,char *dumpfile,legacy_int mode,char *exportnam
 	    break;
 	case 4: /* generate contents file */
 	    SysLoad(HelpFile);
-	    fprintf(stderr,"Scanning %s...\n",HelpFileTitle);
+	    fprintf(stderr,"Scanning %s...\n",ctx->HelpFileTitle);
 	    ContextLoad(HelpFile);
 	    PhraseLoad(HelpFile);
-	    checkexternal=TRUE;
+	    ctx->checkexternal=TRUE;
 	    ExportBitmaps(HelpFile);
 	    FirstPass(HelpFile);
 	    putc('\n',stderr);
-	    if(!before31&&guessing) GuessFromKeywords(HelpFile); /* after FirstPass, before SysList */
-	    strcpy(filename,name);
+	    if(!ctx->before31&&ctx->guessing) GuessFromKeywords(HelpFile); /* after FirstPass, before SysList */
+	    strcpy(filename,ctx->name);
 	    strcat(filename,".cnt");
 	    rtf=my_fopen(filename,"wt");
 	    if(rtf)
@@ -5409,30 +5370,30 @@ BOOL HelpDeCompile(FILE *HelpFile,char *dumpfile,legacy_int mode,char *exportnam
 	    }
 	    break;
 	case 5: /* create entry point list  */
-	    resolvebrowse=FALSE;
-	    checkexternal=TRUE;
+	    ctx->resolvebrowse=FALSE;
+	    ctx->checkexternal=TRUE;
 	    SysLoad(HelpFile);
-	    fprintf(stderr,"Parsing %s...\n",HelpFileTitle);
+	    fprintf(stderr,"Parsing %s...\n",ctx->HelpFileTitle);
 	    ContextLoad(HelpFile);
 	    PhraseLoad(HelpFile);
 	    ExportBitmaps(HelpFile);
 	    FirstPass(HelpFile);
 	    putc('\n',stderr);
-	    if(!before31&&guessing) GuessFromKeywords(HelpFile); /* after FirstPass, before SysList */
+	    if(!ctx->before31&&ctx->guessing) GuessFromKeywords(HelpFile); /* after FirstPass, before SysList */
 	    ContextList(HelpFile);
 	    break;
 	case 6: /* check external references */
 	case 7:
-	    resolvebrowse=FALSE;
-	    checkexternal=TRUE;
+	    ctx->resolvebrowse=FALSE;
+	    ctx->checkexternal=TRUE;
 	    SysLoad(HelpFile);
-	    fprintf(stderr,"Checking %s...\n",HelpFileTitle);
+	    fprintf(stderr,"Checking %s...\n",ctx->HelpFileTitle);
 	    PhraseLoad(HelpFile);
 	    FirstPass(HelpFile);
 	    putc('\n',stderr);
-	    if(!external)
+	    if(!ctx->external)
 	    {
-		printf("No references to external files found in %s.\n",HelpFileName);
+		printf("No references to external files found in %s.\n",ctx->HelpFileName);
 	    }
 	    else if(mode==6)
 	    {
@@ -5445,35 +5406,39 @@ BOOL HelpDeCompile(FILE *HelpFile,char *dumpfile,legacy_int mode,char *exportnam
 	    break;
      case 8: /* create lookalike HTML */
        SysLoad(HelpFile);
-       fprintf(stderr,"Writing %s...\n",HelpFileTitle);
-       exportplain=TRUE;
+       fprintf(stderr,"Writing %s...\n",ctx->HelpFileTitle);
+       ctx->exportplain=TRUE;
        SysLoad(HelpFile);
        ExportBitmaps(HelpFile);
        PhraseLoad(HelpFile);
-       snprintf(filename, sizeof(filename), "%s.html", name);
+       snprintf(filename, sizeof(filename), "%s.html", ctx->name);
        rtf=my_fopen(filename,"wt");
        if(rtf)
        {
+           fprintf(stderr, "Writing html\n");
            FILE *__html_output = rtf;
            fprintf(__html_output, "<!doctype html>\n");
            fprintf(__html_output, "<html lang=\"en\">\n");
            fprintf(__html_output, "<head>\n");
            fprintf(__html_output, "<meta charset=\"utf-8\">\n");
-           fprintf(__html_output, "<title>%s</title>\n", strlen(HelpFileTitle) ? HelpFileTitle : "untitled");
+           fprintf(__html_output, "<title>%s</title>\n", strlen(ctx->HelpFileTitle) ? ctx->HelpFileTitle : "untitled");
            fprintf(__html_output, "<style>"
                    "body { margin: auto; max-width: 600px; }"
                    "helpdeco-document { display: block; }"
                    "helpdeco-topic { display: block; border: 1px solid black; padding: 10px; margin: 10px;}"
                    "</style>"
            "\n");
+           fprintf(stderr, "Loading fonts\n");
            LoadFontsIntoHTML(HelpFile, rtf);
            fprintf(__html_output, "</head>\n");
            fprintf(__html_output, "<body>\n");
            fprintf(__html_output, "<helpdeco-document>");
+           fprintf(stderr, "Dumpic topics\n");
            TopicDumpToHTML(HelpFile, rtf);
            fprintf(__html_output, "</helpdeco-document>");
            fprintf(__html_output, "</body>\n");
            fprintf(__html_output, "</html>\n");
+           fprintf(stderr, "HTML output complete\n");
            
            putc('\n',stderr);
            my_fclose(__html_output);
@@ -5651,6 +5616,7 @@ BOOL HelpDeCompile(FILE *HelpFile,char *dumpfile,legacy_int mode,char *exportnam
 #if !defined(__EMSCRIPTEN__)
 int main(int argc,char *argv[])
 {
+    ctx = helpdeco_make_ctx();
     char AnnoFileName[NAME_MAX];
     char drive[_MAX_DRIVE];
     char dir[PATH_MAX];
@@ -5664,12 +5630,12 @@ int main(int argc,char *argv[])
     legacy_int i,j;
 
     /* initialize hash value coding oldtable */
-    memset(oldtable,0,sizeof(oldtable));
-    for(i=0;i<9;i++) oldtable['1'+i]=i+1;
-    oldtable['0']=10;
-    oldtable['.']=12;
-    oldtable['_']=13;
-    for(i=0;i<26;i++) oldtable['A'+i]=oldtable['a'+i]=17+i;
+    memset(ctx->oldtable,0,sizeof(ctx->oldtable));
+    for(i=0;i<9;i++) ctx->oldtable['1'+i]=i+1;
+    ctx->oldtable['0']=10;
+    ctx->oldtable['.']=12;
+    ctx->oldtable['_']=13;
+    for(i=0;i<26;i++) ctx->oldtable['A'+i]=ctx->oldtable['a'+i]=17+i;
     exportname=dumpfile=filename=NULL;
     AnnoFileName[0]='\0';
     mode=0;
@@ -5695,7 +5661,7 @@ int main(int argc,char *argv[])
 		annotate=TRUE;
 		break;
 	    case 'b':
-		resolvebrowse=FALSE;
+		ctx->resolvebrowse=FALSE;
 		break;
 	    case 'c':
 		mode=4;
@@ -5707,22 +5673,22 @@ int main(int argc,char *argv[])
 		mode=7;
 		break;
 	    case 'f':
-		listtopic=TRUE;
+		ctx->listtopic=TRUE;
 		break;
 	    case 'g':
-		guessing=FALSE;
+		ctx->guessing=FALSE;
 		break;
 	    case 'h': // add entry to prefix table
-		for(j=0;j<sizeof(prefix)/sizeof(prefix[0])&&prefix[j];j++) ;
-		if(j<sizeof(prefix)/sizeof(prefix[0]))
+		for(j=0;j<sizeof(ctx->prefix)/sizeof(ctx->prefix[0])&&ctx->prefix[j];j++) ;
+		if(j<sizeof(ctx->prefix)/sizeof(ctx->prefix[0]))
 		{
 		    if(argv[i][2])
 		    {
-			prefix[j]=argv[i]+2;
+			ctx->prefix[j]=argv[i]+2;
 		    }
 		    else if(argv[i+1]&&argv[i+1][0]!='/'&&argv[i+1][0]!='-')
 		    {
-			prefix[j]=argv[i+1];
+			ctx->prefix[j]=argv[i+1];
 			i++;
 		    }
 		}
@@ -5732,16 +5698,16 @@ int main(int argc,char *argv[])
 		}
 		break;
 	    case 'i':
-		reportderived=TRUE;
+		ctx->reportderived=TRUE;
 		break;
 	    case 'l':
 		mode=5;
 		break;
 	    case 'm':
-		extractmacros=FALSE;
+		ctx->extractmacros=FALSE;
 		break;
 	    case 'n':
-		nopagebreak=TRUE;
+		ctx->nopagebreak=TRUE;
 		break;
 	    case 'p':
 		mode=6;
@@ -5755,11 +5721,11 @@ int main(int argc,char *argv[])
 	    case 's':
 		if(argv[i][2])
 		{
-		    TopicsPerRTF=atoi(argv[i]+2);
+		    ctx->TopicsPerRTF=atoi(argv[i]+2);
 		}
 		else if(argv[i+1]&&argv[i+1][0]!='/'&&argv[i+1][0]!='-')
 		{
-		    TopicsPerRTF=atoi(argv[i+1]);
+		    ctx->TopicsPerRTF=atoi(argv[i+1]);
 		    i++;
 		}
 		break;
@@ -5778,10 +5744,10 @@ int main(int argc,char *argv[])
 		mode=1;
 		break;
 	    case 'y':
-		overwrite=TRUE;
+		ctx->overwrite=TRUE;
 		break;
 	    case 'z':
-		exportLZ77=TRUE;
+		ctx->exportLZ77=TRUE;
 		break;
 	    default:
 		fprintf(stderr,"unknown option '%s' ignored\n",argv[i]);
@@ -5806,68 +5772,70 @@ int main(int argc,char *argv[])
     }
     if(filename)
     {
-	_splitpath(filename,drive,dir,name,ext);
-	if(ext[0]=='\0') strcpy(ext,".hlp");
-	mvp=ext[1]=='M'||ext[1]=='m';
-	_makepath(HelpFileName,drive,dir,name,ext);
-	f=fopen(HelpFileName,"rb");
+	_splitpath(filename,drive,dir,ctx->name,ctx->ext);
+	if(ctx->ext[0]=='\0') strcpy(ctx->ext,".hlp");
+	ctx->mvp=ctx->ext[1]=='M'||ctx->ext[1]=='m';
+	_makepath(ctx->HelpFileName,drive,dir,ctx->name,ctx->ext);
+	f=fopen(ctx->HelpFileName,"rb");
 	if(f)
 	{
 	    if(annotate)
 	    {
-		if(AnnoFileName[0]=='\0') _makepath(AnnoFileName,drive,dir,name,".ann");
-		AnnoFile=fopen(AnnoFileName,"rb");
-		if(!AnnoFile)
+		if(AnnoFileName[0]=='\0') _makepath(AnnoFileName,drive,dir,ctx->name,".ann");
+		ctx->AnnoFile=fopen(AnnoFileName,"rb");
+		if(!ctx->AnnoFile)
 		{
 		    fprintf(stderr,"Couldn't find annotation file '%s'\n",AnnoFileName);
 		}
 	    }
-	    prefixhash[0]=0;
-	    for(i=1;prefix[i];i++)
+	    ctx->prefixhash[0]=0;
+	    for(i=1;ctx->prefix[i];i++)
 	    {
-		prefixhash[i]=hash(prefix[i]);
+		ctx->prefixhash[i]=hash(ctx->prefix[i]);
 	    }
 	    if(!HelpDeCompile(f,dumpfile,mode,exportname,offset))
 	    {
-		fprintf(stderr,"%s isn't a valid WinHelp file !\n",HelpFileName);
+		fprintf(stderr,"%s isn't a valid WinHelp file !\n",ctx->HelpFileName);
 	    }
-	    if(annotate&&AnnoFile) fclose(AnnoFile);
+	    if(annotate&&ctx->AnnoFile) fclose(ctx->AnnoFile);
 	    my_fclose(f);
 	}
 	else
 	{
-	    fprintf(stderr,"Can not open '%s'\n",HelpFileName);
+	    fprintf(stderr,"Can not open '%s'\n",ctx->HelpFileName);
 	}
     }
     else
     {
-	fprintf(stderr,"HELPDECO - decompile *.HLP/*.MVB files of Windows 3.x / 95 - %d bit Version 2.1.4\n"
-		       "M.Winterhoff <mawin@gmx.net>, Geschw.-Scholl-Ring 17, 38444 Wolfsburg, Germany\n"
-		       "\n"
-		       "usage:   HELPDECO helpfile[.hlp]    ["OPTSTR"y]  - decompile helpfile into all sources\n"
-		       "         HELPDECO helpfile[.hlp]    ["OPTSTR"y] "OPTSTR"a[annfile.ANN]  - and add annotations\n"
-               "         HELPDECO helpfile[.hlp] "OPTSTR"r ["OPTSTR"y] ["OPTSTR"n]    - decompile into lookalike RTF\n"
-               "         HELPDECO helpfile[.hlp] "OPTSTR"w    - decompile into lookalike HTML\n"
-		       "         HELPDECO helpfile[.hlp] "OPTSTR"c ["OPTSTR"y]  - generate Win95 .CNT content file\n"
-		       "         HELPDECO helpfile[.hlp] "OPTSTR"l       - list entry points of this helpfile\n"
-		       "         HELPDECO helpfile[.hlp] "OPTSTR"e ["OPTSTR"f]  - list references to other helpfiles\n"
-		       "         HELPDECO helpfile[.hlp] "OPTSTR"p ["OPTSTR"f]  - check references to other helpfiles\n"
-		       "         HELPDECO helpfile[.hlp] "OPTSTR"d ["OPTSTR"x]  - display internal directory\n"
-		       "         HELPDECO helpfile[.hlp] \"internalfile\" ["OPTSTR"x]    - display internal file\n"
-		       "         HELPDECO helpfile[.hlp] \"internalfile\" filename - export internal file\n"
-		       "options: "OPTSTR"y overwrite without warning, "OPTSTR"f list referencing topics, "OPTSTR"x hex dump\n"
-		       "         "OPTSTR"g no guessing, "OPTSTR"hprefix add known contextid prefix, "OPTSTR"n no page breaks\n"
-		       "To recreate all source files necessary to rebuild a Windows helpfile, create\n"
-		       "a directory, change to this directory and call HELPDECO with the path and name\n"
-		       "of the helpfile to dissect. HELPDECO will extract all files contained in the\n"
-		       "helpfile in two passes and deposit them in the current directory. You may then\n"
-		       "rebuild the helpfile using the appropriate help compiler HC30, HC31, HCP, HCW,\n"
-		       "HCRTF, MVC, WMVC or MVCC. The file will not be identical, but should look and\n"
-		       "work like the original.\n"
-#ifndef _WIN32
-#endif
-		       ,sizeof(legacy_int)*8);
+        fprintf(stderr,"HELPDECO - decompile *.HLP/*.MVB files of Windows 3.x / 95 - %lu bit Version 2.1.4\n"
+                "M.Winterhoff <mawin@gmx.net>, Geschw.-Scholl-Ring 17, 38444 Wolfsburg, Germany\n"
+                "\n"
+                "usage:   HELPDECO helpfile[.hlp]    ["OPTSTR"y]  - decompile helpfile into all sources\n"
+                "         HELPDECO helpfile[.hlp]    ["OPTSTR"y] "OPTSTR"a[annfile.ANN]  - and add annotations\n"
+                "         HELPDECO helpfile[.hlp] "OPTSTR"r ["OPTSTR"y] ["OPTSTR"n]    - decompile into lookalike RTF\n"
+                "         HELPDECO helpfile[.hlp] "OPTSTR"w    - decompile into lookalike HTML\n"
+                "         HELPDECO helpfile[.hlp] "OPTSTR"c ["OPTSTR"y]  - generate Win95 .CNT content file\n"
+                "         HELPDECO helpfile[.hlp] "OPTSTR"l       - list entry points of this helpfile\n"
+                "         HELPDECO helpfile[.hlp] "OPTSTR"e ["OPTSTR"f]  - list references to other helpfiles\n"
+                "         HELPDECO helpfile[.hlp] "OPTSTR"p ["OPTSTR"f]  - check references to other helpfiles\n"
+                "         HELPDECO helpfile[.hlp] "OPTSTR"d ["OPTSTR"x]  - display internal directory\n"
+                "         HELPDECO helpfile[.hlp] \"internalfile\" ["OPTSTR"x]    - display internal file\n"
+                "         HELPDECO helpfile[.hlp] \"internalfile\" filename - export internal file\n"
+                "options: "OPTSTR"y overwrite without warning, "OPTSTR"f list referencing topics, "OPTSTR"x hex dump\n"
+                "         "OPTSTR"g no guessing, "OPTSTR"hprefix add known contextid prefix, "OPTSTR"n no page breaks\n"
+                "To recreate all source files necessary to rebuild a Windows helpfile, create\n"
+                "a directory, change to this directory and call HELPDECO with the path and name\n"
+                "of the helpfile to dissect. HELPDECO will extract all files contained in the\n"
+                "helpfile in two passes and deposit them in the current directory. You may then\n"
+                "rebuild the helpfile using the appropriate help compiler HC30, HC31, HCP, HCW,\n"
+                "HCRTF, MVC, WMVC or MVCC. The file will not be identical, but should look and\n"
+                "work like the original.\n"
+                ,sizeof(int)*8);
     }
+    
+    helpdeco_free_ctx(ctx);
+    ctx = NULL;
+    
     return 0;
 }
 #endif

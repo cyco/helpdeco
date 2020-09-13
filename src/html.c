@@ -30,10 +30,10 @@ void ChangeHTMLFont(FILE *rtf,unsigned_legacy_int i,BOOL ul,BOOL uldb)
 
     fprintf(__html_output, "</span>");
     fprintf(__html_output, "<span");
-    if(i<fonts)
+    if(i<ctx->fonts)
     {
         pos=ftell(rtf);
-        f=font+i;
+        f=ctx->font+i;
         if(f->style)
         {
             // fprintf(rtf,"\\plain\\cs%d",f->style+9);
@@ -80,19 +80,19 @@ BOOL LoadFontsIntoHTML(FILE *HelpFile,FILE *rtf)
     
     FontStart=ftell(HelpFile);
     read_FONTHEADER(&FontHdr,HelpFile);
-    fontnames=FontHdr.NumFacenames;
-    len=(FontHdr.DescriptorsOffset-FontHdr.FacenamesOffset)/fontnames;
+    ctx->fontnames=FontHdr.NumFacenames;
+    len=(FontHdr.DescriptorsOffset-FontHdr.FacenamesOffset)/ctx->fontnames;
        if( len > FontName_len ){
            fprintf(stderr,"malformed |FONT file\n");
            exit(1);
        }
-    fontname=my_malloc(fontnames*sizeof(char *));
-    family=my_malloc(fontnames*sizeof(unsigned char));
-    memset(family,0,fontnames*sizeof(unsigned char));
+    ctx->fontname=my_malloc(ctx->fontnames*sizeof(char *));
+    family=my_malloc(ctx->fontnames*sizeof(unsigned char));
+    memset(family,0,ctx->fontnames*sizeof(unsigned char));
     charmap=FALSE;
     mvbstyle=NULL;
     newstyle=NULL;
-    for(i=0;i<fontnames;i++)
+    for(i=0;i<ctx->fontnames;i++)
     {
         fseek(HelpFile,FontStart+FontHdr.FacenamesOffset+len*i,SEEK_SET);
         my_fread(FontName,len,HelpFile);
@@ -106,26 +106,26 @@ BOOL LoadFontsIntoHTML(FILE *HelpFile,FILE *rtf)
         *ptr++='\0';
         fseek(HelpFile,FontStart+FontHdr.CharmapsOffset,SEEK_SET);
         }
-        fontname[i]=my_strdup(FontName);
+        ctx->fontname[i]=my_strdup(FontName);
     }
 
     fseek(HelpFile,FontStart+FontHdr.DescriptorsOffset,SEEK_SET);
-    colors=1;     /* auto */
-    color[0].r=1;
-    color[0].g=1;
-    color[0].b=0;
-    fonts=FontHdr.NumDescriptors;
-    if(font) free(font);
-    font=my_malloc(fonts*sizeof(FONTDESCRIPTOR));
-    memset(font,0,fonts*sizeof(FONTDESCRIPTOR));
+    ctx->colors=1;     /* auto */
+    ctx->color[0].r=1;
+    ctx->color[0].g=1;
+    ctx->color[0].b=0;
+    ctx->fonts=FontHdr.NumDescriptors;
+    if(ctx->font) free(ctx->font);
+    ctx->font=my_malloc(ctx->fonts*sizeof(FONTDESCRIPTOR));
+    memset(ctx->font,0,ctx->fonts*sizeof(FONTDESCRIPTOR));
     if(FontHdr.FacenamesOffset>=16)
     {
-        scaling=1;
-        rounderr=0;
+        ctx->scaling=1;
+        ctx->rounderr=0;
         for(i=0;i<FontHdr.NumDescriptors;i++)
         {
         read_MVBFONT(&mvbfont,HelpFile);
-        fd=font+i;
+        fd=ctx->font+i;
         fd->FontName=mvbfont.FontName;
         fd->HalfPoints=-2*mvbfont.Height;
         fd->Bold=mvbfont.Weight>500;
@@ -153,12 +153,12 @@ BOOL LoadFontsIntoHTML(FILE *HelpFile,FILE *rtf)
     }
     else if(FontHdr.FacenamesOffset>=12)
     {
-        scaling=1;
-        rounderr=0;
+        ctx->scaling=1;
+        ctx->rounderr=0;
         for(i=0;i<FontHdr.NumDescriptors;i++)
         {
         read_NEWFONT(&newfont,HelpFile);
-        fd=font+i;
+        fd=ctx->font+i;
         fd->Bold=newfont.Weight>500;
         fd->Italic=newfont.Italic!=0;
         fd->Underline=newfont.Underline!=0;
@@ -183,12 +183,12 @@ BOOL LoadFontsIntoHTML(FILE *HelpFile,FILE *rtf)
     }
     else
     {
-        scaling=10;
-        rounderr=5;
+        ctx->scaling=10;
+        ctx->rounderr=5;
         for(i=0;i<FontHdr.NumDescriptors;i++)
         {
         read_OLDFONT(&oldfont,HelpFile);
-        fd=font+i;
+        fd=ctx->font+i;
         fd->Bold=(oldfont.Attributes&FONT_BOLD)!=0;
         fd->Italic=(oldfont.Attributes&FONT_ITAL)!=0;
         fd->Underline=(oldfont.Attributes&FONT_UNDR)!=0;
@@ -211,22 +211,22 @@ BOOL LoadFontsIntoHTML(FILE *HelpFile,FILE *rtf)
     }
     for(i=0;i<FontHdr.NumDescriptors;i++)
     {
-        if(font[i].FontName<fontnames)
+        if(ctx->font[i].FontName<ctx->fontnames)
         {
-        family[font[i].FontName]=font[i].FontFamily;
+        family[ctx->font[i].FontName]=ctx->font[i].FontFamily;
         }
     }
-    DefFont=0;
+    ctx->DefFont=0;
     l=sizeof(BestFonts)/sizeof(BestFonts[0]);
-    if(fontname)
+    if(ctx->fontname)
     {
-        for(i=0;i<fontnames;i++) if(family[i])
+        for(i=0;i<ctx->fontnames;i++) if(family[i])
         {
         for(j=0;j<l;j++)
         {
-            if(stricmp(fontname[i],BestFonts[j])==0)
+            if(stricmp(ctx->fontname[i],BestFonts[j])==0)
             {
-            DefFont=i;
+            ctx->DefFont=i;
             l=j;
             break;
             }
@@ -235,21 +235,21 @@ BOOL LoadFontsIntoHTML(FILE *HelpFile,FILE *rtf)
     }
 
     fprintf(__html_output, "<style>");
-    for(i=0;i<fontnames;i++) {
+    for(i=0;i<ctx->fontnames;i++) {
         fprintf(__html_output, ".font-%d { "
                 "font-family: \"%s\";"
                 "%s%s%s%s%s%s%s"
                 "}\n"
                 ,i, FontFamily(family[i]),
-                font[i].Bold ? "font-weight: bold;" : "",
-                font[i].Italic ? "font-style: italic;" : "",
-                font[i].DoubleUnderline ? "text-decoration: underline; border-bottom: 1px solid" : "",
-                font[i].Underline ? "text-decoration: underline;" : "",
-                font[i].StrikeOut ? "text-decoration: line-through;" : "",
-                font[i].Underline && font[i].StrikeOut  ? "text-decoration: underline line-through;" : "",
-                font[i].SmallCaps  ? "font-variant: small-caps;" : ""
+                ctx->font[i].Bold ? "font-weight: bold;" : "",
+                ctx->font[i].Italic ? "font-style: italic;" : "",
+                ctx->font[i].DoubleUnderline ? "text-decoration: underline; border-bottom: 1px solid" : "",
+                ctx->font[i].Underline ? "text-decoration: underline;" : "",
+                ctx->font[i].StrikeOut ? "text-decoration: line-through;" : "",
+                ctx->font[i].Underline && ctx->font[i].StrikeOut  ? "text-decoration: underline line-through;" : "",
+                ctx->font[i].SmallCaps  ? "font-variant: small-caps;" : ""
         );
-        free(fontname[i]);
+        free(ctx->fontname[i]);
         /* TODO: unhandled / unchecked font attributes
          unsigned char HalfPoints;
          unsigned char FontFamily;
@@ -265,7 +265,7 @@ BOOL LoadFontsIntoHTML(FILE *HelpFile,FILE *rtf)
     
     
     fprintf(__html_output, "<style>");
-    for(i=0;i<colors;i++) {
+    for(i=0;i<ctx->colors;i++) {
         // fprintf(__html_output, ".color-%d { color: rgb(%d, %d, %d); }\n",i, color[i].r,color[i].g,color[i].b);
     }
     fprintf(__html_output, "</style>\n");
@@ -360,8 +360,8 @@ BOOL LoadFontsIntoHTML(FILE *HelpFile,FILE *rtf)
     if(family) free(family);
     fputs("}\\pard\\plain\n",html);
     */
-    memset(&CurrentFont,0,sizeof(CurrentFont));
-    CurrentFont.FontName=DefFont;
+    memset(&ctx->CurrentFont,0,sizeof(ctx->CurrentFont));
+    ctx->CurrentFont.FontName=ctx->DefFont;
 
     return TRUE;
 }
@@ -405,16 +405,17 @@ FILE *dev_null = fopen("/dev/null", "w");
     char *str;
     legacy_long ActualTopicOffset = 0,MaxTopicOffset = 0;
     
-    if(!SearchFile(HelpFile,"|TOPIC",&TopicFileLength))
+    if(!SearchFile(HelpFile,"|TOPIC", &ctx->TopicFileLength))
     {
+        fprintf(stderr, "No topic file found\n");
         return FALSE;
     }
     
     fontset=-1;
     nextbitmap=1;
-    if(browse) free(browse);
-    browse=NULL;
-    browses=0;
+    if(ctx->browse) free(ctx->browse);
+    ctx->browse=NULL;
+    ctx->browses=0;
     NextContextRec=0;
     ul=uldb=FALSE;
     hotspot=NULL;
@@ -425,9 +426,9 @@ FILE *dev_null = fopen("/dev/null", "w");
     NumberOfRTF=1;
     while(TopicRead(HelpFile,TopicPos,&TopicLink,sizeof(TopicLink))==sizeof(TOPICLINK))
     {
-        if(before31)
+        if(ctx->before31)
         {
-            if(TopicPos+TopicLink.NextBlock>=TopicFileLength) break;
+            if(TopicPos+TopicLink.NextBlock>=ctx->TopicFileLength) break;
         }
         else
         {
@@ -459,12 +460,12 @@ FILE *dev_null = fopen("/dev/null", "w");
             } else
                 firsttopic = FALSE;
             firsttopic=FALSE;
-            fprintf(stderr,"\rTopic %ld...",TopicNum-15);
+            fprintf(stderr,"\rTopic %ld...\n",TopicNum-15);
             TopicNum++;
         }
         else if(LinkData1&&LinkData2&&(TopicLink.RecordType==TL_DISPLAY30||TopicLink.RecordType==TL_DISPLAY||TopicLink.RecordType==TL_TABLE))
         {
-            if(AnnoFile) Annotate(TopicPos,__rtf_output);
+            if(ctx->AnnoFile) Annotate(TopicPos,__rtf_output);
             ptr=LinkData1;
             scanlong(&ptr);
             if(TopicLink.RecordType==TL_DISPLAY||TopicLink.RecordType==TL_TABLE)
@@ -496,17 +497,17 @@ FILE *dev_null = fopen("/dev/null", "w");
                 if(cols>1)
                 {
                     x1=iptr[0]+iptr[1]+iptr[3]/2;
-                    rtf_printf("\\trgaph%ld\\trleft%ld \\cellx%ld\\cellx%ld",((iptr[3]*scaling-rounderr)*l1)/32767,(((iptr[1]-iptr[3])*scaling-rounderr)*l1-32767)/32767,((x1*scaling-rounderr)*l1)/32767,(((x1+iptr[2]+iptr[3])*scaling-rounderr)*l1)/32767);
+                    rtf_printf("\\trgaph%ld\\trleft%ld \\cellx%ld\\cellx%ld",((iptr[3]*ctx->scaling-ctx->rounderr)*l1)/32767,(((iptr[1]-iptr[3])*ctx->scaling-ctx->rounderr)*l1-32767)/32767,((x1*ctx->scaling-ctx->rounderr)*l1)/32767,(((x1+iptr[2]+iptr[3])*ctx->scaling-ctx->rounderr)*l1)/32767);
                     x1+=iptr[2]+iptr[3];
                     for(col=2;col<cols;col++)
                     {
                         x1+=iptr[2*col]+iptr[2*col+1];
-                        rtf_printf("\\cellx%ld",((x1*scaling-rounderr)*l1)/32767);
+                        rtf_printf("\\cellx%ld",((x1*ctx->scaling-ctx->rounderr)*l1)/32767);
                     }
                 }
                 else
                 {
-                    rtf_printf("\\trleft%ld \\cellx%ld ",((iptr[1]*scaling-rounderr)*l1-32767)/32767,((iptr[0]*scaling-rounderr)*l1)/32767);
+                    rtf_printf("\\trleft%ld \\cellx%ld ",((iptr[1]*ctx->scaling-ctx->rounderr)*l1-32767)/32767,((iptr[0]*ctx->scaling-ctx->rounderr)*l1)/32767);
                 }
                 ptr=(char *)(iptr+2*cols);
             }
@@ -565,13 +566,13 @@ FILE *dev_null = fopen("/dev/null", "w");
                                     break;
                             }
                         }
-                        rtf_printf("\\tx%ld",(x1&0x3FFF)*scaling-rounderr); /* RTF: Tab position in twips from the left margin. */
+                        rtf_printf("\\tx%ld",(x1&0x3FFF)*ctx->scaling-ctx->rounderr); /* RTF: Tab position in twips from the left margin. */
                     }
                 }
 
                 while(1) /* ptr<LinkData1+TopicLink.DataLen1-sizeof(TOPICLINK)&&str<end) */
                 {
-                    if(*str&&fontset>=0&&fontset<fonts&&font&&font[fontset].SmallCaps) strlwr(str);
+                    if(*str&&fontset>=0&&fontset<ctx->fonts&&ctx->font&&ctx->font[fontset].SmallCaps) strlwr(str);
                     do
                     {
                         if(*str)
@@ -687,8 +688,8 @@ FILE *dev_null = fopen("/dev/null", "w");
                                     switch(x1)
                                     {
                                         case 1:
-                                            while(nextbitmap<extensions&&extension[nextbitmap]<0x10) nextbitmap++;
-                                            if(nextbitmap>=extensions)
+                                            while(nextbitmap<ctx->extensions&&ctx->extension[nextbitmap]<0x10) nextbitmap++;
+                                            if(nextbitmap>=ctx->extensions)
                                             {
                                                 error("Bitmap never saved");
                                                 break;
@@ -813,7 +814,7 @@ FILE *dev_null = fopen("/dev/null", "w");
         if(LinkData1) free(LinkData1);
         if(LinkData2) free(LinkData2);
         
-        if(before31)
+        if(ctx->before31)
         {
             TopicPos+=TopicLink.NextBlock;
         }

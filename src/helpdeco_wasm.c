@@ -25,26 +25,11 @@ http://www.gnu.org
 
 const char *get_version() { return "2.1.4"; }
 
-extern BOOL mvp;
-
-void initialize(void) {
-    size_t i;
-    
-    /* initialize hash value coding oldtable */
-    memset(oldtable,0,sizeof(oldtable));
-    for(i=0;i<9;i++) oldtable['1'+i]=i+1;
-    oldtable['0']=10;
-    oldtable['.']=12;
-    oldtable['_']=13;
-    for(i=0;i<26;i++) oldtable['A'+i]=oldtable['a'+i]=17+i;
-    
-    prefixhash[0]=0;
-    for(i=1;prefix[i];i++) prefixhash[i]=hash(prefix[i]);
-}
-
 const char *render(char *data, size_t len, const char *path) {
     char drive[_MAX_DRIVE];
     char dir[PATH_MAX];
+    
+    ctx = helpdeco_make_ctx();
        
     FILE *f = fopen(path, "w+");
     if(!f) {
@@ -56,19 +41,21 @@ const char *render(char *data, size_t len, const char *path) {
     fflush(f);
     fseek(f, 0, SEEK_SET);
     
-    initialize();
-    
-    _splitpath(path,drive,dir,name,ext);
-    if(ext[0]=='\0') strcpy(ext,".hlp");
-    mvp=ext[1]=='M'||ext[1]=='m';
-    _makepath(HelpFileName,drive,dir,name,ext);
+    _splitpath(path,drive,dir,ctx->name,ctx->ext);
+    if(ctx->ext[0]=='\0') strcpy(ctx->ext,".hlp");
+    ctx->mvp=ctx->ext[1]=='M'||ctx->ext[1]=='m';
+    _makepath(ctx->HelpFileName,drive,dir,ctx->name,ctx->ext);
     
     if(!HelpDeCompile(f,NULL,8,NULL,0))
     {
-        fprintf(stderr,"%s isn't a valid WinHelp file ! (render)\n",HelpFileName);
+        fprintf(stderr,"%s isn't a valid WinHelp file ! (render)\n",ctx->HelpFileName);
+    } else {
+        fprintf(stderr, "Done, cleaning up!\n");
     }
     
     my_fclose(f);
+    helpdeco_free_ctx(ctx);
+    ctx = NULL;
     
     return 0;
 }

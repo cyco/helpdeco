@@ -62,7 +62,7 @@ typedef struct { char a,b,c; } align;
 #if sizeof(align)!=3
 #error Compile bytealigned !
 #endif
-#elif defined(__APPLE__)
+#elif defined(__APPLE__) || defined(__EMSCRIPTEN__)
 #pragma pack(push, 1)
 #else
 #pragma pack(1)
@@ -777,18 +777,98 @@ extern void CTXOMAPDump(FILE *HelpFile);
 extern void LinkDump(FILE *HelpFile);
 extern void AnnotationDump(FILE *HelpFile,legacy_long FileLength,const char *name);
 
-extern BOOL overwrite; /* ugly: declared in HELPDECO.C */
-
-extern char *prefix[];
-extern char HelpFileName[NAME_MAX];
-extern char name[NAME_MAX];
-extern char ext[_MAX_EXT];
-extern char oldtable[256];
-extern legacy_long prefixhash[8];
-
 int32_t hash(char *name);
-BOOL HelpDeCompile(FILE *HelpFile,char *dumpfile,legacy_int mode,char *exportname,legacy_long offset);
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(__EMSCRIPTEN__)
 #pragma pack(pop)
 #endif
+
+#pragma mark -
+typedef struct {
+    FILEREF *external;
+    char HelpFileName[NAME_MAX];
+    char name[NAME_MAX];
+    char ext[_MAX_EXT];
+    FILE *AnnoFile;
+    HASHREC *hashrec;
+    legacy_int hashrecs;
+    BROWSE *browse;
+    legacy_int browses;
+    legacy_int browsenums;
+    legacy_long scaling;
+    legacy_int rounderr;
+    START *start;
+    legacy_int starts;
+    BOOL lzcompressed,Hall;
+    BOOL before31,after31;
+    BOOL win95;
+    BOOL mvp,multi;
+    BOOL warnings,missing;
+    int32_t *Topic;
+    legacy_int Topics;                /* 16 bit: max. 16348 Topics */
+    GROUP *group;
+    legacy_int groups;
+    CONTEXTREC *ContextRec;
+    legacy_int ContextRecs;            /* 16 bit: max. 8191 Context Records */
+    ALTERNATIVE *alternative;
+    legacy_int alternatives;
+    BOOL overwrite;
+    BOOL exportLZ77;
+    BOOL extractmacros;
+    BOOL guessing;
+    legacy_long guessed;
+    BOOL listtopic;
+    BOOL nopagebreak;
+    BOOL resolvebrowse;
+    BOOL reportderived;
+    BOOL checkexternal;
+    BOOL exportplain;
+    legacy_int NextKeywordRec,KeywordRecs;
+    KEYWORDREC *KeywordRec;
+    TOPICOFFSET NextKeywordOffset;
+    char helpcomp[13];
+    char HelpFileTitle[NAME_MAX];
+    char TopicTitle[256];
+    char *Phrases;
+    unsigned_legacy_int *PhraseOffsets;
+    unsigned_legacy_int PhraseCount;
+    legacy_long TopicFileLength;
+    legacy_int TopicBlockSize; /* 2k or 4k */
+    legacy_int DecompressSize; /* 4k or 16k */
+    char buffer[4096];
+    char keyword[512];
+    char *extension;
+    legacy_int extensions;
+    char **stopwordfilename;
+    legacy_int stopwordfiles;
+    char **fontname;
+    legacy_int fontnames;
+    unsigned char DefFont;
+    FONTDESCRIPTOR *font;
+    legacy_int fonts;
+    struct { unsigned char r,g,b; } color[128];
+    legacy_int colors;
+    char **windowname;
+    legacy_int windownames;
+    BOOL NotInAnyTopic;
+    legacy_int TopicsPerRTF;
+    BOOL lists['z'-'0'+1];
+    BOOL keyindex['z'-'0'+1];
+    legacy_long prefixhash[8];
+    FONTDESCRIPTOR CurrentFont;
+    char index_separators[40];
+    char oldtable[256];
+    char *prefix[8];
+    long LastTopicPos;
+    TOPICBLOCKHEADER TopicBlockHeader;
+    long TopicFileStart;
+    long TopicBlockNum;
+    unsigned int DecompSize;
+} HELPDECO_CTX;
+
+
+extern HELPDECO_CTX *ctx;
+
+HELPDECO_CTX *helpdeco_make_ctx(void);
+BOOL HelpDeCompile(FILE *HelpFile,char *dumpfile,legacy_int mode,char *exportname,legacy_long offset);
+void helpdeco_free_ctx(HELPDECO_CTX *ctx);
 #endif
