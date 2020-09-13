@@ -54,7 +54,7 @@ typedef unsigned int unsigned_legacy_long;
 typedef short legacy_int;
 typedef unsigned short unsigned_legacy_int;
 #else
-/* wtf */
+#error Unknown platform
 #endif
 
 #ifdef __TURBOC__
