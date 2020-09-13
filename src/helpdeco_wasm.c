@@ -30,6 +30,8 @@ const char *render(char *data, size_t len, const char *path) {
     char dir[PATH_MAX];
     
     ctx = helpdeco_make_ctx();
+    ctx->opt_overwrite = TRUE;
+    ctx->opt_interactive = TRUE;
        
     FILE *f = fopen(path, "w+");
     if(!f) {

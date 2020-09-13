@@ -787,6 +787,7 @@ typedef struct {
     BOOL opt_exportLZ77;
     BOOL opt_extractmacros;
     BOOL opt_guessing;
+    BOOL opt_interactive;
     BOOL opt_listtopic;
     BOOL opt_nopagebreak;
     BOOL opt_overwrite;

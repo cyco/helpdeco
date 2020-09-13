@@ -32,8 +32,13 @@ void error(const char *format,...)
     va_start(arg,format);
     vfprintf(stderr,format,arg);
     va_end(arg);
-    fputs("\nPress CR to continue at your own risk, any other key to exit.\n",stderr);
-    if(getch()!='\r') exit(1);
+    
+    if(ctx->opt_interactive) {
+        fputs("\nPress CR to continue at your own risk, any other key to exit.\n",stderr);
+        if(getch()!='\r') exit(1);
+    } else {
+        exit(1);
+    }
 }
 
 #ifndef HAVE_STRNCPY

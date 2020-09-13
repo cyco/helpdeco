@@ -5624,6 +5624,8 @@ BOOL HelpDeCompile(FILE *HelpFile,char *dumpfile,legacy_int mode,char *exportnam
 int main(int argc,char *argv[])
 {
     ctx = helpdeco_make_ctx();
+    ctx->opt_interactive = TRUE;
+    
     char AnnoFileName[NAME_MAX];
     char drive[_MAX_DRIVE];
     char dir[PATH_MAX];
