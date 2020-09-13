@@ -43,6 +43,7 @@ http://www.gnu.org
 #include "compat.h"
 #endif /* _WIN32 */
 
+
 #if UINTPTR_MAX == 0xffffffff
 typedef long legacy_long;
 typedef unsigned long unsigned_legacy_long;
