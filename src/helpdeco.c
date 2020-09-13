@@ -76,6 +76,86 @@ void helpdeco_free_ctx(HELPDECO_CTX *ctx) {
   if (!ctx)
     return;
 
+  if (ctx->phrases) {
+    free(ctx->phrases);
+    ctx->phrases = NULL;
+  }
+
+  if (ctx->external) {
+    free(ctx->external);
+    ctx->external = NULL;
+  }
+
+  if (ctx->alternative.entry) {
+    free(ctx->alternative.entry);
+    ctx->alternative.entry = NULL;
+  }
+
+  if (ctx->browse.entry) {
+    free(ctx->browse.entry);
+    ctx->browse.entry = NULL;
+  }
+
+  if (ctx->context_rec.entry) {
+    free(ctx->context_rec.entry);
+    ctx->context_rec.entry = NULL;
+  }
+
+  if (ctx->extension.entry) {
+    free(ctx->extension.entry);
+    ctx->extension.entry = NULL;
+  }
+
+  if (ctx->font.entry) {
+    free(ctx->font.entry);
+    ctx->font.entry = NULL;
+  }
+
+  if (ctx->font.entry) {
+    free(ctx->font.entry);
+    ctx->font.entry = NULL;
+  }
+
+  if (ctx->group.entry) {
+    free(ctx->group.entry);
+    ctx->group.entry = NULL;
+  }
+
+  if (ctx->hashrec.entry) {
+    free(ctx->hashrec.entry);
+    ctx->hashrec.entry = NULL;
+  }
+
+  if (ctx->phrase.offset) {
+    free(ctx->phrase.offset);
+    ctx->phrase.offset = NULL;
+  }
+
+  if (ctx->start.entry) {
+    free(ctx->start.entry);
+    ctx->start.entry = NULL;
+  }
+
+  if (ctx->topic.entry) {
+    free(ctx->topic.entry);
+    ctx->topic.entry = NULL;
+  }
+
+  if (ctx->windowname.entry) {
+    free(ctx->windowname.entry);
+    ctx->windowname.entry = NULL;
+  }
+
+  if (ctx->stopword_filename.entry) {
+    free(ctx->stopword_filename.entry);
+    ctx->stopword_filename.entry = NULL;
+  }
+
+  if (ctx->keyword_rec.entry) {
+    free(ctx->keyword_rec.entry);
+    ctx->keyword_rec.entry = NULL;
+  }
+
   free(ctx);
 }
 HELPDECO_CTX *ctx;
@@ -238,6 +318,7 @@ void AddTopic(char *TopicName,
         if (derived)
           return;
         free(ctx->hashrec.entry[k].name);
+        ctx->hashrec.entry[k].name = NULL;
         ctx->hashrec.entry[k].name = my_strdup(TopicName);
       }
       if (!derived && ctx->hashrec.entry[k].derived) {
@@ -447,13 +528,13 @@ void SysLoad(FILE *HelpFile) /* gets global values from SYSTEM file */
   ctx->windowname.count = 0;
   ctx->windowname.entry = NULL;
   if (ctx->before31) {
-    ctx->DecompressSize = ctx->TopicBlockSize = 2048;
+    ctx->DecompressSize = ctx->topic_block_size = 2048;
   } else {
     ctx->DecompressSize = 0x4000;
     if (SysHdr.Flags == 8) {
-      ctx->TopicBlockSize = 2048;
+      ctx->topic_block_size = 2048;
     } else {
-      ctx->TopicBlockSize = 4096;
+      ctx->topic_block_size = 4096;
     }
   }
   if (ctx->before31) {
@@ -567,7 +648,7 @@ standard
 **********************************************************************************/
 
 /* compares filename a[.HLP] and filename b[.HLP], returning 0 if match */
-legacy_int filenamecmp(const char *a, const char *b) {
+int filenamecmp(const char *a, const char *b) {
   char aname[NAME_MAX], bname[NAME_MAX];
   char aext[_MAX_EXT], bext[_MAX_EXT];
   legacy_int i;
@@ -1244,6 +1325,7 @@ legacy_int ExtractBitmap(char *szFilename, MFILE *f) {
             }
         }
         free(hotspot);
+        hotspot = NULL;
       }
     }
     if (!ctx->checkexternal) {
@@ -2119,21 +2201,21 @@ void FontLoadRTF(FILE *HelpFile, FILE *rtf, FILE *hpj) {
         family[ctx->font.entry[i].FontName] = ctx->font.entry[i].FontFamily;
       }
     }
-    ctx->DefFont = 0;
+    ctx->default_font = 0;
     l = sizeof(BestFonts) / sizeof(BestFonts[0]);
     if (ctx->fontname.entry) {
       for (i = 0; i < ctx->fontname.count; i++)
         if (family[i]) {
           for (j = 0; j < l; j++) {
             if (stricmp(ctx->fontname.entry[i], BestFonts[j]) == 0) {
-              ctx->DefFont = i;
+              ctx->default_font = i;
               l = j;
               break;
             }
           }
         }
     }
-    fprintf(rtf, "{\\rtf1\\ansi\\deff%d\n{\\fonttbl", ctx->DefFont);
+    fprintf(rtf, "{\\rtf1\\ansi\\deff%d\n{\\fonttbl", ctx->default_font);
     for (i = 0; i < ctx->fontname.count; i++) {
       fprintf(rtf, "{\\f%d\\f%s %s;}", i, FontFamily(family[i]),
               ctx->fontname.entry[i]);
@@ -2141,6 +2223,7 @@ void FontLoadRTF(FILE *HelpFile, FILE *rtf, FILE *hpj) {
       ctx->fontname.entry[i] = NULL;
     }
     free(ctx->fontname.entry);
+    ctx->fontname.entry = NULL;
     fputs("}\n", rtf);
     if (ctx->color.count > 1) {
       fputs("{\\colortbl;", rtf);
@@ -2213,6 +2296,7 @@ void FontLoadRTF(FILE *HelpFile, FILE *rtf, FILE *hpj) {
         fprintf(rtf, " %s;}\n", m->StyleName);
       }
       free(mvbstyle);
+      mvbstyle = NULL;
     } else if (newstyle) {
       for (i = 0; i < FontHdr.NumFormats; i++) {
         NEWSTYLE *m, *n;
@@ -2265,12 +2349,15 @@ void FontLoadRTF(FILE *HelpFile, FILE *rtf, FILE *hpj) {
         fprintf(rtf, " %s;}\n", m->StyleName);
       }
       free(newstyle);
+      newstyle = NULL;
     }
-    if (family)
+    if (family) {
       free(family);
+      family = NULL;
+    }
     fputs("}\\pard\\plain\n", rtf);
-    memset(&ctx->CurrentFont, 0, sizeof(ctx->CurrentFont));
-    ctx->CurrentFont.FontName = ctx->DefFont;
+    memset(&ctx->current_font, 0, sizeof(ctx->current_font));
+    ctx->current_font.FontName = ctx->default_font;
     if (hpj) {
       fprintf(stderr, "%u font names, %u font descriptors", ctx->fontname.count,
               FontHdr.NumDescriptors);
@@ -2290,53 +2377,53 @@ legacy_long TopicRead(FILE *HelpFile, legacy_long TopicPos, void *dest,
   unsigned int TopicBlockOffset;
   unsigned int n;
 
-  if (!ctx->TopicFileStart) /* first call: HelpFile is at start of |TOPIC */
+  if (!ctx->topic_file_start) /* first call: HelpFile is at start of |TOPIC */
   {
-    ctx->TopicFileStart = ftell(HelpFile);
-    ctx->TopicBlockNum = -1;
+    ctx->topic_file_start = ftell(HelpFile);
+    ctx->topic_block_num = -1;
   }
   if (!TopicPos)
-    TopicPos = ctx->LastTopicPos; /* continue where left off */
+    TopicPos = ctx->topic_last_pos; /* continue where left off */
   if ((TopicPos - sizeof(TOPICBLOCKHEADER)) / ctx->DecompressSize !=
-      ctx->TopicBlockNum) /* other topic block */
+      ctx->topic_block_num) /* other topic block */
   {
-    ctx->TopicBlockNum =
+    ctx->topic_block_num =
         (TopicPos - sizeof(TOPICBLOCKHEADER)) / ctx->DecompressSize;
-    if (ctx->TopicBlockNum * ctx->TopicBlockSize >= ctx->TopicFileLength)
+    if (ctx->topic_block_num * ctx->topic_block_size >= ctx->topic_file_length)
       return 0;
     fseek(HelpFile,
-          ctx->TopicFileStart + ctx->TopicBlockNum * ctx->TopicBlockSize,
+          ctx->topic_file_start + ctx->topic_block_num * ctx->topic_block_size,
           SEEK_SET);
-    n = ctx->TopicBlockSize;
-    if (n + ctx->TopicBlockNum * ctx->TopicBlockSize > ctx->TopicFileLength) {
-      n = (unsigned_legacy_int)(ctx->TopicFileLength -
-                                ctx->TopicBlockNum * ctx->TopicBlockSize);
+    n = ctx->topic_block_size;
+    if (n + ctx->topic_block_num * ctx->topic_block_size > ctx->topic_file_length) {
+      n = (unsigned_legacy_int)(ctx->topic_file_length -
+                                ctx->topic_block_num * ctx->topic_block_size);
     }
-    read_TOPICBLOCKHEADER(&ctx->TopicBlockHeader, HelpFile);
+    read_TOPICBLOCKHEADER(&ctx->topic_block_header, HelpFile);
     n -= sizeof(TOPICBLOCKHEADER);
     if (ctx->lzcompressed) {
-      ctx->DecompSize = DecompressIntoBuffer(2, HelpFile, n, TopicBuffer,
-                                             sizeof(TopicBuffer));
+      ctx->decompressed_size = DecompressIntoBuffer(2, HelpFile, n, TopicBuffer,
+                                                    sizeof(TopicBuffer));
     } else {
-      ctx->DecompSize = my_fread(TopicBuffer, n, HelpFile);
+      ctx->decompressed_size = my_fread(TopicBuffer, n, HelpFile);
     }
   }
   TopicBlockOffset =
       (TopicPos - sizeof(TOPICBLOCKHEADER)) % ctx->DecompressSize;
   if (TopicBlockOffset + NumBytes >
-      ctx->DecompSize) /* more than available in this block */
+      ctx->decompressed_size) /* more than available in this block */
   {
-    n = ctx->DecompSize - TopicBlockOffset;
+    n = ctx->decompressed_size - TopicBlockOffset;
     if (n)
       memcpy(dest, TopicBuffer + TopicBlockOffset, n);
     return n + TopicRead(HelpFile,
-                         (ctx->TopicBlockNum + 1) * ctx->DecompressSize +
+                         (ctx->topic_block_num + 1) * ctx->DecompressSize +
                              sizeof(TOPICBLOCKHEADER),
                          (char *)dest + n, NumBytes - n);
   }
   if (NumBytes)
     memcpy(dest, TopicBuffer + TopicBlockOffset, NumBytes);
-  ctx->LastTopicPos = TopicPos + NumBytes;
+  ctx->topic_last_pos = TopicPos + NumBytes;
   return NumBytes;
 }
 
@@ -2417,12 +2504,14 @@ legacy_long TopicPhraseRead(FILE *HelpFile, legacy_long TopicPos, char *dest,
       buffer = my_malloc(NumBytes - Length);
       BytesRead += TopicRead(HelpFile, 0, buffer, NumBytes - Length);
       free(buffer);
+      buffer = NULL;
     }
   } else {
     buffer = my_malloc(NumBytes);
     BytesRead = TopicRead(HelpFile, TopicPos, buffer, NumBytes);
     NumBytes = PhraseReplace(buffer, NumBytes, dest) - dest;
     free(buffer);
+    buffer = NULL;
     if (NumBytes > Length) {
       error("Phrase replacement delivers %ld bytes instead of %ld", NumBytes,
             Length);
@@ -2478,8 +2567,10 @@ void CollectKeywords(FILE *HelpFile) {
   if (ctx->keyword_rec.entry) /* free old keywords */
   {
     for (i = 0; i < ctx->keyword_rec.count; i++) {
-      if (ctx->keyword_rec.entry[i].Keyword)
+      if (ctx->keyword_rec.entry[i].Keyword) {
         free(ctx->keyword_rec.entry[i].Keyword);
+        ctx->keyword_rec.entry[i].Keyword = NULL;
+      }
     }
   } else {
     ctx->keyword_rec.entry = my_malloc(MAXKEYWORDS * sizeof(KEYWORDREC));
@@ -2520,9 +2611,12 @@ void CollectKeywords(FILE *HelpFile) {
                                .TopicOffset == ctx->NextKeywordOffset) {
                       ctx->keyword_rec.count--;
                       if (ctx->keyword_rec.entry[ctx->keyword_rec.count]
-                              .Keyword)
+                              .Keyword) {
                         free(ctx->keyword_rec.entry[ctx->keyword_rec.count]
                                  .Keyword);
+                        ctx->keyword_rec.entry[ctx->keyword_rec.count].Keyword =
+                            NULL;
+                      }
                     }
                   }
                   l = ctx->keyword_rec.count;
@@ -2549,6 +2643,7 @@ void CollectKeywords(FILE *HelpFile) {
             }
           }
           free(keytopic);
+          keytopic = NULL;
         }
       }
     }
@@ -2630,6 +2725,7 @@ legacy_int ListWindows(FILE *HelpFile, legacy_long TopicOffset) {
     while (i >= n || TopicOffset > Viola[i].TopicOffset) {
       if (i >= n) {
         free(Viola);
+        Viola = NULL;
         n = GetNextPage(HelpFile, &buf);
         if (n == 0) {
           VIOLAfound = 0;
@@ -2961,56 +3057,56 @@ void ChangeFont(FILE *rtf, unsigned_legacy_int i, BOOL ul, BOOL uldb) {
         fputs("\\ul", rtf);
     } else {
       /* HC30 can't reset, so reset using \plain */
-      if ((ctx->CurrentFont.Bold && !f->Bold) ||
-          (ctx->CurrentFont.Italic && !f->Italic) ||
-          (ctx->CurrentFont.Underline && !(!uldb && (ul || f->Underline))) ||
-          (ctx->CurrentFont.StrikeOut && !f->StrikeOut) ||
-          (ctx->CurrentFont.DoubleUnderline && !(uldb || f->DoubleUnderline)) ||
-          (ctx->CurrentFont.SmallCaps && !f->SmallCaps) ||
-          (ctx->CurrentFont.FontName && !f->FontName) ||
-          (ctx->CurrentFont.textcolor && !f->textcolor) ||
-          (ctx->CurrentFont.backcolor && !f->backcolor) ||
-          (ctx->CurrentFont.up && !f->up) ||
-          (ctx->CurrentFont.style && !f->style)) {
+      if ((ctx->current_font.Bold && !f->Bold) ||
+          (ctx->current_font.Italic && !f->Italic) ||
+          (ctx->current_font.Underline && !(!uldb && (ul || f->Underline))) ||
+          (ctx->current_font.StrikeOut && !f->StrikeOut) ||
+          (ctx->current_font.DoubleUnderline && !(uldb || f->DoubleUnderline)) ||
+          (ctx->current_font.SmallCaps && !f->SmallCaps) ||
+          (ctx->current_font.FontName && !f->FontName) ||
+          (ctx->current_font.textcolor && !f->textcolor) ||
+          (ctx->current_font.backcolor && !f->backcolor) ||
+          (ctx->current_font.up && !f->up) ||
+          (ctx->current_font.style && !f->style)) {
         fputs("\\plain", rtf);
-        memset(&ctx->CurrentFont, 0, sizeof(ctx->CurrentFont));
-        ctx->CurrentFont.FontName = ctx->DefFont;
+        memset(&ctx->current_font, 0, sizeof(ctx->current_font));
+        ctx->current_font.FontName = ctx->default_font;
       }
-      if (f->FontName != ctx->CurrentFont.FontName)
+      if (f->FontName != ctx->current_font.FontName)
         fprintf(rtf, "\\f%d", f->FontName);
-      if (f->Italic && !ctx->CurrentFont.Italic)
+      if (f->Italic && !ctx->current_font.Italic)
         fputs("\\i", rtf);
-      if (f->Bold && !ctx->CurrentFont.Bold)
+      if (f->Bold && !ctx->current_font.Bold)
         fputs("\\b", rtf);
-      if (!uldb && (ul || f->Underline) && !ctx->CurrentFont.Bold)
+      if (!uldb && (ul || f->Underline) && !ctx->current_font.Bold)
         fputs("\\ul", rtf);
-      if (f->StrikeOut && !ctx->CurrentFont.StrikeOut)
+      if (f->StrikeOut && !ctx->current_font.StrikeOut)
         fputs("\\strike", rtf);
-      if ((uldb || f->DoubleUnderline) && !ctx->CurrentFont.DoubleUnderline)
+      if ((uldb || f->DoubleUnderline) && !ctx->current_font.DoubleUnderline)
         fputs("\\uldb", rtf);
-      if (f->SmallCaps && !ctx->CurrentFont.SmallCaps)
+      if (f->SmallCaps && !ctx->current_font.SmallCaps)
         fputs("\\scaps", rtf);
-      if (f->expndtw != ctx->CurrentFont.expndtw)
+      if (f->expndtw != ctx->current_font.expndtw)
         fprintf(rtf, "\\expndtw%d", f->expndtw);
-      if (f->up != ctx->CurrentFont.up) {
+      if (f->up != ctx->current_font.up) {
         if (f->up > 0)
           fprintf(rtf, "\\up%d", f->up);
         else if (f->up < 0)
           fprintf(rtf, "\\dn%d", -f->up);
       }
-      if (f->HalfPoints != ctx->CurrentFont.HalfPoints)
+      if (f->HalfPoints != ctx->current_font.HalfPoints)
         fprintf(rtf, "\\fs%d", f->HalfPoints);
-      if (f->textcolor != ctx->CurrentFont.textcolor)
+      if (f->textcolor != ctx->current_font.textcolor)
         fprintf(rtf, "\\cf%d", f->textcolor);
-      if (f->backcolor != ctx->CurrentFont.backcolor)
+      if (f->backcolor != ctx->current_font.backcolor)
         fprintf(rtf, "\\cb%d", f->backcolor);
     }
-    memcpy(&ctx->CurrentFont, f, sizeof(ctx->CurrentFont));
+    memcpy(&ctx->current_font, f, sizeof(ctx->current_font));
     if (ul)
-      ctx->CurrentFont.Underline = 1;
+      ctx->current_font.Underline = 1;
     if (uldb) {
-      ctx->CurrentFont.Underline = 0;
-      ctx->CurrentFont.DoubleUnderline = 1;
+      ctx->current_font.Underline = 0;
+      ctx->current_font.DoubleUnderline = 1;
     }
     if (ftell(rtf) != pos)
       putc(' ', rtf);
@@ -3096,7 +3192,7 @@ FILE *TopicDumpRTF(FILE *HelpFile, FILE *rtf, FILE *hpj, BOOL makertf) {
   TOPICHEADER *TopicHdr;
   legacy_long BogusTopicOffset;
 
-  if (SearchFile(HelpFile, "|TOPIC", &ctx->TopicFileLength)) {
+  if (SearchFile(HelpFile, "|TOPIC", &ctx->topic_file_length)) {
     fontset = -1;
     nextbitmap = 1;
     if (ctx->browse.entry)
@@ -3114,7 +3210,7 @@ FILE *TopicDumpRTF(FILE *HelpFile, FILE *rtf, FILE *hpj, BOOL makertf) {
     while (TopicRead(HelpFile, TopicPos, &TopicLink, sizeof(TopicLink)) ==
            sizeof(TOPICLINK)) {
       if (ctx->before31) {
-        if (TopicPos + TopicLink.NextBlock >= ctx->TopicFileLength)
+        if (TopicPos + TopicLink.NextBlock >= ctx->topic_file_length)
           break;
       } else {
         if (TopicLink.NextBlock <= 0)
@@ -3420,8 +3516,9 @@ FILE *TopicDumpRTF(FILE *HelpFile, FILE *rtf, FILE *hpj, BOOL makertf) {
             }
           }
           putc(' ', rtf);
-          while (1) /* ptr<LinkData1+TopicLink.DataLen1-sizeof(TOPICLINK)&&str<end)
-                     */
+          while (
+              1) /* ptr<LinkData1+TopicLink.DataLen1-sizeof(TOPICLINK)&&str<end)
+                  */
           {
             if (*str && fontset >= 0 && fontset < ctx->font.count &&
                 ctx->font.entry && ctx->font.entry[fontset].SmallCaps)
@@ -3935,6 +4032,7 @@ void ListRose(FILE *HelpFile, FILE *hpj) {
         putc('\n', hpj);
       }
       free(keytopic);
+      keytopic = NULL;
     }
   }
 }
@@ -4084,6 +4182,7 @@ void PhrImageDump(FILE *HelpFile) {
                                      PhrIndexHdr.phrimagesize);
         HexDumpMemory(ptr, bytes);
         free(ptr);
+        ptr = NULL;
       }
     }
   }
@@ -4278,7 +4377,7 @@ void DumpTopic(FILE *HelpFile, legacy_long TopicPos) {
   legacy_long TopicNum;
   legacy_long TopicOffset;
 
-  if (!SearchFile(HelpFile, "|TOPIC", &ctx->TopicFileLength))
+  if (!SearchFile(HelpFile, "|TOPIC", &ctx->topic_file_length))
     return;
   TopicOffset = 0;
   if (TopicPos < 12)
@@ -4643,13 +4742,17 @@ void DumpTopic(FILE *HelpFile, legacy_long TopicPos) {
       PrintString(LinkData2, TopicLink.DataLen2);
       putchar('\n');
     }
-    if (LinkData1)
+    if (LinkData1) {
       free(LinkData1);
-    if (LinkData2)
+      LinkData1 = NULL;
+    }
+    if (LinkData2) {
       free(LinkData2);
+      LinkData2 = NULL;
+    }
     if (ctx->before31) {
       TopicPos += TopicLink.NextBlock;
-      if (TopicPos >= ctx->TopicFileLength)
+      if (TopicPos >= ctx->topic_file_length)
         break;
     } else {
       if (TopicLink.NextBlock <= 0)
@@ -4760,6 +4863,7 @@ void GuessFromKeywords(FILE *HelpFile) {
             fputc('.', stderr);
           }
           free(keytopic);
+          keytopic = NULL;
         }
       }
     }
@@ -4815,7 +4919,7 @@ void FirstPass(FILE *HelpFile) {
   }
   ctx->browse.count = 0;
   ctx->browsenums = 1;
-  if (!SearchFile(HelpFile, "|TOPIC", &ctx->TopicFileLength))
+  if (!SearchFile(HelpFile, "|TOPIC", &ctx->topic_file_length))
     return;
   TopicOffset = 0;
   TopicPos = 12;
@@ -4823,7 +4927,7 @@ void FirstPass(FILE *HelpFile) {
   while (TopicRead(HelpFile, TopicPos, &TopicLink, sizeof(TopicLink)) ==
          sizeof(TOPICLINK)) {
     if (ctx->before31) {
-      if (TopicPos + TopicLink.NextBlock >= ctx->TopicFileLength)
+      if (TopicPos + TopicLink.NextBlock >= ctx->topic_file_length)
         break;
     } else {
       if (TopicLink.NextBlock <= 0)
@@ -5099,10 +5203,14 @@ void FirstPass(FILE *HelpFile) {
         }
       }
     }
-    if (LinkData1)
+    if (LinkData1) {
       free(LinkData1);
-    if (LinkData2)
+      LinkData1 = NULL;
+    }
+    if (LinkData2) {
       free(LinkData2);
+      LinkData2 = NULL;
+    }
     if (ctx->before31) {
       TopicPos += TopicLink.NextBlock;
     } else {
@@ -5146,7 +5254,7 @@ void ContextList(FILE *HelpFile) {
   }
   strcpy(filename, ctx->name);
   strcat(filename, ctx->ext);
-  if (!SearchFile(HelpFile, "|TOPIC", &ctx->TopicFileLength))
+  if (!SearchFile(HelpFile, "|TOPIC", &ctx->topic_file_length))
     return;
   TopicOffset = 0;
   TopicPos = 12;
@@ -5250,12 +5358,16 @@ void ContextList(FILE *HelpFile) {
       scanlong(&ptr);
       TopicOffset += scanword(&ptr);
     }
-    if (LinkData1)
+    if (LinkData1) {
       free(LinkData1);
-    if (LinkData2)
+      LinkData1 = NULL;
+    }
+    if (LinkData2) {
       free(LinkData2);
+      LinkData2 = NULL;
+    }
     if (ctx->before31) {
-      if (TopicPos + TopicLink.NextBlock >= ctx->TopicFileLength)
+      if (TopicPos + TopicLink.NextBlock >= ctx->topic_file_length)
         break;
       TopicPos += TopicLink.NextBlock;
     } else {

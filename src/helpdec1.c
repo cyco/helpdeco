@@ -788,8 +788,8 @@ void ListFiles(FILE *HelpFile) /* display internal directory */
   char FileName[255];
   legacy_int j, i, n;
 
-  puts(
-      "FileName		  FileOffset | FileName 	       FileOffset");
+  puts("FileName		  FileOffset | FileName 	       "
+       "FileOffset");
   puts("-----------------------------------+----------------------------------"
        "-");
   j = 0;

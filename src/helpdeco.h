@@ -810,23 +810,23 @@ typedef struct {
   char oldtable[256];
   FILE *annotation_file;
   FILEREF *external;
-  FONTDESCRIPTOR CurrentFont;
+  FONTDESCRIPTOR current_font;
   legacy_int browsenums;
   legacy_int DecompressSize; /* 4k or 16k */
   legacy_int NextKeywordRec;
   legacy_int rounderr;
-  legacy_int TopicBlockSize; /* 2k or 4k */
+  legacy_int topic_block_size; /* 2k or 4k */
   legacy_long guessed;
   legacy_long prefixhash[8];
   legacy_long scaling;
-  legacy_long TopicFileLength;
-  long LastTopicPos;
-  long TopicBlockNum;
-  long TopicFileStart;
-  TOPICBLOCKHEADER TopicBlockHeader;
+  legacy_long topic_file_length;
+  long topic_last_pos;
+  long topic_block_num;
+  long topic_file_start;
+  TOPICBLOCKHEADER topic_block_header;
   TOPICOFFSET NextKeywordOffset;
-  unsigned char DefFont;
-  unsigned int DecompSize;
+  unsigned char default_font;
+  unsigned int decompressed_size;
 
   struct {
     legacy_int count;

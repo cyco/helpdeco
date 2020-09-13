@@ -221,14 +221,14 @@ BOOL LoadFontsIntoHTML(FILE *HelpFile, FILE *rtf) {
       family[ctx->font.entry[i].FontName] = ctx->font.entry[i].FontFamily;
     }
   }
-  ctx->DefFont = 0;
+  ctx->default_font = 0;
   l = sizeof(BestFonts) / sizeof(BestFonts[0]);
   if (ctx->fontname.entry) {
     for (i = 0; i < ctx->fontname.count; i++)
       if (family[i]) {
         for (j = 0; j < l; j++) {
           if (stricmp(ctx->fontname.entry[i], BestFonts[j]) == 0) {
-            ctx->DefFont = i;
+            ctx->default_font = i;
             l = j;
             break;
           }
@@ -381,8 +381,8 @@ BOOL LoadFontsIntoHTML(FILE *HelpFile, FILE *rtf) {
   if(family) free(family);
   fputs("}\\pard\\plain\n",html);
   */
-  memset(&ctx->CurrentFont, 0, sizeof(ctx->CurrentFont));
-  ctx->CurrentFont.FontName = ctx->DefFont;
+  memset(&ctx->current_font, 0, sizeof(ctx->current_font));
+  ctx->current_font.FontName = ctx->default_font;
 
   return TRUE;
 }
@@ -427,7 +427,7 @@ FILE *dev_null = fopen("/dev/null", "w");
   char *str;
   legacy_long ActualTopicOffset = 0, MaxTopicOffset = 0;
 
-  if (!SearchFile(HelpFile, "|TOPIC", &ctx->TopicFileLength)) {
+  if (!SearchFile(HelpFile, "|TOPIC", &ctx->topic_file_length)) {
     fprintf(stderr, "No topic file found\n");
     return FALSE;
   }
@@ -449,7 +449,7 @@ FILE *dev_null = fopen("/dev/null", "w");
   while (TopicRead(HelpFile, TopicPos, &TopicLink, sizeof(TopicLink)) ==
          sizeof(TOPICLINK)) {
     if (ctx->before31) {
-      if (TopicPos + TopicLink.NextBlock >= ctx->TopicFileLength)
+      if (TopicPos + TopicLink.NextBlock >= ctx->topic_file_length)
         break;
     } else {
       if (TopicLink.NextBlock <= 0)
@@ -633,8 +633,9 @@ FILE *dev_null = fopen("/dev/null", "w");
           }
         }
 
-        while (1) /* ptr<LinkData1+TopicLink.DataLen1-sizeof(TOPICLINK)&&str<end)
-                   */
+        while (
+            1) /* ptr<LinkData1+TopicLink.DataLen1-sizeof(TOPICLINK)&&str<end)
+                */
         {
           if (*str && fontset >= 0 && fontset < ctx->font.count &&
               ctx->font.entry && ctx->font.entry[fontset].SmallCaps)
