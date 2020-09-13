@@ -784,59 +784,60 @@ int32_t hash(char *name);
 
 #pragma mark -
 typedef struct {
+    BOOL opt_exportLZ77;
+    BOOL opt_extractmacros;
+    BOOL opt_guessing;
+    BOOL opt_listtopic;
+    BOOL opt_nopagebreak;
+    BOOL opt_overwrite;
+    BOOL opt_reportderived;
+    BOOL opt_resolvebrowse;
+    int opt_topics_per_rtf;
+    
     char filename[NAME_MAX];
     char name[NAME_MAX];
     char ext[_MAX_EXT];
     char title[NAME_MAX];
     char suggested_compiler[13];
     
-    FILEREF *external;
-    FILE *annotation_file;
-    legacy_int browsenums;
-    legacy_long scaling;
-    legacy_int rounderr;
-    BOOL lzcompressed;
-    BOOL Hall;
-    BOOL before31;
     BOOL after31;
-    BOOL win95;
-    BOOL mvp;
-    BOOL multi;
-    BOOL warnings;
-    BOOL missing;
-    BOOL overwrite;
-    BOOL exportLZ77;
-    BOOL extractmacros;
-    BOOL guessing;
-    legacy_long guessed;
-    BOOL listtopic;
-    BOOL nopagebreak;
-    BOOL resolvebrowse;
-    BOOL reportderived;
+    BOOL before31;
     BOOL checkexternal;
     BOOL exportplain;
-    legacy_int NextKeywordRec;
-    TOPICOFFSET NextKeywordOffset;
-    char *Phrases;
-    legacy_long TopicFileLength;
-    legacy_int TopicBlockSize; /* 2k or 4k */
-    legacy_int DecompressSize; /* 4k or 16k */
-    unsigned char DefFont;
-    BOOL NotInAnyTopic;
-    legacy_int TopicsPerRTF;
-    BOOL lists['z'-'0'+1];
+    BOOL Hall;
     BOOL keyindex['z'-'0'+1];
-    legacy_long prefixhash[8];
-    FONTDESCRIPTOR CurrentFont;
+    BOOL lists['z'-'0'+1];
+    BOOL lzcompressed;
+    BOOL missing;
+    BOOL multi;
+    BOOL mvp;
+    BOOL NotInAnyTopic;
+    BOOL warnings;
+    BOOL win95;
+    char *phrases;
+    char *prefix[8];
     char index_separators[40];
     char oldtable[256];
-    char *prefix[8];
+    FILE *annotation_file;
+    FILEREF *external;
+    FONTDESCRIPTOR CurrentFont;
+    legacy_int browsenums;
+    legacy_int DecompressSize; /* 4k or 16k */
+    legacy_int NextKeywordRec;
+    legacy_int rounderr;
+    legacy_int TopicBlockSize; /* 2k or 4k */
+    legacy_long guessed;
+    legacy_long prefixhash[8];
+    legacy_long scaling;
+    legacy_long TopicFileLength;
     long LastTopicPos;
-    TOPICBLOCKHEADER TopicBlockHeader;
-    long TopicFileStart;
     long TopicBlockNum;
+    long TopicFileStart;
+    TOPICBLOCKHEADER TopicBlockHeader;
+    TOPICOFFSET NextKeywordOffset;
+    unsigned char DefFont;
     unsigned int DecompSize;
-    
+
     struct { legacy_int count; ALTERNATIVE *entry; } alternative;
     struct { legacy_int count; BROWSE *entry; } browse;
     struct { legacy_int count; struct { unsigned char r,g,b; } entry[128]; } color;
