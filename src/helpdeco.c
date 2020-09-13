@@ -5645,6 +5645,7 @@ BOOL HelpDeCompile(FILE *HelpFile,char *dumpfile,legacy_int mode,char *exportnam
     return TRUE;
 }
 
+#if !defined(__EMSCRIPTEN__)
 int main(int argc,char *argv[])
 {
     char AnnoFileName[NAME_MAX];
@@ -5866,3 +5867,4 @@ int main(int argc,char *argv[])
     }
     return 0;
 }
+#endif
