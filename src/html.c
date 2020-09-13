@@ -51,6 +51,13 @@ void ChangeHTMLFont(FILE *rtf,unsigned_legacy_int i,BOOL ul,BOOL uldb)
 }
 
 
+const char* html_font_name(HELPDECO_CTX *ctx, legacy_int id) {
+    if (0 <= id && id < ctx->fontname.count)
+        return ctx->fontname.entry[id];
+    
+    return ctx->fontname.count ? ctx->fontname.entry[0] : FontFamily(id);
+}
+
 BOOL LoadFontsIntoHTML(FILE *HelpFile,FILE *rtf)
 {
     FILE *__html_output = rtf;
@@ -239,12 +246,12 @@ BOOL LoadFontsIntoHTML(FILE *HelpFile,FILE *rtf)
 
     fprintf(__html_output, "<style>");
     fprintf(stderr, "Writing %d fonts to style tag\n", ctx->fontname.count);
-    for(i=0;i<ctx->fontname.count;i++) {
+    for(i=0;i<ctx->font.count;i++) {
         fprintf(__html_output, ".font-%d { "
                 "font-family: \"%s\";"
                 "%s%s%s%s%s%s%s"
                 "}\n"
-                ,i, FontFamily(family[i]),
+                ,i, html_font_name(ctx, ctx->font.entry[i].FontName),
                 ctx->font.entry[i].Bold ? "font-weight: bold;" : "",
                 ctx->font.entry[i].Italic ? "font-style: italic;" : "",
                 ctx->font.entry[i].DoubleUnderline ? "text-decoration: underline; border-bottom: 1px solid" : "",
@@ -253,9 +260,7 @@ BOOL LoadFontsIntoHTML(FILE *HelpFile,FILE *rtf)
                 ctx->font.entry[i].Underline && ctx->font.entry[i].StrikeOut  ? "text-decoration: underline line-through;" : "",
                 ctx->font.entry[i].SmallCaps  ? "font-variant: small-caps;" : ""
         );
-        free(ctx->fontname.entry[i]);
-        
-        ctx->fontname.entry[i] = NULL;
+    
         /* TODO: unhandled / unchecked font attributes
          unsigned char HalfPoints;
          unsigned char FontFamily;
