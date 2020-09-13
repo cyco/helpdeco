@@ -1,5 +1,5 @@
 OUT=out
-SOURCES=src/helpdeco.c src/helpdec1.c src/compat.c
+SOURCES=src/helpdeco.c src/helpdec1.c src/compat.c src/mfile.c
 
 helpdeco.wasm:
 	@ mkdir -p $(OUT)

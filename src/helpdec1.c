@@ -61,7 +61,7 @@ size_t strlcpy(char *dest, const char *src,
 #endif /* !defined(HAVE_STRLCPY) */
 #endif /* !defined(HAVE_STRNCPY) */
 
-void *my_malloc(long bytes) /* save malloc function */
+void *helpdeco_malloc(long bytes) /* save malloc function */
 {
   void *ptr;
 
@@ -73,10 +73,10 @@ void *my_malloc(long bytes) /* save malloc function */
   return ptr;
 }
 
-void *my_realloc(void *ptr, long bytes) /* save realloc function */
+void *helpdeco_realloc(void *ptr, long bytes) /* save realloc function */
 {
   if (!ptr)
-    return my_malloc(bytes);
+    return helpdeco_malloc(bytes);
   if (bytes < 1L || bytes != (size_t)bytes ||
       (ptr = realloc(ptr, (size_t)bytes)) == NULL) {
     fprintf(stderr, "Reallocation to %ld bytes failed. File too big.\n", bytes);
@@ -85,7 +85,7 @@ void *my_realloc(void *ptr, long bytes) /* save realloc function */
   return ptr;
 }
 
-char *my_strdup(const char *ptr) /* save strdup function */
+char *helpdeco_strdup(const char *ptr) /* save strdup function */
 {
   size_t len;
   char *dup;
@@ -93,12 +93,12 @@ char *my_strdup(const char *ptr) /* save strdup function */
   if (!ptr)
     return NULL;
   len = strlen(ptr);
-  dup = my_malloc(len + 1);
+  dup = helpdeco_malloc(len + 1);
   strcpy(dup, ptr);
   return dup;
 }
 
-size_t my_fread(void *ptr, long bytes, FILE *f) /* save fread function */
+size_t helpdeco_fread(void *ptr, long bytes, FILE *f) /* save fread function */
 {
   size_t result = 0;
 
@@ -106,12 +106,12 @@ size_t my_fread(void *ptr, long bytes, FILE *f) /* save fread function */
     return 0;
   if (bytes < 0 || bytes != (size_t)bytes ||
       (result = fread(ptr, 1, (size_t)bytes, f)) != bytes) {
-    error("my_fread(%ld) at %ld failed", bytes, ftell(f));
+    error("helpdeco_fread(%ld) at %ld failed", bytes, ftell(f));
   }
   return result;
 }
 
-size_t my_gets(char *ptr, size_t size,
+size_t helpdeco_gets(char *ptr, size_t size,
                FILE *f) /* read nul terminated string from regular file */
 {
   size_t i;
@@ -129,7 +129,7 @@ size_t my_gets(char *ptr, size_t size,
   return i;
 }
 
-void my_fclose(FILE *f) /* checks if disk is full */
+void helpdeco_fclose(FILE *f) /* checks if disk is full */
 {
   if (ferror(f) != 0) {
     fputs("File write error. Program aborted.\n", stderr);
@@ -138,7 +138,7 @@ void my_fclose(FILE *f) /* checks if disk is full */
   fclose(f);
 }
 
-FILE *my_fopen(const char *filename, const char *mode) /* save fopen function */
+FILE *helpdeco_fopen(const char *filename, const char *mode) /* save fopen function */
 {
   FILE *f;
   char ch;
@@ -174,7 +174,7 @@ FILE *my_fopen(const char *filename, const char *mode) /* save fopen function */
   return f;
 }
 
-uint16_t my_getw(FILE *f) /* get 16 bit quantity */
+uint16_t helpdeco_getw(FILE *f) /* get 16 bit quantity */
 {
   int ch;
 
@@ -182,207 +182,42 @@ uint16_t my_getw(FILE *f) /* get 16 bit quantity */
   return ch | (getc(f) << 8);
 }
 
-uint32_t getdw(FILE *f) /* get long */
+uint32_t helpdeco_getdw(FILE *f) /* get long */
 {
   uint16_t w;
 
-  w = my_getw(f);
-  return ((uint32_t)my_getw(f) << 16) | (uint32_t)w;
+  w = helpdeco_getw(f);
+  return ((uint32_t)helpdeco_getw(f) << 16) | (uint32_t)w;
 }
 
-void my_putw(uint16_t w, FILE *f) /* write 16 bit quantity */
+void helpdeco_putw(uint16_t w, FILE *f) /* write 16 bit quantity */
 {
   putc((w & 0xFF), f);
   putc((w >> 8), f);
 }
 
-void putdw(uint32_t x, FILE *f) /* write long to file */
+void helpdeco_putdw(uint32_t x, FILE *f) /* write long to file */
 {
   fwrite(&x, 4, 1, f);
 }
 
-void putcdw(uint32_t x, FILE *f) /* write compressed long to file */
+void helpdeco_putcdw(uint32_t x, FILE *f) /* write compressed long to file */
 {
   if (x > 32767L) {
-    my_putw((unsigned int)(x << 1) + 1, f);
-    my_putw(x >> 15, f);
+    helpdeco_putw((unsigned int)(x << 1) + 1, f);
+    helpdeco_putw(x >> 15, f);
   } else {
-    my_putw(x << 1, f);
+    helpdeco_putw(x << 1, f);
   }
 }
 
-void putcw(unsigned_legacy_int x, FILE *f) /* write compressed word to file */
+void helpdeco_putcw(unsigned_legacy_int x, FILE *f) /* write compressed word to file */
 {
   if (x > 127) {
-    my_putw((x << 1) + 1, f);
+    helpdeco_putw((x << 1) + 1, f);
   } else {
     putc(x << 1, f);
   }
-}
-
-/* HELPDECO sometimes has to work off the help file, sometimes needs to do
-// the same with (decompressed) information stored in memory. MFILE and the
-// memory mapped file functions allow to write the same code for both, but
-// this approach needs some declarations first... */
-int MemoryPut(MFILE *f, char c) /* put char to memory mapped file */
-{
-  if (f->ptr >= f->end)
-    return 0;
-  *f->ptr++ = c;
-  return 1;
-}
-
-int FilePut(MFILE *f, char c) /* put char to regular file */
-{
-  if (putc(c, f->f) == -1)
-    return 0;
-  return 1;
-}
-
-int MemoryGet(MFILE *f) /* get char from memory mapped file */
-{
-  if (f->ptr >= f->end)
-    return -1;
-  return *(unsigned char *)f->ptr++;
-}
-
-int FileGet(MFILE *f) /* get char from regular file */
-{
-  return getc(f->f);
-}
-
-size_t MemoryRead(MFILE *f, void *ptr,
-                  long bytes) /* read function for memory mapped file */
-{
-  if (bytes < 0 || bytes > f->end - f->ptr) {
-    error("read(%ld) failed", bytes);
-    bytes = f->end - f->ptr;
-  }
-  memcpy(ptr, f->ptr, bytes);
-  f->ptr += bytes;
-  return bytes;
-}
-
-size_t FileRead(MFILE *f, void *ptr,
-                long bytes) /* read function for regular file */
-{
-  return my_fread(ptr, bytes, f->f);
-}
-
-long MemoryTell(MFILE *f) /* tell for memory mapped file */
-{
-  return (legacy_long)f->ptr;
-}
-
-long FileTell(MFILE *f) /* tell for regular file */
-{
-  return ftell(f->f);
-}
-
-void MemorySeek(MFILE *f, long offset) /* seek in memory mapped file */
-{
-  f->ptr = (char *)offset;
-}
-
-void FileSeek(MFILE *f, long offset) /* seek in regular file */
-{
-  fseek(f->f, offset, SEEK_SET);
-}
-
-MFILE *CreateMap(char *ptr, size_t size) /* assign a memory mapped file */
-{
-  MFILE *f;
-
-  f = my_malloc(sizeof(MFILE));
-  f->f = NULL;
-  f->ptr = ptr;
-  f->end = ptr + size;
-  f->get = MemoryGet;
-  f->put = MemoryPut;
-  f->read = MemoryRead;
-  f->tell = MemoryTell;
-  f->seek = MemorySeek;
-  return f;
-}
-
-MFILE *CreateVirtual(FILE *f) /* assign a real file */
-{
-  MFILE *mf;
-
-  mf = my_malloc(sizeof(MFILE));
-  mf->f = f;
-  mf->ptr = mf->end = NULL;
-  mf->get = FileGet;
-  mf->put = FilePut;
-  mf->read = FileRead;
-  mf->tell = FileTell;
-  mf->seek = FileSeek;
-  return mf;
-}
-
-void CloseMap(MFILE *f) /* close a MFILE */
-{
-  if (f)
-    free(f);
-}
-
-legacy_int GetWord(
-    MFILE *f) /* read 16 bit value from memory mapped file or regular file */
-{
-  unsigned char b;
-
-  b = f->get(f);
-  return ((uint16_t)(f->get(f)) << 8) | (uint16_t)b;
-}
-
-uint16_t GetCWord(
-    MFILE *f) /* get compressed word from memory mapped file or regular file */
-{
-  unsigned char b;
-
-  b = f->get(f);
-  if (b & 1)
-    return (((uint16_t)(f->get(f)) << 8) | (uint16_t)b) >> 1;
-  return ((uint16_t)b >> 1);
-}
-
-uint32_t GetCDWord(
-    MFILE *f) /* get compressed long from memory mapped file or regular file */
-{
-  uint16_t w;
-
-  w = GetWord(f);
-  if (w & 1)
-    return (((uint32_t)GetWord(f) << 16) | (uint32_t)w) >> 1;
-  return ((uint32_t)w >> 1);
-}
-
-uint32_t
-GetDWord(MFILE *f) /* get long from memory mapped file or regular file */
-{
-  uint16_t w;
-
-  w = GetWord(f);
-  return ((uint32_t)GetWord(f) << 16) | (uint32_t)w;
-}
-
-size_t StringRead(char *ptr, size_t size,
-                  MFILE *f) /* read nul terminated string from memory mapped or
-                               regular file */
-{
-  size_t i;
-  legacy_int c;
-
-  i = 0;
-  while ((c = f->get(f)) > 0) {
-    if (i >= size - 1) {
-      fputs("String length exceeds decompiler limit.\n", stderr);
-      exit(1);
-    }
-    ptr[i++] = c;
-  }
-  ptr[i] = '\0';
-  return i;
 }
 
 legacy_long copy(FILE *f, legacy_long bytes, FILE *out) {
@@ -393,124 +228,10 @@ legacy_long copy(FILE *f, legacy_long bytes, FILE *out) {
   for (length = 0; length < bytes; length += size) {
     size = (legacy_int)(bytes - length > sizeof(buffer) ? sizeof(buffer)
                                                         : bytes - length);
-    my_fread(buffer, size, f);
+    helpdeco_fread(buffer, size, f);
     fwrite(buffer, size, 1, out);
   }
   return length;
-}
-
-legacy_long CopyBytes(MFILE *f, legacy_long bytes, FILE *out) {
-  legacy_long length;
-  legacy_int size;
-  static char buffer[512];
-
-  for (length = 0; length < bytes; length += size) {
-    size = (legacy_int)(bytes - length > sizeof(buffer) ? sizeof(buffer)
-                                                        : bytes - length);
-    f->read(f, buffer, size);
-    fwrite(buffer, size, 1, out);
-  }
-  return length;
-}
-
-signed char count; /* for run len decompression */
-
-int DeRun(MFILE *f, char c) /* expand runlen compressed data */
-{
-  legacy_int i;
-
-  if (count & 0x7F) {
-    if (count & 0x80) {
-      f->put(f, c);
-      count--;
-      return 1;
-    }
-    for (i = 0; i < count; i++) {
-      f->put(f, c);
-    }
-    count = 0;
-    return i;
-  }
-  count = (signed char)c;
-  return 0;
-}
-
-/* copies bytes from (memory mapped or regular file) f to (memory mapped or
-// regular file) fTarget, decompressed using method
-// 0: copy (no decompression)
-// 1: runlen decompression
-// 2: LZ77 decompression
-// 3: runlen and LZ77 decompression
-// returns number of bytes copied to fTarget. Doesn't complain if fTarget
-// is a memory mapped file and buffer is full, just stops writing */
-legacy_long decompress(legacy_int method, MFILE *f, legacy_long bytes,
-                       MFILE *fTarget) {
-  static unsigned char lzbuffer[0x1000];
-  int (*Emit)(MFILE * f, char c);
-  unsigned char bits = 0, mask;
-  legacy_int pos, len, back;
-  legacy_long n;
-
-  n = 0;
-  if (method & 1) {
-    Emit = DeRun;
-    count = 0;
-  } else {
-    Emit = fTarget->put;
-  }
-  if (method & 2) {
-    mask = 0;
-    pos = 0;
-    while (bytes-- > 0) {
-      if (!mask) {
-        bits = f->get(f);
-        mask = 1;
-      } else {
-        if (bits & mask) {
-          if (bytes-- == 0)
-            break;
-          back = GetWord(f);
-          len = ((back >> 12) & 15) + 3;
-          back = pos - (back & 0xFFF) - 1;
-          while (len-- > 0) {
-            n += Emit(fTarget,
-                      lzbuffer[pos++ & 0xFFF] = lzbuffer[back++ & 0xFFF]);
-          }
-        } else {
-          n += Emit(fTarget, lzbuffer[pos++ & 0xFFF] = f->get(f));
-        }
-        mask <<= 1;
-      }
-    }
-  } else {
-    while (bytes-- > 0)
-      n += Emit(fTarget, f->get(f));
-  }
-  return n;
-}
-
-legacy_long DecompressIntoBuffer(legacy_int method, FILE *HelpFile,
-                                 legacy_long bytes, void *ptr,
-                                 legacy_long size) {
-  MFILE *f;
-  MFILE *mf;
-
-  f = CreateMap(ptr, size);
-  mf = CreateVirtual(HelpFile);
-  bytes = decompress(method, mf, bytes, f);
-  CloseMap(mf);
-  CloseMap(f);
-  return bytes;
-}
-
-legacy_long DecompressIntoFile(legacy_int method, MFILE *f, legacy_long bytes,
-                               FILE *fTarget) {
-  MFILE *mf;
-
-  mf = CreateVirtual(fTarget);
-  bytes = decompress(method, f, bytes, mf);
-  CloseMap(mf);
-  return bytes;
 }
 
 void HexDump(FILE *f, legacy_long FileLength, legacy_long offset) {
@@ -577,7 +298,7 @@ BOOL GetBit(FILE *f) {
   if (f) {
     mask <<= 1;
     if (!mask) {
-      value = getdw(f);
+      value = helpdeco_getdw(f);
       mask = 1;
     }
   } else {
@@ -671,10 +392,10 @@ BOOL SearchFile(FILE *HelpFile, const char *FileName, legacy_long *FileLength) {
   for (n = 1; n < BtreeHdr.NLevels; n++) {
     read_BTREEINDEXHEADER_to_BTREENODEHEADER(&CurrNode, HelpFile);
     for (i = 0; i < CurrNode.NEntries; i++) {
-      my_gets(TempFile, sizeof(TempFile), HelpFile);
+      helpdeco_gets(TempFile, sizeof(TempFile), HelpFile);
       if (strcmp(FileName, TempFile) < 0)
         break;
-      CurrNode.PreviousPage = my_getw(HelpFile);
+      CurrNode.PreviousPage = helpdeco_getw(HelpFile);
     }
     fseek(HelpFile,
           offset + CurrNode.PreviousPage * (legacy_long)BtreeHdr.PageSize,
@@ -682,8 +403,8 @@ BOOL SearchFile(FILE *HelpFile, const char *FileName, legacy_long *FileLength) {
   }
   read_BTREENODEHEADER(&CurrNode, HelpFile);
   for (i = 0; i < CurrNode.NEntries; i++) {
-    my_gets(TempFile, sizeof(TempFile), HelpFile);
-    offset = getdw(HelpFile);
+    helpdeco_gets(TempFile, sizeof(TempFile), HelpFile);
+    offset = helpdeco_getdw(HelpFile);
     if (strcmp(TempFile, FileName) == 0) {
       fseek(HelpFile, offset, SEEK_SET);
       read_FILEHEADER(&FileHdr, HelpFile);
@@ -749,15 +470,15 @@ SYSTEMRECORD *GetNextSystemRecord(SYSTEMRECORD *SysRec) {
     return NULL;
   }
   fseek(SysRec->File, SysRec->SavePos, SEEK_SET);
-  SysRec->RecordType = my_getw(SysRec->File);
-  SysRec->DataSize = my_getw(SysRec->File);
+  SysRec->RecordType = helpdeco_getw(SysRec->File);
+  SysRec->DataSize = helpdeco_getw(SysRec->File);
   SysRec->Remaining -= 4;
   if (SysRec->Remaining < SysRec->DataSize) {
     free(SysRec);
     return NULL;
   }
-  SysRec = my_realloc(SysRec, sizeof(SYSTEMRECORD) + SysRec->DataSize);
-  my_fread(SysRec->Data, SysRec->DataSize, SysRec->File);
+  SysRec = helpdeco_realloc(SysRec, sizeof(SYSTEMRECORD) + SysRec->DataSize);
+  helpdeco_fread(SysRec->Data, SysRec->DataSize, SysRec->File);
   SysRec->Data[SysRec->DataSize] = '\0';
   SysRec->Remaining -= SysRec->DataSize;
   SysRec->SavePos = ftell(SysRec->File);
@@ -775,7 +496,7 @@ SYSTEMRECORD *GetFirstSystemRecord(FILE *HelpFile) {
   read_SYSTEMHEADER(&SysHdr, HelpFile);
   if (SysHdr.Major != 1 || SysHdr.Minor < 16)
     return NULL;
-  SysRec = my_malloc(sizeof(SYSTEMRECORD));
+  SysRec = helpdeco_malloc(sizeof(SYSTEMRECORD));
   SysRec->File = HelpFile;
   SysRec->SavePos = ftell(HelpFile);
   SysRec->Remaining = FileLength - sizeof(SYSTEMHEADER);
@@ -796,8 +517,8 @@ void ListFiles(FILE *HelpFile) /* display internal directory */
   for (n = GetFirstPage(HelpFile, &buf, NULL); n;
        n = GetNextPage(HelpFile, &buf)) {
     for (i = 0; i < n; i++) {
-      my_gets(FileName, sizeof(FileName), HelpFile);
-      printf("%-23s 0x%08lX", FileName, getdw(HelpFile));
+      helpdeco_gets(FileName, sizeof(FileName), HelpFile);
+      printf("%-23s 0x%08lX", FileName, helpdeco_getdw(HelpFile));
       if (j++ & 1)
         putchar('\n');
       else
@@ -826,8 +547,8 @@ void ListBaggage(FILE *HelpFile, FILE *hpj,
   for (n = GetFirstPage(HelpFile, &buf, NULL); n;
        n = GetNextPage(HelpFile, &buf)) {
     for (i = 0; i < n; i++) {
-      my_gets(FileName, sizeof(FileName), HelpFile);
-      getdw(HelpFile);
+      helpdeco_gets(FileName, sizeof(FileName), HelpFile);
+      helpdeco_getdw(HelpFile);
       if (FileName[0] != '|' && memcmp(FileName, leader, strlen(leader)) != 0 &&
           !strstr(FileName, ".GRP") && !strstr(FileName, ".tbl")) {
         savepos = ftell(HelpFile);
@@ -837,10 +558,10 @@ void ListBaggage(FILE *HelpFile, FILE *hpj,
             headerwritten = TRUE;
           }
           fprintf(hpj, "%s\n", FileName);
-          f = my_fopen(FileName, "wb");
+          f = helpdeco_fopen(FileName, "wb");
           if (f) {
             copy(HelpFile, FileLength, f);
-            my_fclose(f);
+            helpdeco_fclose(f);
           }
         }
         fseek(HelpFile, savepos, SEEK_SET);
@@ -958,7 +679,7 @@ void ToMapDump(FILE *HelpFile, legacy_long FileLength) {
   legacy_long i;
 
   for (i = 0; i * 4 < FileLength; i++) {
-    printf("TopicNum: %-12ld TopicOffset: 0x%08lX\n", i, getdw(HelpFile));
+    printf("TopicNum: %-12ld TopicOffset: 0x%08lX\n", i, helpdeco_getdw(HelpFile));
   }
 }
 
@@ -970,8 +691,8 @@ void GroupDump(FILE *HelpFile) {
   read_GROUPHEADER(&GroupHeader, HelpFile);
   switch (GroupHeader.GroupType) {
   case 2:
-    ptr = my_malloc(GroupHeader.BitmapSize);
-    my_fread(ptr, GroupHeader.BitmapSize, HelpFile);
+    ptr = helpdeco_malloc(GroupHeader.BitmapSize);
+    helpdeco_fread(ptr, GroupHeader.BitmapSize, HelpFile);
   case 1:
     for (i = GroupHeader.FirstTopic; i <= GroupHeader.LastTopic; i++) {
       if (GroupHeader.GroupType == 1 || ptr[i >> 3] & (1 << (i & 7)))
@@ -988,7 +709,7 @@ void KWMapDump(FILE *HelpFile) {
   uint16_t n, i;
   KWMAPREC KeywordMap;
 
-  n = my_getw(HelpFile);
+  n = helpdeco_getw(HelpFile);
   for (i = 0; i < n; i++) {
     read_KWMAPREC(&KeywordMap, HelpFile);
     printf("Keyword: %-12ld LeafPage: %u\n", KeywordMap.FirstRec,
@@ -1000,7 +721,7 @@ void KWDataDump(FILE *HelpFile, legacy_long FileLength) {
   legacy_long i;
 
   for (i = 0; i < FileLength; i += 4) {
-    printf("KWDataAddress: 0x%08lx TopicOffset: 0x%08lX\n", i, getdw(HelpFile));
+    printf("KWDataAddress: 0x%08lx TopicOffset: 0x%08lX\n", i, helpdeco_getdw(HelpFile));
   }
 }
 
@@ -1010,7 +731,7 @@ void CatalogDump(FILE *HelpFile) {
 
   read_CATALOGHEADER(&catalog, HelpFile);
   for (n = 0; n < catalog.entries; n++) {
-    printf("Topic: %-12ld TopicOffset: 0x%08lx\n", n + 1, getdw(HelpFile));
+    printf("Topic: %-12ld TopicOffset: 0x%08lx\n", n + 1, helpdeco_getdw(HelpFile));
   }
 }
 
@@ -1018,7 +739,7 @@ void CTXOMAPDump(FILE *HelpFile) {
   CTXOMAPREC CTXORec;
   uint16_t n, i;
 
-  n = my_getw(HelpFile);
+  n = helpdeco_getw(HelpFile);
   for (i = 0; i < n; i++) {
     read_CTXOMAPREC(&CTXORec, HelpFile);
     printf("MapId: %-12ld TopicOffset: 0x%08lX\n", CTXORec.MapID,
@@ -1030,11 +751,11 @@ void LinkDump(FILE *HelpFile) {
   legacy_long data[3];
   legacy_int n, i;
 
-  n = my_getw(HelpFile);
+  n = helpdeco_getw(HelpFile);
   for (i = 0; i < n; i++) {
-    data[0] = getdw(HelpFile);
-    data[1] = getdw(HelpFile);
-    data[2] = getdw(HelpFile);
+    data[0] = helpdeco_getdw(HelpFile);
+    data[1] = helpdeco_getdw(HelpFile);
+    data[2] = helpdeco_getdw(HelpFile);
     printf("Annotation for topic 0x%08lx 0x%08lx 0x%08lx\n", data[0], data[1],
            data[2]);
   }
@@ -1068,12 +789,12 @@ extern QWORD get_QWORD(BYTE *b) {
 #define s(a)                                                                   \
   BOOL read_##a(a *obj, FILE *file) {                                          \
     BYTE buf[sizeof_##a];                                                      \
-    if (my_fread(buf, sizeof_##a, file)) {                                     \
+    if (helpdeco_fread(buf, sizeof_##a, file)) {                                     \
       uint32_t i = 0;
 #define s2(a, b)                                                               \
   BOOL read_##a##_to_##b(b *obj, FILE *file) {                                 \
     BYTE buf[sizeof_##a];                                                      \
-    if (my_fread(buf, sizeof_##a, file)) {                                     \
+    if (helpdeco_fread(buf, sizeof_##a, file)) {                                     \
       uint32_t i = 0;
 #define g(a)                                                                   \
   BOOL get_##a(a *obj, BYTE *buf) {                                            \
@@ -1138,7 +859,7 @@ e
   BYTE buf[sizeof_CTXOMAPREC];
   int i;
   for (i = 0; i < n; i++) {
-    if (my_fread(buf, sizeof_CTXOMAPREC, file)) {
+    if (helpdeco_fread(buf, sizeof_CTXOMAPREC, file)) {
       objs[i].MapID = get_DWORD(buf);
       objs[i].TopicOffset = get_DWORD(buf + 4);
     } else
@@ -1204,7 +925,7 @@ a(unknown, 35) a(StyleName, 65) e
   BYTE buf[sizeof_VIOLAREC];
   int i;
   for (i = 0; i < n; i++) {
-    if (my_fread(buf, sizeof_VIOLAREC, file)) {
+    if (helpdeco_fread(buf, sizeof_VIOLAREC, file)) {
       objs[i].TopicOffset = get_DWORD(buf);
       objs[i].WindowNumber = get_DWORD(buf + 4);
     } else
@@ -1217,7 +938,7 @@ BOOL read_CONTEXTRECs(CONTEXTREC *objs, int n, FILE *file) {
   BYTE buf[sizeof_CONTEXTREC];
   int i;
   for (i = 0; i < n; i++) {
-    if (my_fread(buf, sizeof_CONTEXTREC, file)) {
+    if (helpdeco_fread(buf, sizeof_CONTEXTREC, file)) {
       objs[i].HashValue = get_DWORD(buf);
       objs[i].TopicOffset = get_DWORD(buf + 4);
     } else

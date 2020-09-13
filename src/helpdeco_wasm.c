@@ -63,7 +63,7 @@ const char *render(char *data, size_t len, const char *path) {
     helpdeco_warnf("Done, cleaning up!\n");
   }
 
-  my_fclose(f);
+  helpdeco_fclose(f);
   helpdeco_free_ctx(ctx);
   ctx = NULL;
 

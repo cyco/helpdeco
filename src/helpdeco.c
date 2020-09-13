@@ -319,7 +319,7 @@ void AddTopic(char *TopicName,
           return;
         free(ctx->hashrec.entry[k].name);
         ctx->hashrec.entry[k].name = NULL;
-        ctx->hashrec.entry[k].name = my_strdup(TopicName);
+        ctx->hashrec.entry[k].name = helpdeco_strdup(TopicName);
       }
       if (!derived && ctx->hashrec.entry[k].derived) {
         ctx->guessed--;
@@ -330,12 +330,12 @@ void AddTopic(char *TopicName,
   }
   /* %100 to decrease memory fragmentation */
   if (ctx->hashrec.count % 100 == 0)
-    ctx->hashrec.entry = my_realloc(
+    ctx->hashrec.entry = helpdeco_realloc(
         ctx->hashrec.entry, (ctx->hashrec.count + 100) * sizeof(HASHREC));
   if (i < ctx->hashrec.count)
     memmove(ctx->hashrec.entry + i + 1, ctx->hashrec.entry + i,
             sizeof(HASHREC) * (ctx->hashrec.count - i));
-  ctx->hashrec.entry[i].name = my_strdup(TopicName);
+  ctx->hashrec.entry[i].name = helpdeco_strdup(TopicName);
   ctx->hashrec.entry[i].derived = derived;
   ctx->hashrec.entry[i].hash = x;
   if (derived)
@@ -537,7 +537,7 @@ void SysLoad(FILE *HelpFile) /* gets global values from SYSTEM file */
     }
   }
   if (ctx->before31) {
-    my_gets(ctx->title, 33, HelpFile);
+    helpdeco_gets(ctx->title, 33, HelpFile);
   } else {
     for (SysRec = GetFirstSystemRecord(HelpFile); SysRec;
          SysRec = GetNextSystemRecord(SysRec)) {
@@ -548,11 +548,11 @@ void SysLoad(FILE *HelpFile) /* gets global values from SYSTEM file */
       case 0x0006:
         SWin = (SECWINDOW *)SysRec->Data;
         ctx->windowname.entry =
-            my_realloc(ctx->windowname.entry,
+            helpdeco_realloc(ctx->windowname.entry,
                        (ctx->windowname.count + 1) * sizeof(char *));
         ctx->windowname.entry[ctx->windowname.count] = NULL;
         if (SWin->Flags & WSYSFLAG_NAME) {
-          ctx->windowname.entry[ctx->windowname.count] = my_strdup(SWin->Name);
+          ctx->windowname.entry[ctx->windowname.count] = helpdeco_strdup(SWin->Name);
         }
         ctx->windowname.count++;
         break;
@@ -675,7 +675,7 @@ void StoreReference(char *filename, legacy_int type, char *id, int32_t hash) {
       break;
   }
   if (!ref) {
-    ref = my_malloc(sizeof(FILEREF) + strlen(filename));
+    ref = helpdeco_malloc(sizeof(FILEREF) + strlen(filename));
     strcpy(ref->filename, filename);
     ref->check = NULL;
     ref->next = ctx->external;
@@ -686,16 +686,16 @@ void StoreReference(char *filename, legacy_int type, char *id, int32_t hash) {
       break;
   }
   if (!ptr) {
-    ptr = my_malloc(sizeof(CHECKREC));
+    ptr = helpdeco_malloc(sizeof(CHECKREC));
     ptr->type = type;
     ptr->hash = hash;
-    ptr->id = my_strdup(id);
+    ptr->id = helpdeco_strdup(id);
     ptr->here = NULL;
     ptr->next = ref->check;
     ref->check = ptr;
   }
   if (ctx->opt_listtopic && topic_title[0]) {
-    place = my_malloc(sizeof(PLACEREC) + strlen(topic_title));
+    place = helpdeco_malloc(sizeof(PLACEREC) + strlen(topic_title));
     strcpy(place->topicname, topic_title);
     place->next = ptr->here;
     ptr->here = place;
@@ -725,7 +725,7 @@ void CheckReferences(void) {
           found = FALSE;
           if (ptr->type == CONTEXT) {
             if (SearchFile(f, "|CTXOMAP", NULL)) {
-              n = my_getw(f);
+              n = helpdeco_getw(f);
               for (i = 0; i < n; i++) {
                 read_CTXOMAPREC(&CTXORec, f);
                 if (CTXORec.MapID == ptr->hash) /* hash is context id */
@@ -747,10 +747,10 @@ void CheckReferences(void) {
                       SEEK_SET);
                 read_BTREEINDEXHEADER_to_BTREENODEHEADER(&CurrNode, f);
                 for (i = 0; i < CurrNode.NEntries; i++) {
-                  ContextRec.HashValue = getdw(f);
+                  ContextRec.HashValue = helpdeco_getdw(f);
                   if (ContextRec.HashValue > ptr->hash)
                     break;
-                  CurrNode.PreviousPage = my_getw(f); /* Page */
+                  CurrNode.PreviousPage = helpdeco_getw(f); /* Page */
                 }
               }
               fseek(f,
@@ -1031,7 +1031,7 @@ void CheckMacro(char *ptr) {
   char *temp;
 
   if (!ctx->multi) {
-    temp = my_strdup(ptr);
+    temp = helpdeco_strdup(ptr);
     if (!CheckMacroX(temp))
       fprintf(stderr, "Bad macro: %s\n", ptr);
     free(temp);
@@ -1057,19 +1057,19 @@ legacy_int ExtractBitmap(char *szFilename, MFILE *f) {
            dwHotspotSize, dwPictureOffset, xPels = 0, yPels = 0;
 
   FileStart = f->tell(f);
-  wMagic = GetWord(f);
+  wMagic = mfile_get_word(f);
   if (wMagic != 0x506C /* SHG */ && wMagic != 0x706C /* MRB */) {
     error("Unknown magic 0x%04X (%c%c)", wMagic, wMagic & 0x00FF, wMagic >> 8);
     return 0;
   }
   fTarget = NULL;
-  n = GetWord(f);
+  n = mfile_get_word(f);
   type = !ctx->exportplain && n > 1; /* contains multiple resolutions */
   /* do not depend on wMagic, because it is sometimes incorrect */
   nextpict = 4 + 4 * n;
   for (j = 0; j < n; j++) {
     f->seek(f, FileStart + 4 + 4 * j);
-    dwOffsBitmap = GetDWord(f);
+    dwOffsBitmap = mfile_get_dword(f);
     f->seek(f, FileStart + dwOffsBitmap);
     byType = f->get(f); /* type of picture: 5=DDB, 6=DIB, 8=METAFILE */
     byPacked =
@@ -1080,41 +1080,41 @@ legacy_int ExtractBitmap(char *szFilename, MFILE *f) {
       memset(&bmih, 0, sizeof(bmih));
       bmfh.bfType = 0x4D42; /* bitmap magic ("BM") */
       bmih.biSize = sizeof(bmih);
-      xPels = GetCDWord(f);
+      xPels = mfile_get_cdword(f);
       /* HC30 doesn't like certain PelsPerMeter */
       if (!ctx->before31)
         bmih.biXPelsPerMeter = (xPels * 79 + 1) / 2;
-      yPels = GetCDWord(f);
+      yPels = mfile_get_cdword(f);
       if (!ctx->before31)
         bmih.biYPelsPerMeter = (yPels * 79 + 1) / 2;
-      bmih.biPlanes = GetCWord(f);
-      bmih.biBitCount = GetCWord(f);
-      bmih.biWidth = GetCDWord(f);
-      bmih.biHeight = GetCDWord(f);
-      colors = (legacy_int)(bmih.biClrUsed = GetCDWord(f));
+      bmih.biPlanes = mfile_get_cword(f);
+      bmih.biBitCount = mfile_get_cword(f);
+      bmih.biWidth = mfile_get_cdword(f);
+      bmih.biHeight = mfile_get_cdword(f);
+      colors = (legacy_int)(bmih.biClrUsed = mfile_get_cdword(f));
       if (!colors)
         colors = (uint16_t)1 << bmih.biBitCount;
-      bmih.biClrImportant = GetCDWord(f);
+      bmih.biClrImportant = mfile_get_cdword(f);
       if (ctx->after31 && bmih.biClrImportant == 1)
         type |= 0x20; /* contains transparent bitmap */
-      dwDataSize = GetCDWord(f);
-      dwHotspotSize = GetCDWord(f);
-      dwPictureOffset = GetDWord(f);
-      dwHotspotOffset = GetDWord(f);
+      dwDataSize = mfile_get_cdword(f);
+      dwHotspotSize = mfile_get_cdword(f);
+      dwPictureOffset = mfile_get_dword(f);
+      dwHotspotOffset = mfile_get_dword(f);
       if ((ctx->exportplain || n == 1) &&
           (dwHotspotOffset == 0 || dwHotspotSize == 0)) {
         if (ctx->checkexternal)
           break;
         strcat(szFilename, ".bmp");
-        fTarget = my_fopen(szFilename, "wb");
+        fTarget = helpdeco_fopen(szFilename, "wb");
         if (fTarget) {
           fwrite(&bmfh, 1, sizeof(bmfh), fTarget);
           fwrite(&bmih, 1, sizeof(bmih), fTarget);
           if (byType == 6) {
-            CopyBytes(f, colors * 4, fTarget);
+            mfile_copy_bytes(f, colors * 4, fTarget);
           } else {
-            putdw(0x000000, fTarget);
-            putdw(0xFFFFFF, fTarget);
+            helpdeco_putdw(0x000000, fTarget);
+            helpdeco_putdw(0xFFFFFF, fTarget);
           }
           bmfh.bfOffBits = sizeof(bmfh) + sizeof(bmih) + colors * 4;
           bmih.biSizeImage =
@@ -1142,13 +1142,13 @@ legacy_int ExtractBitmap(char *szFilename, MFILE *f) {
                   count--;
                 }
               } else {
-                CopyBytes(f, width, fTarget);
+                mfile_copy_bytes(f, width, fTarget);
               }
               if (pad)
                 fwrite(scratch_buffer, pad, 1, fTarget);
             }
           } else {
-            DecompressIntoFile(byPacked, f, dwDataSize, fTarget);
+            mfile_decompress_into_file(byPacked, f, dwDataSize, fTarget);
           }
           /* update bitmap headers */
           bmfh.bfSize = ftell(fTarget);
@@ -1162,14 +1162,14 @@ legacy_int ExtractBitmap(char *szFilename, MFILE *f) {
     {
       type |= 4; /* contains metafile */
       memset(&afh, 0, sizeof(afh));
-      mapmode = GetCWord(f);          /* mapping mode */
-      afh.rcBBox.right = GetWord(f);  /* width of metafile-picture */
-      afh.rcBBox.bottom = GetWord(f); /* height of metafile-picture */
-      dwRawSize = GetCDWord(f);
-      dwDataSize = GetCDWord(f);
-      dwHotspotSize = GetCDWord(f);
-      dwPictureOffset = GetDWord(f);
-      dwHotspotOffset = GetDWord(f);
+      mapmode = mfile_get_cword(f);          /* mapping mode */
+      afh.rcBBox.right = mfile_get_word(f);  /* width of metafile-picture */
+      afh.rcBBox.bottom = mfile_get_word(f); /* height of metafile-picture */
+      dwRawSize = mfile_get_cdword(f);
+      dwDataSize = mfile_get_cdword(f);
+      dwHotspotSize = mfile_get_cdword(f);
+      dwPictureOffset = mfile_get_dword(f);
+      dwHotspotOffset = mfile_get_dword(f);
       if ((ctx->exportplain || n == 1) &&
           (dwHotspotOffset == 0 || dwHotspotSize == 0)) {
         if (ctx->checkexternal)
@@ -1180,10 +1180,10 @@ legacy_int ExtractBitmap(char *szFilename, MFILE *f) {
         for (i = 0; i < 10; i++)
           afh.wChecksum ^= *wp++;
         strcat(szFilename, ".wmf");
-        fTarget = my_fopen(szFilename, "wb");
+        fTarget = helpdeco_fopen(szFilename, "wb");
         if (fTarget) {
           fwrite(&afh, 1, sizeof(afh), fTarget);
-          DecompressIntoFile(byPacked, f, dwDataSize, fTarget);
+          mfile_decompress_into_file(byPacked, f, dwDataSize, fTarget);
         }
         break;
       }
@@ -1196,14 +1196,14 @@ legacy_int ExtractBitmap(char *szFilename, MFILE *f) {
       if (!fTarget) {
         strcat(szFilename, ".");
         strcat(szFilename, bmpext[type & 0x0F]);
-        fTarget = my_fopen(szFilename, "wb");
+        fTarget = helpdeco_fopen(szFilename, "wb");
         if (!fTarget)
           break;
-        my_putw(wMagic, fTarget);
-        my_putw(n, fTarget);
+        helpdeco_putw(wMagic, fTarget);
+        helpdeco_putw(n, fTarget);
       }
       fseek(fTarget, 4 + 4 * j, SEEK_SET);
-      putdw(nextpict, fTarget);
+      helpdeco_putdw(nextpict, fTarget);
       fseek(fTarget, nextpict, SEEK_SET);
       putc(byType, fTarget);
       if (ctx->opt_exportLZ77) {
@@ -1212,33 +1212,33 @@ legacy_int ExtractBitmap(char *szFilename, MFILE *f) {
         putc(byPacked & 1, fTarget);
       }
       if (byType == 8) {
-        putcw(mapmode, fTarget);             /* mapping mode */
-        my_putw(afh.rcBBox.right, fTarget);  /* width of metafile-picture */
-        my_putw(afh.rcBBox.bottom, fTarget); /* height of metafile-picture */
-        putcdw(dwRawSize, fTarget);
+        helpdeco_putcw(mapmode, fTarget);             /* mapping mode */
+        helpdeco_putw(afh.rcBBox.right, fTarget);  /* width of metafile-picture */
+        helpdeco_putw(afh.rcBBox.bottom, fTarget); /* height of metafile-picture */
+        helpdeco_putcdw(dwRawSize, fTarget);
       } else {
-        putcdw(xPels, fTarget);
-        putcdw(yPels, fTarget);
-        putcw(bmih.biPlanes, fTarget);
-        putcw(bmih.biBitCount, fTarget);
-        putcdw(bmih.biWidth, fTarget);
-        putcdw(bmih.biHeight, fTarget);
-        putcdw(bmih.biClrUsed, fTarget);
-        putcdw(bmih.biClrImportant, fTarget);
+        helpdeco_putcdw(xPels, fTarget);
+        helpdeco_putcdw(yPels, fTarget);
+        helpdeco_putcw(bmih.biPlanes, fTarget);
+        helpdeco_putcw(bmih.biBitCount, fTarget);
+        helpdeco_putcdw(bmih.biWidth, fTarget);
+        helpdeco_putcdw(bmih.biHeight, fTarget);
+        helpdeco_putcdw(bmih.biClrUsed, fTarget);
+        helpdeco_putcdw(bmih.biClrImportant, fTarget);
       }
       pos = ftell(fTarget);
-      putdw(0, fTarget); /* changed later ! */
-      putdw(0, fTarget); /* changed later ! */
-      putdw(0, fTarget); /* changed later ! */
-      putdw(0, fTarget); /* changed later ! */
+      helpdeco_putdw(0, fTarget); /* changed later ! */
+      helpdeco_putdw(0, fTarget); /* changed later ! */
+      helpdeco_putdw(0, fTarget); /* changed later ! */
+      helpdeco_putdw(0, fTarget); /* changed later ! */
       if (byType == 6)
-        CopyBytes(f, colors * 4, fTarget);
+        mfile_copy_bytes(f, colors * 4, fTarget);
       offset = ftell(fTarget);
       f->seek(f, FileStart + dwOffsBitmap + dwPictureOffset);
       if (ctx->opt_exportLZ77) {
-        dwDataSize = CopyBytes(f, dwDataSize, fTarget);
+        dwDataSize = mfile_copy_bytes(f, dwDataSize, fTarget);
       } else {
-        dwDataSize = DecompressIntoFile(byPacked & 2, f, dwDataSize, fTarget);
+        dwDataSize = mfile_decompress_into_file(byPacked & 2, f, dwDataSize, fTarget);
       }
     }
     if (dwHotspotSize) {
@@ -1252,25 +1252,25 @@ legacy_int ExtractBitmap(char *szFilename, MFILE *f) {
         char *ptr;
         HOTSPOT *hotspot;
 
-        hotspots = GetWord(f);
-        MacroDataSize = GetDWord(f);
-        hotspot = my_malloc(hotspots * sizeof(HOTSPOT));
+        hotspots = mfile_get_word(f);
+        MacroDataSize = mfile_get_dword(f);
+        hotspot = helpdeco_malloc(hotspots * sizeof(HOTSPOT));
         f->read(f, hotspot, sizeof(HOTSPOT) * hotspots);
         if (ctx->checkexternal) {
           while (MacroDataSize-- > 0)
             f->get(f);
         } else {
           putc(1, fTarget);
-          my_putw(hotspots, fTarget);
-          putdw(MacroDataSize, fTarget);
+          helpdeco_putw(hotspots, fTarget);
+          helpdeco_putdw(MacroDataSize, fTarget);
           fwrite(hotspot, sizeof(HOTSPOT), hotspots, fTarget);
           if (MacroDataSize)
-            CopyBytes(f, MacroDataSize, fTarget);
+            mfile_copy_bytes(f, MacroDataSize, fTarget);
         }
         for (n = 0; n < hotspots; n++) {
-          j = StringRead(scratch_buffer, sizeof(scratch_buffer), f) + 1;
+          j = mfile_read_string(scratch_buffer, sizeof(scratch_buffer), f) + 1;
           l = j +
-              StringRead(scratch_buffer + j, sizeof(scratch_buffer) - j, f) + 1;
+              mfile_read_string(scratch_buffer + j, sizeof(scratch_buffer) - j, f) + 1;
           if (fTarget)
             fwrite(scratch_buffer, l, 1, fTarget);
           if (ctx->opt_extractmacros)
@@ -1332,15 +1332,15 @@ legacy_int ExtractBitmap(char *szFilename, MFILE *f) {
       nextpict = ftell(fTarget);
       /* fix up some locations */
       fseek(fTarget, pos, SEEK_SET);
-      putdw((dwDataSize << 1) + 1, fTarget);
-      putdw((dwHotspotSize << 1) + 1, fTarget);
-      putdw(dwPictureOffset, fTarget);
+      helpdeco_putdw((dwDataSize << 1) + 1, fTarget);
+      helpdeco_putdw((dwHotspotSize << 1) + 1, fTarget);
+      helpdeco_putdw(dwPictureOffset, fTarget);
       if (dwHotspotSize)
-        putdw(dwPictureOffset + dwDataSize, fTarget);
+        helpdeco_putdw(dwPictureOffset + dwDataSize, fTarget);
     }
   }
   if (fTarget)
-    my_fclose(fTarget);
+    helpdeco_fclose(fTarget);
   return type;
 }
 /****************************************************************************
@@ -1397,19 +1397,19 @@ void ExportBitmaps(FILE *HelpFile) /* export all bitmaps */
   for (n = GetFirstPage(HelpFile, &buf, NULL); n;
        n = GetNextPage(HelpFile, &buf)) {
     for (i = 0; i < n; i++) {
-      my_gets(FileName, sizeof(FileName), HelpFile);
-      getdw(HelpFile);
+      helpdeco_gets(FileName, sizeof(FileName), HelpFile);
+      helpdeco_getdw(HelpFile);
       if (memcmp(FileName, leader, strlen(leader)) == 0) {
         savepos = ftell(HelpFile);
         if (SearchFile(HelpFile, FileName, &FileLength)) {
-          mf = CreateVirtual(HelpFile);
+          mf = mfile_create_virtual(HelpFile);
           type = ExtractBitmap(FileName + (FileName[0] == '|'), mf);
-          CloseMap(mf);
+          mfile_close(mf);
           if (type) {
             num = atoi(FileName + (FileName[0] == '|') + 2);
             if (num >= ctx->extension.count) {
               ctx->extension.entry =
-                  my_realloc(ctx->extension.entry, (num + 1) * sizeof(char));
+                  helpdeco_realloc(ctx->extension.entry, (num + 1) * sizeof(char));
               while (ctx->extension.count <= num)
                 ctx->extension.entry[ctx->extension.count++] = 0;
             }
@@ -1489,7 +1489,7 @@ void SysList(FILE *HelpFile, FILE *hpj, char *IconFileName) {
     fputs("[OPTIONS]\n", hpj);
     if (ctx->before31) /* If 3.0 get title */
     {
-      my_gets(ctx->title, 33, HelpFile);
+      helpdeco_gets(ctx->title, 33, HelpFile);
       if (ctx->title[0] != '\0' && ctx->title[0] != '\n') {
         fprintf(hpj, "TITLE=%s\n", ctx->title);
       }
@@ -1535,10 +1535,10 @@ void SysList(FILE *HelpFile, FILE *hpj, char *IconFileName) {
           break;
         case 0x0005:
           fprintf(hpj, "ICON=%s\n", IconFileName);
-          f = my_fopen(IconFileName, "wb");
+          f = helpdeco_fopen(IconFileName, "wb");
           if (f) {
             fwrite(SysRec->Data, SysRec->DataSize, 1, f);
-            my_fclose(f);
+            helpdeco_fclose(f);
           }
           break;
         case 0x0006:
@@ -1670,23 +1670,23 @@ void SysList(FILE *HelpFile, FILE *hpj, char *IconFileName) {
                       }
                       if (n == ctx->stopword_filename.count) {
                         ctx->stopword_filename.entry =
-                            my_realloc(ctx->stopword_filename.entry,
+                            helpdeco_realloc(ctx->stopword_filename.entry,
                                        (ctx->stopword_filename.count + 1) *
                                            sizeof(char *));
                         ctx->stopword_filename
                             .entry[ctx->stopword_filename.count++] =
-                            my_strdup(ptr);
-                        f = my_fopen(ptr + 1, "wt");
+                            helpdeco_strdup(ptr);
+                        f = helpdeco_fopen(ptr + 1, "wt");
                         if (f) {
                           read_STOPHEADER(&StopHdr, HelpFile);
                           for (n = 0; n < StopHdr.BytesUsed;
                                n += 1 + strlen(scratch_buffer)) {
                             i = getc(HelpFile);
-                            my_fread(scratch_buffer, i, HelpFile);
+                            helpdeco_fread(scratch_buffer, i, HelpFile);
                             scratch_buffer[i] = '\0';
                             fprintf(f, "%s\n", scratch_buffer);
                           }
-                          my_fclose(f);
+                          helpdeco_fclose(f);
                         }
                       }
                     }
@@ -1703,7 +1703,7 @@ void SysList(FILE *HelpFile, FILE *hpj, char *IconFileName) {
         putc('\n', hpj);
       }
       if ((ctx->group.count || ctx->multi) && (ctx->browsenums > 1)) {
-        ctx->group.entry = my_malloc(ctx->group.count * sizeof(GROUP));
+        ctx->group.entry = helpdeco_malloc(ctx->group.count * sizeof(GROUP));
         fputs("[GROUPS]\n", hpj);
         i = 0;
         for (SysRec = GetFirstSystemRecord(HelpFile); SysRec;
@@ -1720,13 +1720,13 @@ void SysList(FILE *HelpFile, FILE *hpj, char *IconFileName) {
             } else {
               fprintf(hpj, "group=%s,%s\n", SysRec->Data, ptr);
             }
-            ctx->group.entry[i].Name = my_strdup(SysRec->Data);
+            ctx->group.entry[i].Name = helpdeco_strdup(SysRec->Data);
             if (ctx->group.count) {
               read_GROUPHEADER(&ctx->group.entry[i].GroupHeader, HelpFile);
               if (ctx->group.entry[i].GroupHeader.GroupType == 2) {
                 ctx->group.entry[i].Bitmap =
-                    my_malloc(ctx->group.entry[i].GroupHeader.BitmapSize);
-                my_fread(ctx->group.entry[i].Bitmap,
+                    helpdeco_malloc(ctx->group.entry[i].GroupHeader.BitmapSize);
+                helpdeco_fread(ctx->group.entry[i].Bitmap,
                          ctx->group.entry[i].GroupHeader.BitmapSize, HelpFile);
               }
             } else {
@@ -1743,11 +1743,11 @@ void SysList(FILE *HelpFile, FILE *hpj, char *IconFileName) {
           legacy_long pos;
           legacy_long off;
 
-          getdw(HelpFile); /* possible count or group number */
+          helpdeco_getdw(HelpFile); /* possible count or group number */
           for (pos = 4; pos < FileLength; pos += len) {
-            len = getdw(HelpFile); /* length of record containing two longs and
+            len = helpdeco_getdw(HelpFile); /* length of record containing two longs and
                                       two strings */
-            off = getdw(HelpFile); /* offset of second string in record (first
+            off = helpdeco_getdw(HelpFile); /* offset of second string in record (first
                                       is at pos 8) */
             if (off <= 0)
               off = len;
@@ -1756,12 +1756,12 @@ void SysList(FILE *HelpFile, FILE *hpj, char *IconFileName) {
             if (len < off)
               break;
             if (off > 8) {
-              my_fread(scratch_buffer, off - 8, HelpFile);
+              helpdeco_fread(scratch_buffer, off - 8, HelpFile);
               scratch_buffer[off - 8] = '\0';
               fprintf(hpj, "entry=%s\n", scratch_buffer);
             }
             if (len > off) {
-              my_fread(scratch_buffer, len - off, HelpFile);
+              helpdeco_fread(scratch_buffer, len - off, HelpFile);
               scratch_buffer[len - off] = '\0';
               fprintf(hpj, "exit=%s\n", scratch_buffer);
             }
@@ -1808,7 +1808,7 @@ void SysList(FILE *HelpFile, FILE *hpj, char *IconFileName) {
           /* may use [CONFIG-GetWindowName] instead, but WindowName need not be
            * defined */
           for (n = 0; n < FileLength; n += strlen(scratch_buffer) + 1) {
-            my_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile);
+            helpdeco_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile);
             fprintf(hpj, "%s\n", scratch_buffer);
           }
           putc('\n', hpj);
@@ -1839,12 +1839,12 @@ BOOL PhraseLoad(FILE *HelpFile) {
       }
       ctx->phrase.count = (unsigned_legacy_int)PhrIndexHdr.entries;
       ctx->phrase.offset =
-          my_malloc(sizeof(unsigned_legacy_int) * (ctx->phrase.count + 1));
-      ctx->phrases = my_malloc(PhrIndexHdr.phrimagesize);
+          helpdeco_malloc(sizeof(unsigned_legacy_int) * (ctx->phrase.count + 1));
+      ctx->phrases = helpdeco_malloc(PhrIndexHdr.phrimagesize);
       if (PhrIndexHdr.phrimagesize == PhrIndexHdr.phrimagecompressedsize) {
-        my_fread(ctx->phrases, PhrIndexHdr.phrimagesize, HelpFile);
+        helpdeco_fread(ctx->phrases, PhrIndexHdr.phrimagesize, HelpFile);
       } else {
-        DecompressIntoBuffer(2, HelpFile, FileLength, ctx->phrases,
+        mfile_decompress_into_buffer(2, HelpFile, FileLength, ctx->phrases,
                              PhrIndexHdr.phrimagesize);
       }
       fseek(HelpFile, SavePos, SEEK_SET);
@@ -1875,12 +1875,12 @@ BOOL PhraseLoad(FILE *HelpFile) {
     ctx->Hall = TRUE;
     helpdeco_logf("%u phrases loaded\n", ctx->phrase.count);
   } else if (SearchFile(HelpFile, "|Phrases", &FileLength)) {
-    ctx->phrase.count = my_getw(HelpFile);
+    ctx->phrase.count = helpdeco_getw(HelpFile);
     newphrases =
         ctx->phrase.count == 0x0800; /* VC4.0: MSDEV\HELP\MSDEV40.MVB */
     if (newphrases)
-      ctx->phrase.count = my_getw(HelpFile);
-    if (my_getw(HelpFile) != 0x0100) {
+      ctx->phrase.count = helpdeco_getw(HelpFile);
+    if (helpdeco_getw(HelpFile) != 0x0100) {
       error("Unknown |Phrases file structure");
       return FALSE;
     }
@@ -1890,9 +1890,9 @@ BOOL PhraseLoad(FILE *HelpFile) {
         FileLength -= (ctx->phrase.count + 1) * sizeof(int16_t) + 4;
         l = FileLength;
       } else {
-        l = getdw(HelpFile);
+        l = helpdeco_getdw(HelpFile);
         if (newphrases) {
-          my_fread(&junk, sizeof(junk), HelpFile);
+          helpdeco_fread(&junk, sizeof(junk), HelpFile);
           offset = (ctx->phrase.count + 1) * sizeof(int16_t);
           FileLength -=
               (ctx->phrase.count + 1) * sizeof(int16_t) + sizeof(junk) + 10;
@@ -1902,11 +1902,11 @@ BOOL PhraseLoad(FILE *HelpFile) {
         }
       }
       ctx->phrase.offset =
-          my_malloc(sizeof(unsigned_legacy_int) * (ctx->phrase.count + 1));
+          helpdeco_malloc(sizeof(unsigned_legacy_int) * (ctx->phrase.count + 1));
       for (n = 0; n <= ctx->phrase.count; n++)
-        ctx->phrase.offset[n] = my_getw(HelpFile) - offset;
-      ctx->phrases = my_malloc(l);
-      DecompressIntoBuffer((ctx->before31 ? 0 : 2), HelpFile, FileLength,
+        ctx->phrase.offset[n] = helpdeco_getw(HelpFile) - offset;
+      ctx->phrases = helpdeco_malloc(l);
+      mfile_decompress_into_buffer((ctx->before31 ? 0 : 2), HelpFile, FileLength,
                            ctx->phrases, l);
       fprintf(stderr, "%u phrases loaded\n", ctx->phrase.count);
     }
@@ -1945,13 +1945,13 @@ void PhraseList(char *FileName) {
   unsigned_legacy_int n;
 
   if (ctx->phrase.count) {
-    f = my_fopen(FileName, "wt");
+    f = helpdeco_fopen(FileName, "wt");
     if (f) {
       for (n = 0; n < ctx->phrase.count; n++) {
         PrintPhrase(n, NULL, f);
         putc('\n', f);
       }
-      my_fclose(f);
+      helpdeco_fclose(f);
     }
   }
 }
@@ -2019,15 +2019,15 @@ void FontLoadRTF(FILE *HelpFile, FILE *rtf, FILE *hpj) {
     if (len > FontName_len) {
       helpdeco_errorf("malformed |FONT file\n");
     }
-    ctx->fontname.entry = my_malloc(ctx->fontname.count * sizeof(char *));
-    family = my_malloc(ctx->fontname.count * sizeof(unsigned char));
+    ctx->fontname.entry = helpdeco_malloc(ctx->fontname.count * sizeof(char *));
+    family = helpdeco_malloc(ctx->fontname.count * sizeof(unsigned char));
     memset(family, 0, ctx->fontname.count * sizeof(unsigned char));
     charmap = FALSE;
     mvbstyle = NULL;
     newstyle = NULL;
     for (i = 0; i < ctx->fontname.count; i++) {
       fseek(HelpFile, FontStart + FontHdr.FacenamesOffset + len * i, SEEK_SET);
-      my_fread(FontName, len, HelpFile);
+      helpdeco_fread(FontName, len, HelpFile);
       FontName[len] = '\0';
       if (FontName[0] == '\000') {
         strcpy(FontName, BestFonts[default_font]);
@@ -2037,7 +2037,7 @@ void FontLoadRTF(FILE *HelpFile, FILE *rtf, FILE *hpj) {
         *ptr++ = '\0';
         fseek(HelpFile, FontStart + FontHdr.CharmapsOffset, SEEK_SET);
         for (j = 0; hpj && j < FontHdr.NumCharmaps; j++) {
-          my_fread(CharMap, 32, HelpFile);
+          helpdeco_fread(CharMap, 32, HelpFile);
           CharMap[32] = '\0';
           p = strchr(CharMap, ',');
           if (p && strcmp(p + 1, ptr) == 0 &&
@@ -2056,31 +2056,31 @@ void FontLoadRTF(FILE *HelpFile, FILE *rtf, FILE *hpj) {
           }
         }
       }
-      ctx->fontname.entry[i] = my_strdup(FontName);
+      ctx->fontname.entry[i] = helpdeco_strdup(FontName);
     }
     if (charmap)
       putc('\n', hpj);
     if (hpj && FontHdr.FacenamesOffset >= 16)
       for (j = 0; j < FontHdr.NumCharmaps; j++) {
         fseek(HelpFile, FontStart + FontHdr.CharmapsOffset + j * 32, SEEK_SET);
-        my_fread(CharMap, 32, HelpFile);
+        helpdeco_fread(CharMap, 32, HelpFile);
         CharMap[32] = '\0';
         p = strchr(CharMap, ',');
         if (p && strcmp(CharMap, "|MVCHARTAB,0") != 0) {
           *p++ = '\0';
           if (SearchFile(HelpFile, CharMap, NULL)) {
             read_CHARMAPHEADER(&CharmapHeader, HelpFile);
-            f = my_fopen(CharMap, "wt");
+            f = helpdeco_fopen(CharMap, "wt");
             if (f) {
               fprintf(f, "%d,\n", CharmapHeader.Entries);
               for (k = 0; k < CharmapHeader.Entries; k++) {
-                fprintf(f, "%5u,", my_getw(HelpFile));
-                fprintf(f, "%5u,", my_getw(HelpFile));
+                fprintf(f, "%5u,", helpdeco_getw(HelpFile));
+                fprintf(f, "%5u,", helpdeco_getw(HelpFile));
                 fprintf(f, "%3u,", getc(HelpFile));
                 fprintf(f, "%3u,", getc(HelpFile));
                 fprintf(f, "%3u,", getc(HelpFile));
                 fprintf(f, "%3u,\n", getc(HelpFile));
-                my_getw(HelpFile);
+                helpdeco_getw(HelpFile);
               }
               fprintf(f, "%d,\n", CharmapHeader.Ligatures);
               for (k = 0; k < CharmapHeader.Ligatures; k++) {
@@ -2089,7 +2089,7 @@ void FontLoadRTF(FILE *HelpFile, FILE *rtf, FILE *hpj) {
                 }
                 putc('\n', f);
               }
-              my_fclose(f);
+              helpdeco_fclose(f);
             }
           }
         }
@@ -2102,7 +2102,7 @@ void FontLoadRTF(FILE *HelpFile, FILE *rtf, FILE *hpj) {
     ctx->font.count = FontHdr.NumDescriptors;
     if (ctx->font.entry)
       free(ctx->font.entry);
-    ctx->font.entry = my_malloc(ctx->font.count * sizeof(FONTDESCRIPTOR));
+    ctx->font.entry = helpdeco_malloc(ctx->font.count * sizeof(FONTDESCRIPTOR));
     memset(ctx->font.entry, 0, ctx->font.count * sizeof(FONTDESCRIPTOR));
     if (FontHdr.FacenamesOffset >= 16) {
       ctx->scaling = 1;
@@ -2128,7 +2128,7 @@ void FontLoadRTF(FILE *HelpFile, FILE *rtf, FILE *hpj) {
         fd->expndtw = mvbfont.expndtw;
       }
       fseek(HelpFile, FontStart + FontHdr.FormatsOffset, SEEK_SET);
-      mvbstyle = my_malloc(FontHdr.NumFormats * sizeof(MVBSTYLE));
+      mvbstyle = helpdeco_malloc(FontHdr.NumFormats * sizeof(MVBSTYLE));
       for (i = 0; i < FontHdr.NumFormats; i++) {
         MVBSTYLE *m = mvbstyle + i;
         ;
@@ -2159,7 +2159,7 @@ void FontLoadRTF(FILE *HelpFile, FILE *rtf, FILE *hpj) {
         fd->FontFamily = newfont.PitchAndFamily >> 4;
       }
       fseek(HelpFile, FontStart + FontHdr.FormatsOffset, SEEK_SET);
-      newstyle = my_malloc(FontHdr.NumFormats * sizeof(NEWSTYLE));
+      newstyle = helpdeco_malloc(FontHdr.NumFormats * sizeof(NEWSTYLE));
       for (i = 0; i < FontHdr.NumFormats; i++) {
         NEWSTYLE *m = newstyle + i;
         ;
@@ -2400,10 +2400,10 @@ legacy_long TopicRead(FILE *HelpFile, legacy_long TopicPos, void *dest,
     read_TOPICBLOCKHEADER(&ctx->topic_block_header, HelpFile);
     n -= sizeof(TOPICBLOCKHEADER);
     if (ctx->lzcompressed) {
-      ctx->decompressed_size = DecompressIntoBuffer(2, HelpFile, n, TopicBuffer,
+      ctx->decompressed_size = mfile_decompress_into_buffer(2, HelpFile, n, TopicBuffer,
                                                     sizeof(TopicBuffer));
     } else {
-      ctx->decompressed_size = my_fread(TopicBuffer, n, HelpFile);
+      ctx->decompressed_size = helpdeco_fread(TopicBuffer, n, HelpFile);
     }
   }
   TopicBlockOffset =
@@ -2499,13 +2499,13 @@ legacy_long TopicPhraseRead(FILE *HelpFile, legacy_long TopicPos, char *dest,
         Length <
             NumBytes) /* some trailing bytes are not used (bug in HCRTF ?) */
     {
-      buffer = my_malloc(NumBytes - Length);
+      buffer = helpdeco_malloc(NumBytes - Length);
       BytesRead += TopicRead(HelpFile, 0, buffer, NumBytes - Length);
       free(buffer);
       buffer = NULL;
     }
   } else {
-    buffer = my_malloc(NumBytes);
+    buffer = helpdeco_malloc(NumBytes);
     BytesRead = TopicRead(HelpFile, TopicPos, buffer, NumBytes);
     NumBytes = PhraseReplace(buffer, NumBytes, dest) - dest;
     free(buffer);
@@ -2570,7 +2570,7 @@ void CollectKeywords(FILE *HelpFile) {
       }
     }
   } else {
-    ctx->keyword_rec.entry = my_malloc(MAXKEYWORDS * sizeof(KEYWORDREC));
+    ctx->keyword_rec.entry = helpdeco_malloc(MAXKEYWORDS * sizeof(KEYWORDREC));
   }
   ctx->NextKeywordRec = ctx->keyword_rec.count = 0;
   from = ctx->NextKeywordOffset;
@@ -2589,15 +2589,15 @@ void CollectKeywords(FILE *HelpFile) {
         sprintf(kwbtree, "|%cWBTREE", map);
       }
       if (SearchFile(HelpFile, kwdata, &FileLength)) {
-        keytopic = my_malloc(FileLength);
-        my_fread(keytopic, FileLength, HelpFile);
+        keytopic = helpdeco_malloc(FileLength);
+        helpdeco_fread(keytopic, FileLength, HelpFile);
         if (SearchFile(HelpFile, kwbtree, NULL)) {
           for (n = GetFirstPage(HelpFile, &buf, NULL); n;
                n = GetNextPage(HelpFile, &buf)) {
             for (i = 0; i < n; i++) {
-              my_gets(keyword, sizeof(keyword), HelpFile);
-              m = my_getw(HelpFile);
-              KWDataOffset = getdw(HelpFile);
+              helpdeco_gets(keyword, sizeof(keyword), HelpFile);
+              m = helpdeco_getw(HelpFile);
+              KWDataOffset = helpdeco_getdw(HelpFile);
               for (j = 0; j < m; j++) {
                 if (keytopic[KWDataOffset / 4 + j] >= from) {
                   if (ctx->keyword_rec.count >= MAXKEYWORDS) {
@@ -2631,7 +2631,7 @@ void CollectKeywords(FILE *HelpFile) {
                   }
                   ctx->keyword_rec.entry[l].KeyIndex = k > 0;
                   ctx->keyword_rec.entry[l].Footnote = map;
-                  ctx->keyword_rec.entry[l].Keyword = my_strdup(keyword);
+                  ctx->keyword_rec.entry[l].Keyword = helpdeco_strdup(keyword);
                   ctx->keyword_rec.entry[l].TopicOffset =
                       keytopic[KWDataOffset / 4 + j];
                   ctx->keyword_rec.count++;
@@ -2710,7 +2710,7 @@ legacy_int ListWindows(FILE *HelpFile, legacy_long TopicOffset) {
     if (SearchFile(HelpFile, "|VIOLA", NULL)) {
       n = GetFirstPage(HelpFile, &buf, NULL);
       if (n) {
-        Viola = my_malloc(n * sizeof(VIOLAREC));
+        Viola = helpdeco_malloc(n * sizeof(VIOLAREC));
         read_VIOLARECs(Viola, n, HelpFile);
         i = 0;
         VIOLAfound = 1;
@@ -2728,7 +2728,7 @@ legacy_int ListWindows(FILE *HelpFile, legacy_long TopicOffset) {
           VIOLAfound = 0;
           break;
         }
-        Viola = my_malloc(n * sizeof(VIOLAREC));
+        Viola = helpdeco_malloc(n * sizeof(VIOLAREC));
         read_VIOLARECs(Viola, n, HelpFile);
         i = 0;
       } else {
@@ -2758,7 +2758,7 @@ legacy_int ListWindows(FILE *HelpFile, legacy_long TopicOffset) {
 // and subnumber assigned. */
 void AddStart(legacy_long StartTopic, legacy_int BrowseNum, legacy_int Count) {
   ctx->start.entry =
-      my_realloc(ctx->start.entry, (ctx->start.count + 1) * sizeof(START));
+      helpdeco_realloc(ctx->start.entry, (ctx->start.count + 1) * sizeof(START));
   ctx->start.entry[ctx->start.count].StartTopic = StartTopic;
   ctx->start.entry[ctx->start.count].BrowseNum = BrowseNum;
   ctx->start.entry[ctx->start.count].Start = Count;
@@ -2786,7 +2786,7 @@ void AddBrowse(legacy_long StartTopic, legacy_long NextTopic,
   if (i == ctx->browse.count) /* no empty space, add to array */
   {
     ctx->browse.entry =
-        my_realloc(ctx->browse.entry, ++ctx->browse.count * sizeof(BROWSE));
+        helpdeco_realloc(ctx->browse.entry, ++ctx->browse.count * sizeof(BROWSE));
   }
   ctx->browse.entry[i].StartTopic = StartTopic;
   ctx->browse.entry[i].NextTopic = NextTopic;
@@ -2905,7 +2905,7 @@ uint32_t AddLink(legacy_long StartTopic, legacy_long NextTopic,
       break;
   if (i == ctx->browse.count)
     ctx->browse.entry =
-        my_realloc(ctx->browse.entry, ++ctx->browse.count * sizeof(BROWSE));
+        helpdeco_realloc(ctx->browse.entry, ++ctx->browse.count * sizeof(BROWSE));
   for (j = 0; j < ctx->start.count; j++)
     if (ctx->start.entry[j].StartTopic == StartTopic)
       break;
@@ -3214,7 +3214,7 @@ FILE *TopicDumpRTF(FILE *HelpFile, FILE *rtf, FILE *hpj, BOOL makertf) {
           break;
       }
       if (TopicLink.DataLen1 > sizeof(TOPICLINK)) {
-        LinkData1 = my_malloc(TopicLink.DataLen1 - sizeof(TOPICLINK) + 1);
+        LinkData1 = helpdeco_malloc(TopicLink.DataLen1 - sizeof(TOPICLINK) + 1);
         if (TopicRead(HelpFile, 0, LinkData1,
                       TopicLink.DataLen1 - sizeof(TOPICLINK)) !=
             TopicLink.DataLen1 - sizeof(TOPICLINK))
@@ -3224,7 +3224,7 @@ FILE *TopicDumpRTF(FILE *HelpFile, FILE *rtf, FILE *hpj, BOOL makertf) {
       if (TopicLink.DataLen1 <
           TopicLink.BlockSize) /* read LinkData2 using phrase replacement */
       {
-        LinkData2 = my_malloc(TopicLink.DataLen2 + 1);
+        LinkData2 = helpdeco_malloc(TopicLink.DataLen2 + 1);
         if (TopicPhraseRead(HelpFile, 0, LinkData2,
                             TopicLink.BlockSize - TopicLink.DataLen1,
                             TopicLink.DataLen2) !=
@@ -3238,11 +3238,11 @@ FILE *TopicDumpRTF(FILE *HelpFile, FILE *rtf, FILE *hpj, BOOL makertf) {
         if (ctx->opt_topics_per_rtf &&
             ++TopicInRTF >= ctx->opt_topics_per_rtf) {
           putc('}', rtf);
-          my_fclose(rtf);
+          helpdeco_fclose(rtf);
           BuildRTFName(scratch_buffer, ++NumberOfRTF);
           if (hpj)
             fprintf(hpj, "%s\n", scratch_buffer);
-          rtf = my_fopen(scratch_buffer, "wt");
+          rtf = helpdeco_fopen(scratch_buffer, "wt");
           FontLoadRTF(HelpFile, rtf, NULL);
           TopicInRTF = 0;
         } else if (!firsttopic) {
@@ -3759,7 +3759,7 @@ FILE *TopicDumpRTF(FILE *HelpFile, FILE *rtf, FILE *hpj, BOOL makertf) {
               case 0xC8: /* macro */
                 ChangeFont(rtf, fontset, FALSE, uldb = TRUE);
                 if (!makertf) {
-                  hotspot = my_realloc(hotspot, strlen(ptr + 3) + 2);
+                  hotspot = helpdeco_realloc(hotspot, strlen(ptr + 3) + 2);
                   sprintf(hotspot, "!%s", ptr + 3);
                 }
                 ptr += *(int16_t *)(ptr + 1) + 3;
@@ -3767,7 +3767,7 @@ FILE *TopicDumpRTF(FILE *HelpFile, FILE *rtf, FILE *hpj, BOOL makertf) {
               case 0xCC: /* macro without font change */
                 ChangeFont(rtf, fontset, FALSE, uldb = TRUE);
                 if (!makertf) {
-                  hotspot = my_realloc(hotspot, strlen(ptr + 3) + 3);
+                  hotspot = helpdeco_realloc(hotspot, strlen(ptr + 3) + 3);
                   sprintf(hotspot, "%%!%s", ptr + 3);
                 }
                 ptr += *(int16_t *)(ptr + 1) + 3;
@@ -3779,7 +3779,7 @@ FILE *TopicDumpRTF(FILE *HelpFile, FILE *rtf, FILE *hpj, BOOL makertf) {
                 ChangeFont(rtf, fontset, FALSE, uldb = TRUE);
               label0:
                 if (!makertf) {
-                  hotspot = my_realloc(hotspot, 128);
+                  hotspot = helpdeco_realloc(hotspot, 128);
                   sprintf(hotspot, "TOPIC%ld", *(legacy_long *)(ptr + 1));
                 }
                 ptr += 5;
@@ -3792,7 +3792,7 @@ FILE *TopicDumpRTF(FILE *HelpFile, FILE *rtf, FILE *hpj, BOOL makertf) {
               label1:
                 if (!makertf) {
                   arg = ContextId(*(legacy_long *)(ptr + 1));
-                  hotspot = my_realloc(hotspot, strlen(arg) + 1);
+                  hotspot = helpdeco_realloc(hotspot, strlen(arg) + 1);
                   sprintf(hotspot, "%s", arg);
                 }
                 ptr += 5;
@@ -3805,7 +3805,7 @@ FILE *TopicDumpRTF(FILE *HelpFile, FILE *rtf, FILE *hpj, BOOL makertf) {
               label2:
                 if (!makertf) {
                   arg = ContextId(*(legacy_long *)(ptr + 1));
-                  hotspot = my_realloc(hotspot, strlen(arg) + 2);
+                  hotspot = helpdeco_realloc(hotspot, strlen(arg) + 2);
                   sprintf(hotspot, "%%%s", arg);
                 }
                 ptr += 5;
@@ -3831,23 +3831,23 @@ FILE *TopicDumpRTF(FILE *HelpFile, FILE *rtf, FILE *hpj, BOOL makertf) {
                   switch ((unsigned char)ptr[3]) {
                   case 0:
                     hotspot =
-                        my_realloc(hotspot, strlen(cmd) + strlen(arg) + 1);
+                        helpdeco_realloc(hotspot, strlen(cmd) + strlen(arg) + 1);
                     sprintf(hotspot, "%s%s", cmd, arg);
                     break;
                   case 1:
-                    hotspot = my_realloc(hotspot,
+                    hotspot = helpdeco_realloc(hotspot,
                                          strlen(cmd) + strlen(arg) + 1 +
                                              strlen(GetWindowName(ptr[8])) + 1);
                     sprintf(hotspot, "%s%s>%s", cmd, arg,
                             GetWindowName(ptr[8]));
                     break;
                   case 4:
-                    hotspot = my_realloc(hotspot, strlen(cmd) + strlen(arg) +
+                    hotspot = helpdeco_realloc(hotspot, strlen(cmd) + strlen(arg) +
                                                       1 + strlen(ptr + 8) + 1);
                     sprintf(hotspot, "%s%s@%s", cmd, arg, ptr + 8);
                     break;
                   case 6:
-                    hotspot = my_realloc(
+                    hotspot = helpdeco_realloc(
                         hotspot, strlen(cmd) + strlen(arg) + 1 +
                                      strlen(ptr + 8) + 1 +
                                      strlen(strchr(ptr + 8, '\0') + 1) + 1);
@@ -3906,7 +3906,7 @@ void ContextLoad(FILE *HelpFile) {
   if (SearchFile(HelpFile, "|CONTEXT", NULL)) {
     n = GetFirstPage(HelpFile, &buf, &entries);
     if (entries) {
-      ctx->context_rec.entry = my_malloc(entries * sizeof(CONTEXTREC));
+      ctx->context_rec.entry = helpdeco_malloc(entries * sizeof(CONTEXTREC));
       ctx->context_rec.count = 0;
       while (n) {
         if (ctx->context_rec.count + n > entries) {
@@ -3923,8 +3923,8 @@ void ContextLoad(FILE *HelpFile) {
             ContextRecCmp);
     }
   } else if (SearchFile(HelpFile, "|TOMAP", &entries)) {
-    ctx->topic.entry = my_malloc(entries);
-    my_fread(ctx->topic.entry, entries, HelpFile);
+    ctx->topic.entry = helpdeco_malloc(entries);
+    helpdeco_fread(ctx->topic.entry, entries, HelpFile);
     ctx->topic.count = (legacy_int)(entries / sizeof(int32_t));
   }
 }
@@ -3945,7 +3945,7 @@ void GenerateContent(
   if (SearchFile(HelpFile, "|VIOLA", NULL)) {
     n = GetFirstPage(HelpFile, &buf, &FileLength);
     if (FileLength) {
-      WindowRec = my_malloc(FileLength * sizeof(VIOLAREC));
+      WindowRec = helpdeco_malloc(FileLength * sizeof(VIOLAREC));
       while (n) {
         read_VIOLARECs(WindowRec + WindowRecs, n, HelpFile);
         WindowRecs += n;
@@ -3957,8 +3957,8 @@ void GenerateContent(
     for (n = GetFirstPage(HelpFile, &buf, NULL); n;
          n = GetNextPage(HelpFile, &buf)) {
       for (i = 0; i < n; i++) {
-        offset = getdw(HelpFile);
-        if (my_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile)) {
+        offset = helpdeco_getdw(HelpFile);
+        if (helpdeco_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile)) {
           ptr = TopicName(offset);
           if (ptr) {
             fprintf(ContentFile, "1 %s=%s", scratch_buffer, ptr);
@@ -3988,19 +3988,19 @@ void ListRose(FILE *HelpFile, FILE *hpj) {
   if (SearchFile(HelpFile, "|Rose", NULL)) {
     savepos = ftell(HelpFile);
     if (SearchFile(HelpFile, "|KWDATA", &FileLength)) {
-      keytopic = my_malloc(FileLength);
-      my_fread(keytopic, FileLength, HelpFile);
+      keytopic = helpdeco_malloc(FileLength);
+      helpdeco_fread(keytopic, FileLength, HelpFile);
       if (SearchFile(HelpFile, "|KWBTREE", NULL)) {
         fputs("[MACROS]\n", hpj);
         for (n = GetFirstPage(HelpFile, &buf, NULL); n;
              n = GetNextPage(HelpFile, &buf)) {
           for (i = 0; i < n; i++) {
-            my_gets(keyword, sizeof(keyword), HelpFile);
+            helpdeco_gets(keyword, sizeof(keyword), HelpFile);
             for (hash = 0, ptr = (unsigned char *)keyword; *ptr; ptr++) {
               hash = hash * 43 + table[*ptr];
             }
-            count = my_getw(HelpFile);
-            offset = getdw(HelpFile);
+            count = helpdeco_getw(HelpFile);
+            offset = helpdeco_getdw(HelpFile);
             for (j = 0; j < count; j++) {
               if (keytopic[offset / 4 + j] == -1) {
                 pos = ftell(HelpFile);
@@ -4008,14 +4008,14 @@ void ListRose(FILE *HelpFile, FILE *hpj) {
                 for (l = GetFirstPage(HelpFile, &buf2, NULL); l;
                      l = GetNextPage(HelpFile, &buf2)) {
                   for (e = 0; e < l; e++) {
-                    h = getdw(HelpFile);
-                    my_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile);
+                    h = helpdeco_getdw(HelpFile);
+                    helpdeco_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile);
                     if (h == hash) {
                       fprintf(hpj, "%s\n%s\n", keyword, scratch_buffer);
-                      my_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile);
+                      helpdeco_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile);
                       fprintf(hpj, "%s\n", scratch_buffer);
                     } else {
-                      my_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile);
+                      helpdeco_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile);
                     }
                   }
                 }
@@ -4092,13 +4092,13 @@ void FontDump(FILE *HelpFile) {
   read_FONTHEADER(&FontHdr, HelpFile);
   n = (FontHdr.DescriptorsOffset - FontHdr.FacenamesOffset) /
       FontHdr.NumFacenames;
-  ctx->fontname.entry = my_malloc(FontHdr.NumFacenames * sizeof(char *));
+  ctx->fontname.entry = helpdeco_malloc(FontHdr.NumFacenames * sizeof(char *));
   fseek(HelpFile, FileStart + FontHdr.FacenamesOffset, SEEK_SET);
   for (i = 0; i < FontHdr.NumFacenames; i++) {
-    my_fread(scratch_buffer, n, HelpFile);
+    helpdeco_fread(scratch_buffer, n, HelpFile);
     scratch_buffer[n] = '\0';
     printf("Font name %d: %s\n", i, scratch_buffer);
-    ctx->fontname.entry[i] = my_strdup(scratch_buffer);
+    ctx->fontname.entry[i] = helpdeco_strdup(scratch_buffer);
   }
   puts("Font Facename 			Height Family Foregr Backgr Style");
   fseek(HelpFile, FileStart + FontHdr.DescriptorsOffset, SEEK_SET);
@@ -4173,8 +4173,8 @@ void PhrImageDump(FILE *HelpFile) {
           fprintf(stderr, "PhrImage FileSize %ld, in PhrIndex.FileHdr %ld\n",
                   PhrIndexHdr.phrimagecompressedsize, FileLength);
         }
-        ptr = my_malloc(PhrIndexHdr.phrimagesize);
-        bytes = DecompressIntoBuffer(2, HelpFile, FileLength, ptr,
+        ptr = helpdeco_malloc(PhrIndexHdr.phrimagesize);
+        bytes = mfile_decompress_into_buffer(2, HelpFile, FileLength, ptr,
                                      PhrIndexHdr.phrimagesize);
         HexDumpMemory(ptr, bytes);
         free(ptr);
@@ -4200,22 +4200,22 @@ void BTreeDump(FILE *HelpFile, char text[]) {
           memcpy(format, ptr, j + 1);
           format[j + 1] = '\0';
           if (format[j] == '!') {
-            count = getdw(HelpFile);
+            count = helpdeco_getdw(HelpFile);
             while (count >= 8) {
-              printf(" (%ld)", getdw(HelpFile));
-              printf("%08lx", getdw(HelpFile));
+              printf(" (%ld)", helpdeco_getdw(HelpFile));
+              printf("%08lx", helpdeco_getdw(HelpFile));
               count -= 8;
             }
           } else if (format[j] == 'h') {
             format[j] = 's';
-            printf(format, unhash(getdw(HelpFile)));
+            printf(format, unhash(helpdeco_getdw(HelpFile)));
           } else if (format[j] == 's') {
-            my_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile);
+            helpdeco_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile);
             printf(format, scratch_buffer);
           } else if (strchr(format, 'l')) {
-            printf(format, getdw(HelpFile));
+            printf(format, helpdeco_getdw(HelpFile));
           } else {
-            printf(format, my_getw(HelpFile));
+            printf(format, helpdeco_getw(HelpFile));
           }
           ptr += j;
         } else {
@@ -4265,7 +4265,7 @@ void SysDump(FILE *HelpFile) {
     printf("Help File Generated: %s", asctime(TimeRec));
   }
   if (SysHdr.Minor < 16) {
-    my_gets(ctx->title, 33, HelpFile);
+    helpdeco_gets(ctx->title, 33, HelpFile);
     printf("TITLE=%s\n", ctx->title);
   } else
     for (SysRec = GetFirstSystemRecord(HelpFile); SysRec;
@@ -4390,7 +4390,7 @@ void DumpTopic(FILE *HelpFile, legacy_long TopicPos) {
     printf("TopicPos=%08lx TopicOffset=%08lx PrevBlock=%08lx NextBlock=%08lx\n",
            TopicPos, TopicOffset, TopicLink.PrevBlock, TopicLink.NextBlock);
     if (TopicLink.DataLen1 > sizeof(TOPICLINK)) {
-      LinkData1 = my_malloc(TopicLink.DataLen1 - sizeof(TOPICLINK));
+      LinkData1 = helpdeco_malloc(TopicLink.DataLen1 - sizeof(TOPICLINK));
       if (TopicRead(HelpFile, 0, LinkData1,
                     TopicLink.DataLen1 - sizeof(TOPICLINK)) !=
           TopicLink.DataLen1 - sizeof(TOPICLINK))
@@ -4400,7 +4400,7 @@ void DumpTopic(FILE *HelpFile, legacy_long TopicPos) {
     if (TopicLink.DataLen1 <
         TopicLink.BlockSize) /* read LinkData2 using phrase replacement */
     {
-      LinkData2 = my_malloc(TopicLink.DataLen2 + 1);
+      LinkData2 = helpdeco_malloc(TopicLink.DataLen2 + 1);
       if (TopicPhraseRead(
               HelpFile, 0, LinkData2, TopicLink.BlockSize - TopicLink.DataLen1,
               TopicLink.DataLen2) != TopicLink.BlockSize - TopicLink.DataLen1)
@@ -4791,7 +4791,7 @@ void CTXOMAPList(FILE *HelpFile,
   char *ptr;
 
   if (SearchFile(HelpFile, "|CTXOMAP", NULL)) {
-    n = my_getw(HelpFile);
+    n = helpdeco_getw(HelpFile);
     if (n) {
       fputs("Creating [MAP] section...\n", stderr);
       fputs("[MAP]\n", hpj);
@@ -4832,15 +4832,15 @@ void GuessFromKeywords(FILE *HelpFile) {
         sprintf(kwbtree, "|%cWBTREE", map);
       }
       if (SearchFile(HelpFile, kwdata, &FileLength)) {
-        keytopic = my_malloc(FileLength);
-        my_fread(keytopic, FileLength, HelpFile);
+        keytopic = helpdeco_malloc(FileLength);
+        helpdeco_fread(keytopic, FileLength, HelpFile);
         if (SearchFile(HelpFile, kwbtree, NULL)) {
           for (n = GetFirstPage(HelpFile, &buf, NULL); n;
                n = GetNextPage(HelpFile, &buf)) {
             for (i = 0; i < n; i++) {
-              my_gets(keyword, sizeof(keyword), HelpFile);
-              m = my_getw(HelpFile);
-              KWDataOffset = getdw(HelpFile);
+              helpdeco_gets(keyword, sizeof(keyword), HelpFile);
+              m = helpdeco_getw(HelpFile);
+              KWDataOffset = helpdeco_getdw(HelpFile);
               if (KWDataOffset / 4 + m > FileLength) {
                   helpdeco_errorf("malformed keytopic file\n");
               }
@@ -4902,8 +4902,8 @@ void FirstPass(FILE *HelpFile) {
       for (n = GetFirstPage(HelpFile, &buf, NULL); n;
            n = GetNextPage(HelpFile, &buf)) {
         for (i = 0; i < n; i++) {
-          getdw(HelpFile);
-          my_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile);
+          helpdeco_getdw(HelpFile);
+          helpdeco_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile);
           AddTopic(scratch_buffer, FALSE);
         }
       }
@@ -4928,7 +4928,7 @@ void FirstPass(FILE *HelpFile) {
         break;
     }
     if (TopicLink.DataLen1 > sizeof(TOPICLINK)) {
-      LinkData1 = my_malloc(TopicLink.DataLen1 - sizeof(TOPICLINK) + 1);
+      LinkData1 = helpdeco_malloc(TopicLink.DataLen1 - sizeof(TOPICLINK) + 1);
       if (TopicRead(HelpFile, 0L, LinkData1,
                     TopicLink.DataLen1 - sizeof(TOPICLINK)) !=
           TopicLink.DataLen1 - sizeof(TOPICLINK))
@@ -4938,7 +4938,7 @@ void FirstPass(FILE *HelpFile) {
     if (TopicLink.DataLen1 <
         TopicLink.BlockSize) /* read LinkData2 using phrase replacement */
     {
-      LinkData2 = my_malloc(TopicLink.DataLen2 + 1);
+      LinkData2 = helpdeco_malloc(TopicLink.DataLen2 + 1);
       if (TopicPhraseRead(
               HelpFile, 0L, LinkData2, TopicLink.BlockSize - TopicLink.DataLen1,
               TopicLink.DataLen2) != TopicLink.BlockSize - TopicLink.DataLen1)
@@ -4984,7 +4984,7 @@ void FirstPass(FILE *HelpFile) {
             NextTopicOffset(TopicOffset, TopicLink.NextBlock, TopicPos);
         if (BogusTopicOffset != TopicOffset) {
           ctx->alternative.entry =
-              my_realloc(ctx->alternative.entry,
+              helpdeco_realloc(ctx->alternative.entry,
                          (ctx->alternative.count + 1) * sizeof(ALTERNATIVE));
           ctx->alternative.entry[ctx->alternative.count].TopicOffset =
               TopicOffset;
@@ -5133,15 +5133,15 @@ void FirstPass(FILE *HelpFile) {
                     if (!ctx->extension.entry[x2])
                       break;
                   if (x2 >= ctx->extension.count) {
-                    ctx->extension.entry = my_realloc(ctx->extension.entry,
+                    ctx->extension.entry = helpdeco_realloc(ctx->extension.entry,
                                                       (x2 + 1) * sizeof(char));
                     while (ctx->extension.count <= x2)
                       ctx->extension.entry[ctx->extension.count++] = 0;
                   }
                   sprintf(filename, "bm%u", x2);
-                  f = CreateMap(ptr + 2, l1 - 2);
+                  f = mfile_create_map(ptr + 2, l1 - 2);
                   x1 = ExtractBitmap(filename, f);
-                  CloseMap(f);
+                  mfile_close(f);
                   ctx->extension.entry[x2] = x1 | 0x10;
                   break;
                 }
@@ -5235,9 +5235,9 @@ void ContextList(FILE *HelpFile) {
   legacy_long TopicPos, TopicNum, TopicOffset;
 
   if (SearchFile(HelpFile, "|CTXOMAP", NULL)) {
-    maprecs = my_getw(HelpFile);
+    maprecs = helpdeco_getw(HelpFile);
     if (maprecs) {
-      map = my_malloc((legacy_long)maprecs * sizeof(CTXOMAPREC));
+      map = helpdeco_malloc((legacy_long)maprecs * sizeof(CTXOMAPREC));
       read_CTXOMAPRECs(map, maprecs, HelpFile);
       qsort(map, maprecs, sizeof(CTXOMAPREC), CTXOMAPRecCmp);
     }
@@ -5259,7 +5259,7 @@ void ContextList(FILE *HelpFile) {
   while (TopicRead(HelpFile, TopicPos, &TopicLink, sizeof(TopicLink)) ==
          sizeof(TOPICLINK)) {
     if (TopicLink.DataLen1 > sizeof(TOPICLINK)) {
-      LinkData1 = my_malloc(TopicLink.DataLen1 - sizeof(TOPICLINK) + 1);
+      LinkData1 = helpdeco_malloc(TopicLink.DataLen1 - sizeof(TOPICLINK) + 1);
       if (TopicRead(HelpFile, 0, LinkData1,
                     TopicLink.DataLen1 - sizeof(TOPICLINK)) !=
           TopicLink.DataLen1 - sizeof(TOPICLINK))
@@ -5269,7 +5269,7 @@ void ContextList(FILE *HelpFile) {
     if (TopicLink.DataLen1 <
         TopicLink.BlockSize) /* read LinkData2 using phrase replacement */
     {
-      LinkData2 = my_malloc(TopicLink.DataLen2 + 1);
+      LinkData2 = helpdeco_malloc(TopicLink.DataLen2 + 1);
       if (TopicPhraseRead(
               HelpFile, 0, LinkData2, TopicLink.BlockSize - TopicLink.DataLen1,
               TopicLink.DataLen2) != TopicLink.BlockSize - TopicLink.DataLen1)
@@ -5442,7 +5442,7 @@ FILE *dev_null = fopen("/dev/null", "w");
         break;
     }
     if (TopicLink.DataLen1 > sizeof(TOPICLINK)) {
-      LinkData1 = my_malloc(TopicLink.DataLen1 - sizeof(TOPICLINK) + 1);
+      LinkData1 = helpdeco_malloc(TopicLink.DataLen1 - sizeof(TOPICLINK) + 1);
       if (TopicRead(HelpFile, 0, LinkData1,
                     TopicLink.DataLen1 - sizeof(TOPICLINK)) !=
           TopicLink.DataLen1 - sizeof(TOPICLINK))
@@ -5452,7 +5452,7 @@ FILE *dev_null = fopen("/dev/null", "w");
     if (TopicLink.DataLen1 <
         TopicLink.BlockSize) /* read LinkData2 using phrase replacement */
     {
-      LinkData2 = my_malloc(TopicLink.DataLen2 + 1);
+      LinkData2 = helpdeco_malloc(TopicLink.DataLen2 + 1);
       if (TopicPhraseRead(
               HelpFile, 0, LinkData2, TopicLink.BlockSize - TopicLink.DataLen1,
               TopicLink.DataLen2) != TopicLink.BlockSize - TopicLink.DataLen1)
@@ -5948,15 +5948,15 @@ BOOL html_define_fonts(FILE *HelpFile, FILE *rtf) {
   if (len > FontName_len) {
     helpdeco_errorf("malformed |FONT file\n");
   }
-  ctx->fontname.entry = my_malloc(ctx->fontname.count * sizeof(char *));
-  family = my_malloc(ctx->fontname.count * sizeof(unsigned char));
+  ctx->fontname.entry = helpdeco_malloc(ctx->fontname.count * sizeof(char *));
+  family = helpdeco_malloc(ctx->fontname.count * sizeof(unsigned char));
   memset(family, 0, ctx->fontname.count * sizeof(unsigned char));
   charmap = FALSE;
   mvbstyle = NULL;
   newstyle = NULL;
   for (i = 0; i < ctx->fontname.count; i++) {
     fseek(HelpFile, FontStart + FontHdr.FacenamesOffset + len * i, SEEK_SET);
-    my_fread(FontName, len, HelpFile);
+    helpdeco_fread(FontName, len, HelpFile);
     FontName[len] = '\0';
     if (FontName[0] == '\000') {
       strcpy(FontName, BestFonts[default_font]);
@@ -5966,7 +5966,7 @@ BOOL html_define_fonts(FILE *HelpFile, FILE *rtf) {
       *ptr++ = '\0';
       fseek(HelpFile, FontStart + FontHdr.CharmapsOffset, SEEK_SET);
     }
-    ctx->fontname.entry[i] = my_strdup(FontName);
+    ctx->fontname.entry[i] = helpdeco_strdup(FontName);
   }
 
   fseek(HelpFile, FontStart + FontHdr.DescriptorsOffset, SEEK_SET);
@@ -5978,7 +5978,7 @@ BOOL html_define_fonts(FILE *HelpFile, FILE *rtf) {
   helpdeco_logf("%hd descriptors found\n", ctx->font.count);
   if (ctx->font.entry)
     free(ctx->font.entry);
-  ctx->font.entry = my_malloc(ctx->font.count * sizeof(FONTDESCRIPTOR));
+  ctx->font.entry = helpdeco_malloc(ctx->font.count * sizeof(FONTDESCRIPTOR));
   memset(ctx->font.entry, 0, ctx->font.count * sizeof(FONTDESCRIPTOR));
   if (FontHdr.FacenamesOffset >= 16) {
     ctx->scaling = 1;
@@ -6004,7 +6004,7 @@ BOOL html_define_fonts(FILE *HelpFile, FILE *rtf) {
       fd->expndtw = mvbfont.expndtw;
     }
     fseek(HelpFile, FontStart + FontHdr.FormatsOffset, SEEK_SET);
-    mvbstyle = my_malloc(FontHdr.NumFormats * sizeof(MVBSTYLE));
+    mvbstyle = helpdeco_malloc(FontHdr.NumFormats * sizeof(MVBSTYLE));
     for (i = 0; i < FontHdr.NumFormats; i++) {
       MVBSTYLE *m = mvbstyle + i;
       ;
@@ -6035,7 +6035,7 @@ BOOL html_define_fonts(FILE *HelpFile, FILE *rtf) {
       fd->FontFamily = newfont.PitchAndFamily >> 4;
     }
     fseek(HelpFile, FontStart + FontHdr.FormatsOffset, SEEK_SET);
-    newstyle = my_malloc(FontHdr.NumFormats * sizeof(NEWSTYLE));
+    newstyle = helpdeco_malloc(FontHdr.NumFormats * sizeof(NEWSTYLE));
     for (i = 0; i < FontHdr.NumFormats; i++) {
       NEWSTYLE *m = newstyle + i;
       ;
@@ -6274,7 +6274,7 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
       } else {
         strcat(hpjfilename, ".hpj");
       }
-      hpj = my_fopen(hpjfilename, "wt");
+      hpj = helpdeco_fopen(hpjfilename, "wt");
       if (hpj) {
         strcpy(filename, ctx->name);
         strcat(filename, ".ico");
@@ -6286,7 +6286,7 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
         strcat(filename, ".ph");
         PhraseList(filename); /* after PhraseLoad */
         BuildRTFName(filename, ctx->opt_topics_per_rtf > 0);
-        rtf = my_fopen(filename, "wt");
+        rtf = helpdeco_fopen(filename, "wt");
         if (rtf) {
           FontLoadRTF(HelpFile, rtf, hpj);
           helpdeco_logf("Pass 2...\n");
@@ -6294,7 +6294,7 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
           rtf = TopicDumpRTF(HelpFile, rtf, hpj, FALSE);
           putc('}', rtf);
           putc('\n', stderr);
-          my_fclose(rtf);
+          helpdeco_fclose(rtf);
         }
         ctx->NotInAnyTopic = FALSE;
         CTXOMAPList(HelpFile, hpj);
@@ -6302,7 +6302,7 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
           ListBitmaps(hpj);
         if (ctx->win95)
           ListRose(HelpFile, hpj);
-        my_fclose(hpj);
+        helpdeco_fclose(hpj);
       }
       if (ctx->phrase.offset) {
         if (ctx->win95) {
@@ -6349,13 +6349,13 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
       ExportBitmaps(HelpFile);
       PhraseLoad(HelpFile);
       BuildRTFName(filename, ctx->opt_topics_per_rtf > 0);
-      rtf = my_fopen(filename, "wt");
+      rtf = helpdeco_fopen(filename, "wt");
       if (rtf) {
         FontLoadRTF(HelpFile, rtf, NULL);
         rtf = TopicDumpRTF(HelpFile, rtf, NULL, TRUE);
         putc('}', rtf);
         putc('\n', stderr);
-        my_fclose(rtf);
+        helpdeco_fclose(rtf);
       }
       break;
     case 4: /* generate contents file */
@@ -6371,10 +6371,10 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
         GuessFromKeywords(HelpFile); /* after FirstPass, before SysList */
       strcpy(filename, ctx->name);
       strcat(filename, ".cnt");
-      rtf = my_fopen(filename, "wt");
+      rtf = helpdeco_fopen(filename, "wt");
       if (rtf) {
         GenerateContent(HelpFile, rtf);
-        my_fclose(rtf);
+        helpdeco_fclose(rtf);
       }
       break;
     case 5: /* create entry point list  */
@@ -6416,7 +6416,7 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
       ExportBitmaps(HelpFile);
       PhraseLoad(HelpFile);
       snprintf(filename, sizeof(filename), "%s.html", ctx->name);
-      rtf = my_fopen(filename, "wt");
+      rtf = helpdeco_fopen(filename, "wt");
       if (rtf) {
         helpdeco_logf("Writing html\n");
         FILE *__html_output = rtf;
@@ -6446,7 +6446,7 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
         helpdeco_logf("HTML output complete\n");
 
         helpdeco_logf("\n");
-        my_fclose(__html_output);
+        helpdeco_fclose(__html_output);
       } else {
         helpdeco_warnf("Could not open output file %s!", filename);
       }
@@ -6467,10 +6467,10 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
     {
       FILE *f;
 
-      f = my_fopen(exportname, "wb");
+      f = helpdeco_fopen(exportname, "wb");
       if (f) {
         copy(HelpFile, FileLength, f);
-        my_fclose(f);
+        helpdeco_fclose(f);
       }
     } else if (mode == 1) {
       HexDump(HelpFile, FileLength, offset);
@@ -6531,10 +6531,10 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
     } else /* generic  */
     {
       topic = ftell(HelpFile);
-      if (my_getw(HelpFile) == 0x293B) /* if it's a B+ tree */
+      if (helpdeco_getw(HelpFile) == 0x293B) /* if it's a B+ tree */
       {
-        my_getw(HelpFile);
-        my_getw(HelpFile);
+        helpdeco_getw(HelpFile);
+        helpdeco_getw(HelpFile);
         filename[0] = '\0';
         while ((d = getc(HelpFile)) > 0) /* format according to Structure */
         {
@@ -6728,7 +6728,7 @@ int main(int argc, char *argv[]) {
       }
       if (annotate && ctx->annotation_file)
         fclose(ctx->annotation_file);
-      my_fclose(f);
+      helpdeco_fclose(f);
     } else {
       helpdeco_warnf("Can not open '%s'\n", ctx->filename);
     }

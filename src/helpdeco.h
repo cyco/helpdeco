@@ -44,19 +44,8 @@ http://www.gnu.org
 #endif /* _WIN32 */
 
 
-#if UINTPTR_MAX == 0xffffffff
-typedef long legacy_long;
-typedef unsigned long unsigned_legacy_long;
-typedef int legacy_int;
-typedef unsigned int unsigned_legacy_int;
-#elif UINTPTR_MAX == 0xffffffffffffffff
-typedef int legacy_long;
-typedef unsigned int unsigned_legacy_long;
-typedef short legacy_int;
-typedef unsigned short unsigned_legacy_int;
-#else
-#error Unknown platform
-#endif
+#include "types.h"
+#include "mfile.h"
 
 #ifdef __TURBOC__
 typedef struct {
@@ -71,7 +60,6 @@ typedef struct {
 #pragma pack(1)
 #endif
 
-typedef enum { FALSE, TRUE } BOOL;
 
 /* Used to more easily define some functions */
 #define r(a) BOOL read_##a(a *obj, FILE *file);
@@ -652,17 +640,6 @@ typedef struct /* internal use */
   TOPICOFFSET OtherTopicOffset;
 } ALTERNATIVE;
 
-typedef struct mfile /* a class would be more appropriate */
-{
-  FILE *f;
-  char *ptr;
-  char *end;
-  int (*get)(struct mfile *);
-  int (*put)(struct mfile *, char);
-  size_t (*read)(struct mfile *, void *, long);
-  long (*tell)(struct mfile *);
-  void (*seek)(struct mfile *, long);
-} MFILE;
 
 extern void error(const char *format, ...);
 #ifdef HAVE_STRNCPY
@@ -682,61 +659,9 @@ extern size_t strlcpy(char *dest, const char *src,
 #define OPTSTR "-"
 #endif
 #endif
-extern void *my_malloc(long bytes);             /* save malloc function */
-extern void *my_realloc(void *ptr, long bytes); /* save realloc function */
-extern char *my_strdup(const char *ptr);        /* save strdup function */
-extern size_t my_fread(void *ptr, long bytes,
-                       FILE *f); /* save fread function */
-extern size_t
-my_gets(char *ptr, size_t size,
-        FILE *f); /* read nul terminated string from regular file */
-extern void my_fclose(FILE *f); /* checks if disk is full */
-extern FILE *my_fopen(const char *filename,
-                      const char *mode);  /* save fopen function */
-extern uint16_t my_getw(FILE *f);         /* get 16 bit quantity */
-extern uint32_t getdw(FILE *f);           /* get legacy_long */
-extern void my_putw(uint16_t w, FILE *f); /* write 16 bit quantity */
-extern void putdw(uint32_t x, FILE *f);   /* write legacy_long to file */
-extern void putcdw(uint32_t x,
-                   FILE *f); /* write compressed legacy_long to file */
-extern void putcw(unsigned_legacy_int x,
-                  FILE *f);             /* write compressed word to file */
-extern int MemoryPut(MFILE *f, char c); /* put char to memory mapped file */
-extern int FilePut(MFILE *f, char c);   /* put char to regular file */
-extern int MemoryGet(MFILE *f);         /* get char from memory mapped file */
-extern int FileGet(MFILE *f);           /* get char from regular file */
-extern size_t MemoryRead(MFILE *f, void *ptr,
-                         long bytes); /* read function for memory mapped file */
-extern size_t FileRead(MFILE *f, void *ptr,
-                       long bytes); /* read function for regular file */
-extern long MemoryTell(MFILE *f);   /* tell for memory mapped file */
-extern long FileTell(MFILE *f);     /* tell for regular file */
-extern void MemorySeek(MFILE *f, long offset); /* seek in memory mapped file */
-extern void FileSeek(MFILE *f, long offset);   /* seek in regular file */
-extern MFILE *CreateMap(char *ptr,
-                        size_t size); /* assign a memory mapped file */
-extern MFILE *CreateVirtual(FILE *f); /* assign a real file */
-extern void CloseMap(MFILE *f);       /* close a MFILE */
-extern legacy_int GetWord(
-    MFILE *f); /* read 16 bit value from memory mapped file or regular file */
-extern uint16_t GetCWord(
-    MFILE *f); /* get compressed word from memory mapped file or regular file */
-extern uint32_t GetCDWord(MFILE *f); /* get compressed legacy_long from memory
-                                        mapped file or regular file */
-extern uint32_t GetDWord(
-    MFILE *f); /* get legacy_long from memory mapped file or regular file */
-extern size_t StringRead(char *ptr, size_t size,
-                         MFILE *f); /* read nul terminated string from memory
-                                       mapped or regular file */
+
+#include "helpdec1.h"
 extern legacy_long copy(FILE *f, legacy_long bytes, FILE *out);
-extern legacy_long CopyBytes(MFILE *f, legacy_long bytes, FILE *out);
-extern legacy_long decompress(legacy_int method, MFILE *f, legacy_long bytes,
-                              MFILE *fTarget);
-extern legacy_long DecompressIntoBuffer(legacy_int method, FILE *HelpFile,
-                                        legacy_long bytes, void *ptr,
-                                        legacy_long size);
-extern legacy_long DecompressIntoFile(legacy_int method, MFILE *f,
-                                      legacy_long bytes, FILE *fTarget);
 extern void HexDump(FILE *f, legacy_long FileLength, legacy_long offset);
 extern void HexDumpMemory(void *bypMem, unsigned_legacy_int FileLength);
 extern char *PrintString(char *str, unsigned_legacy_int len);
