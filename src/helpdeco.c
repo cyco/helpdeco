@@ -40,8 +40,7 @@ static char keyword[512];
 HELPDECO_CTX *helpdeco_make_ctx(void) {
   HELPDECO_CTX *ctx = calloc(1, sizeof(HELPDECO_CTX));
   if (!ctx) {
-    fprintf(stderr, "Unable to allocate memory for helpdeco ctx");
-    exit(1);
+    helpdeco_errorf("Unable to allocate memory for helpdeco ctx");
   }
 
   size_t i;
