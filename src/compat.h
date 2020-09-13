@@ -21,8 +21,8 @@ http://www.gnu.org
 #ifndef __compat_h__
 #define __compat_h__
 
-#include <strings.h>
 #include <limits.h>
+#include <strings.h>
 
 #define stricmp strcasecmp
 #define strcmpi strcasecmp
