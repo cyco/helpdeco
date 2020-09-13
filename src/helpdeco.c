@@ -129,8 +129,8 @@ static signed char table[256]=
 };
 char oldtable[256];
 unsigned char untable[]={0,'1','2','3','4','5','6','7','8','9','0',0,'.','_',0,0,0,'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'};
+legacy_long prefixhash[8];
 char *prefix[]={"","idh_","helpid_",NULL,NULL,NULL,NULL,NULL};
-legacy_long prefixhash[sizeof(prefix)/sizeof(prefix[0])];
 FONTDESCRIPTOR CurrentFont;
 
 int32_t hash(char *name) /* convert 3.1/'95 topic name to hash value */
@@ -5446,7 +5446,8 @@ BOOL HelpDeCompile(FILE *HelpFile,char *dumpfile,legacy_int mode,char *exportnam
      case 8: /* create lookalike HTML */
        SysLoad(HelpFile);
        fprintf(stderr,"Writing %s...\n",HelpFileTitle);
-       exportplain=TRUE; SysLoad(HelpFile);
+       exportplain=TRUE;
+       SysLoad(HelpFile);
        ExportBitmaps(HelpFile);
        PhraseLoad(HelpFile);
        snprintf(filename, sizeof(filename), "%s.html", name);
@@ -5472,10 +5473,12 @@ BOOL HelpDeCompile(FILE *HelpFile,char *dumpfile,legacy_int mode,char *exportnam
            TopicDumpToHTML(HelpFile, rtf);
            fprintf(__html_output, "</helpdeco-document>");
            fprintf(__html_output, "</body>\n");
-           fprintf(rtf, "</html>\n");
+           fprintf(__html_output, "</html>\n");
            
            putc('\n',stderr);
-           my_fclose(rtf);
+           my_fclose(__html_output);
+       } else {
+           fprintf(stderr, "Could not open output file %s!", filename);
        }
        break;
     }

@@ -812,6 +812,7 @@ FILE *dev_null = fopen("/dev/null", "w");
         }
         if(LinkData1) free(LinkData1);
         if(LinkData2) free(LinkData2);
+        
         if(before31)
         {
             TopicPos+=TopicLink.NextBlock;

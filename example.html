@@ -82,28 +82,55 @@
 		break;
 		}
 		}
+        
+        function readFileAsBuffer(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(new Uint8Array(e.target.result));
+                reader.onerror = (e) => reject(e.target.error);
+                reader.readAsArrayBuffer(file);
+            });
+        }
+        
+        function readFileAsString(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = (e) => reject(e.target.error);
+                reader.readAsText(file);
+            });
+        }
 
 		async function displayFile(file) {
 		try {
 			console.log('file', file);
 			const dropZone = document.querySelector('.drop-target');
 			dropZone.textContent = file.name;
-			Module.FS.mkdir('/input');
-			Module.FS.mount(MEMFS, {files: [file]}, '/input');
-
+			
+            Module.FS.chdir('/tmp');
+            
 			const version =	Module.ccall('get_version', 'string', [], []);
 			console.log(`Using heldeco version ${version}`);
-			
-			let html = Module.ccall('render', 'string', ['string'], ['/input/' + file.name]);
-			
-			Module.FS.unmount('/input');
-			Module.FS.rmdir('/input');
-			
-			document.querySelector('.output').innerHTML = html;
+        
+            const data = await readFileAsBuffer(file);
+            Module.ccall('render', 'string', ['array', 'number', 'string'], [data, data.byteLength, file.name]);
+            
+            
+            const ouputFilePath ='/tmp/' + file.name.split('.hlp')[0]+".html";
+            const outputData = Module.FS.readFile(ouputFilePath);
+            const decoder = new TextDecoder();
+            const outputHTML = decoder.decode(outputData);
+            
+			document.querySelector('.output').innerHTML = outputHTML;
 		} catch(error) {
 			console.error(error);
-		}
-		}
+        } finally {
+            for(const f of Module.FS.readdir('/tmp')) {
+                if(f === '.' || f === '..') continue;
+                Module.FS.unlink(f);
+            }
+        }
+        }
 		</script>
 	</body>
 </html>

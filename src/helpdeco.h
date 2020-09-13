@@ -23,17 +23,17 @@ http://www.gnu.org
 #ifndef HELPDECO_H
 #define HELPDECO_H
 #include <time.h>
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__EMSCRIPTEN__)
 #define HAVE_STRNCPY HAVE_STRNCPY
 #include <stdlib.h>
 #else
 #include <malloc.h>
-#endif
+#endif /* __APPLE__ */
 #include <stdio.h>
 #include <stdarg.h>
 #ifndef _WIN32
 #include <stdint.h>
-#endif
+#endif /* _WIN32 */
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -41,7 +41,7 @@ http://www.gnu.org
 #include "helper.h"
 #else
 #include "compat.h"
-#endif
+#endif /* _WIN32 */
 
 #if UINTPTR_MAX == 0xffffffff
 typedef long legacy_long;
@@ -778,6 +778,16 @@ extern void LinkDump(FILE *HelpFile);
 extern void AnnotationDump(FILE *HelpFile,legacy_long FileLength,const char *name);
 
 extern BOOL overwrite; /* ugly: declared in HELPDECO.C */
+
+extern char *prefix[];
+extern char HelpFileName[NAME_MAX];
+extern char name[NAME_MAX];
+extern char ext[_MAX_EXT];
+extern char oldtable[256];
+extern legacy_long prefixhash[8];
+
+int32_t hash(char *name);
+BOOL HelpDeCompile(FILE *HelpFile,char *dumpfile,legacy_int mode,char *exportname,legacy_long offset);
 #if defined(__APPLE__)
 #pragma pack(pop)
 #endif

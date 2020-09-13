@@ -128,6 +128,7 @@ int memcmpi(
 	return i;
 }
 
+#if !defined(__EMSCRIPTEN__)
 char *strupr(char *s)
 {
 	char *p = s;
@@ -141,3 +142,4 @@ char *strlwr(char *s)
 	while (*p != '\000') *p = tolower(*p), ++p;
 	return s;
 }
+#endif
