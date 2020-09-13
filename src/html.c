@@ -698,32 +698,25 @@ FILE *dev_null = fopen("/dev/null", "w");
                                         case 0:
                                             x2=((uint16_t *)ptr)[1];
                                         other:
-                                            if(TRUE)
+                                            switch(x3)
                                             {
-                                                switch(x3)
-                                                {
-                                                    case 0x86:
-                                                        rtf_printf("{\\field {\\*\\fldinst import %s}}",getbitmapname(x2));
-                                                        break;
-                                                    case 0x87:
-                                                        rtf_printf("{\\pvpara {\\field {\\*\\fldinst import %s}}\\par}\n",getbitmapname(x2));
-                                                        break;
-                                                    case 0x88:
-                                                        rtf_printf("{\\pvpara\\posxr{\\field {\\*\\fldinst import %s}}\\par}\n",getbitmapname(x2));
-                                                        break;
-                                                }
+                                                case 0x86:
+                                                    rtf_puts("{\\field {\\*\\fldinst");
+                                                    html_printf("<img src=\"%s\">", getbitmapname(x2));
+                                                    rtf_puts("}}");
+                                                    break;
+                                                case 0x87:
+                                                    rtf_printf("{\\pvpara {\\field {\\*\\fldinst\n");
+                                                    html_printf("<img src=\"%s\">", getbitmapname(x2));
+                                                    rtf_puts("}}\\par}");
+                                                    break;
+                                                case 0x88:
+                                                    rtf_printf("{\\pvpara\\posxr{\\field {\\*\\fldinst");
+                                                    html_printf("<img src=\"%s\">", getbitmapname(x2));
+                                                    rtf_puts("}}\\par}");
+                                                    break;
                                             }
-                                            else
-                                            {
-                                                if(x2<extensions&&(extension[x2]&0x20))
-                                                {
-                                                    if(strcmp(cmd,"bmc")==0) cmd="bmct";
-                                                    else if(strcmp(cmd,"bml")==0) cmd="bmlt";
-                                                    else if(strcmp(cmd,"bmr")==0) cmd="bmrt";
-                                                }
-                                                rtf_printf("\\{%s %s\\}",cmd,getbitmapname(x2));
-                                            }
-                                            break;
+                                        break;
                                     }
                                     break;
                                 case 0x05: /* ewc,ewl,ewr */
