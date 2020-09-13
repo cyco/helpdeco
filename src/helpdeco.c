@@ -515,8 +515,7 @@ void SysLoad(FILE *HelpFile) /* gets global values from SYSTEM file */
   char kwbtree[10];
 
   if (!SearchFile(HelpFile, "|SYSTEM", NULL)) {
-    fputs("Internal |SYSTEM file not found. Can't continue.\n", stderr);
-    exit(1);
+      helpdeco_errorf("Internal |SYSTEM file not found. Can't continue.\n");
   }
   read_SYSTEMHEADER(&SysHdr, HelpFile);
   ctx->before31 = SysHdr.Minor < 16;
@@ -1835,7 +1834,7 @@ BOOL PhraseLoad(FILE *HelpFile) {
     SavePos = ftell(HelpFile);
     if (SearchFile(HelpFile, "|PhrImage", &FileLength)) {
       if (FileLength != PhrIndexHdr.phrimagecompressedsize) {
-        fprintf(stderr, "PhrImage FileSize %ld, in PhrIndex.FileHdr %ld\n",
+        helpdeco_warnf("PhrImage FileSize %ld, in PhrIndex.FileHdr %ld\n",
                 PhrIndexHdr.phrimagecompressedsize, FileLength);
       }
       ctx->phrase.count = (unsigned_legacy_int)PhrIndexHdr.entries;
@@ -1874,7 +1873,7 @@ BOOL PhraseLoad(FILE *HelpFile) {
       }
     }
     ctx->Hall = TRUE;
-    fprintf(stderr, "%u phrases loaded\n", ctx->phrase.count);
+    helpdeco_logf("%u phrases loaded\n", ctx->phrase.count);
   } else if (SearchFile(HelpFile, "|Phrases", &FileLength)) {
     ctx->phrase.count = my_getw(HelpFile);
     newphrases =
@@ -2018,8 +2017,7 @@ void FontLoadRTF(FILE *HelpFile, FILE *rtf, FILE *hpj) {
     len = (FontHdr.DescriptorsOffset - FontHdr.FacenamesOffset) /
           ctx->fontname.count;
     if (len > FontName_len) {
-      fprintf(stderr, "malformed |FONT file\n");
-      exit(1);
+      helpdeco_errorf("malformed |FONT file\n");
     }
     ctx->fontname.entry = my_malloc(ctx->fontname.count * sizeof(char *));
     family = my_malloc(ctx->fontname.count * sizeof(unsigned char));
@@ -2513,9 +2511,8 @@ legacy_long TopicPhraseRead(FILE *HelpFile, legacy_long TopicPos, char *dest,
     free(buffer);
     buffer = NULL;
     if (NumBytes > Length) {
-      error("Phrase replacement delivers %ld bytes instead of %ld", NumBytes,
+      helpdeco_errorf("Phrase replacement delivers %ld bytes instead of %ld", NumBytes,
             Length);
-      exit(1);
     }
   }
   while (NumBytes <= Length)
@@ -3256,7 +3253,7 @@ FILE *TopicDumpRTF(FILE *HelpFile, FILE *rtf, FILE *hpj, BOOL makertf) {
           }
         }
         firsttopic = FALSE;
-        fprintf(stderr, "\rTopic %ld...", TopicNum - 15);
+        helpdeco_logf("\nTopic %ld...", TopicNum - 15);
         if (!makertf) {
           BrowseNum = 0;
           if (ctx->before31) {
@@ -3913,15 +3910,14 @@ void ContextLoad(FILE *HelpFile) {
       ctx->context_rec.count = 0;
       while (n) {
         if (ctx->context_rec.count + n > entries) {
-          fprintf(stderr, "malformed |CONTEXT file\n");
-          exit(1);
+          helpdeco_errorf("malformed |CONTEXT file\n");
         }
         read_CONTEXTRECs(ctx->context_rec.entry + ctx->context_rec.count, n,
                          HelpFile);
         ctx->context_rec.count += n;
         n = GetNextPage(HelpFile, &buf);
       }
-      fprintf(stderr, "%d topic offsets and hash values loaded\n",
+      helpdeco_logf("%d topic offsets and hash values loaded\n",
               ctx->context_rec.count);
       qsort(ctx->context_rec.entry, ctx->context_rec.count, sizeof(CONTEXTREC),
             ContextRecCmp);
@@ -4846,8 +4842,7 @@ void GuessFromKeywords(FILE *HelpFile) {
               m = my_getw(HelpFile);
               KWDataOffset = getdw(HelpFile);
               if (KWDataOffset / 4 + m > FileLength) {
-                fprintf(stderr, "malformed keytopic file\n");
-                exit(1);
+                  helpdeco_errorf("malformed keytopic file\n");
               }
               for (j = 0; j < m; j++) {
                 TopicOffset = keytopic[KWDataOffset / 4 + j];
@@ -4868,11 +4863,10 @@ void GuessFromKeywords(FILE *HelpFile) {
       }
     }
   if (ctx->guessed > 0) {
-    fprintf(stderr, "%ld context ids found\n", ctx->guessed);
+      helpdeco_logf("%ld context ids found\n", ctx->guessed);
   } else {
-    fputs("no context ids found\n(you may use option /g to turn off guessing "
-          "on this help file)\n",
-          stderr);
+    helpdeco_warnf("no context ids found\n(you may use option /g to turn off guessing "
+          "on this help file)\n");
   }
 }
 
@@ -4953,7 +4947,7 @@ void FirstPass(FILE *HelpFile) {
       LinkData2 = NULL;
     if (TopicLink.RecordType == TL_TOPICHDR) /* display a topic header record */
     {
-      fprintf(stderr, "\rTopic %ld...", TopicNum - 15);
+      helpdeco_logf("\nTopic %ld...", TopicNum - 15);
       if (ctx->before31) {
         TopicHdr30 = (TOPICHEADER30 *)LinkData1;
         if (ctx->opt_resolvebrowse) {
@@ -5420,7 +5414,7 @@ FILE *dev_null = fopen("/dev/null", "w");
   legacy_long ActualTopicOffset = 0, MaxTopicOffset = 0;
 
   if (!SearchFile(HelpFile, "|TOPIC", &ctx->topic_file_length)) {
-    fprintf(stderr, "No topic file found\n");
+    helpdeco_warnf("No topic file found\n");
     return FALSE;
   }
 
@@ -5479,7 +5473,7 @@ FILE *dev_null = fopen("/dev/null", "w");
       } else
         firsttopic = FALSE;
       firsttopic = FALSE;
-      fprintf(stderr, "\rTopic %ld...\n", TopicNum - 15);
+      helpdeco_logf("\nTopic %ld...\n", TopicNum - 15);
       TopicNum++;
     } else if (LinkData1 && LinkData2 &&
                (TopicLink.RecordType == TL_DISPLAY30 ||
@@ -5781,7 +5775,7 @@ FILE *dev_null = fopen("/dev/null", "w");
                   sscanf(ptr + 7, "%d,%d,%n", &c1, &c2, &n);
                   plus = strchr(ptr + 7 + n, '+');
                   if ((c1 & 0xFFF5) != 0x8400)
-                    fprintf(stderr, "mci c1=%04x\n", c1);
+                    helpdeco_warnf("mci c1=%04x\n", c1);
                   rtf_puts("\\{mci");
                   if (cmd[2] == 'r')
                     rtf_puts("_right");
@@ -5949,12 +5943,10 @@ BOOL html_define_fonts(FILE *HelpFile, FILE *rtf) {
   FontStart = ftell(HelpFile);
   read_FONTHEADER(&FontHdr, HelpFile);
   ctx->fontname.count = FontHdr.NumFacenames;
-  fprintf(stderr, "Found %d fonts\n", ctx->fontname.count);
   len = (FontHdr.DescriptorsOffset - FontHdr.FacenamesOffset) /
         ctx->fontname.count;
   if (len > FontName_len) {
-    fprintf(stderr, "malformed |FONT file\n");
-    exit(1);
+    helpdeco_errorf("malformed |FONT file\n");
   }
   ctx->fontname.entry = my_malloc(ctx->fontname.count * sizeof(char *));
   family = my_malloc(ctx->fontname.count * sizeof(unsigned char));
@@ -5974,7 +5966,6 @@ BOOL html_define_fonts(FILE *HelpFile, FILE *rtf) {
       *ptr++ = '\0';
       fseek(HelpFile, FontStart + FontHdr.CharmapsOffset, SEEK_SET);
     }
-    fprintf(stderr, "\t- %s\n", FontName);
     ctx->fontname.entry[i] = my_strdup(FontName);
   }
 
@@ -5984,7 +5975,7 @@ BOOL html_define_fonts(FILE *HelpFile, FILE *rtf) {
   ctx->color.entry[0].g = 1;
   ctx->color.entry[0].b = 0;
   ctx->font.count = FontHdr.NumDescriptors;
-  printf("%hd descriptors found\n", ctx->font.count);
+  helpdeco_logf("%hd descriptors found\n", ctx->font.count);
   if (ctx->font.entry)
     free(ctx->font.entry);
   ctx->font.entry = my_malloc(ctx->font.count * sizeof(FONTDESCRIPTOR));
@@ -6100,7 +6091,7 @@ BOOL html_define_fonts(FILE *HelpFile, FILE *rtf) {
   }
 
   fprintf(__html_output, "<style>");
-  fprintf(stderr, "Writing %d fonts to style tag\n", ctx->fontname.count);
+  helpdeco_logf("Writing %d fonts to style tag\n", ctx->fontname.count);
   for (i = 0; i < ctx->font.count; i++) {
     fprintf(__html_output,
             ".font-%d { "
@@ -6268,11 +6259,11 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
     switch (mode) {
     case 0:
       SysLoad(HelpFile);
-      fprintf(stderr, "Decompiling %s...\n", ctx->title);
+      helpdeco_logf("Decompiling %s...\n", ctx->title);
       ContextLoad(HelpFile);
       PhraseLoad(HelpFile);
       ExportBitmaps(HelpFile);
-      fputs("Pass 1...\n", stderr);
+      helpdeco_logf("Pass 1...\n");
       FirstPass(HelpFile); /* valid only after ExportBitmaps */
       putc('\n', stderr);
       if (!ctx->before31 && ctx->opt_guessing)
@@ -6298,7 +6289,7 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
         rtf = my_fopen(filename, "wt");
         if (rtf) {
           FontLoadRTF(HelpFile, rtf, hpj);
-          fputs("Pass 2...\n", stderr);
+          helpdeco_logf("Pass 2...\n");
           fprintf(hpj, "[FILES]\n%s\n\n", filename);
           rtf = TopicDumpRTF(HelpFile, rtf, hpj, FALSE);
           putc('}', rtf);
@@ -6315,34 +6306,34 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
       }
       if (ctx->phrase.offset) {
         if (ctx->win95) {
-          puts("Help Compiler will issue Note HC1002: Using existing phrase "
+          helpdeco_warnf("Help Compiler will issue Note HC1002: Using existing phrase "
                "table");
         } else {
-          puts("Help Compiler will issue Warning 5098: Using old key-phrase "
+          helpdeco_warnf("Help Compiler will issue Warning 5098: Using old key-phrase "
                "table");
         }
       }
       if (ctx->missing)
-        puts("Help Compiler will issue Error 1230: File 'missing.bmp' not "
+        helpdeco_warnf("Help Compiler will issue Error 1230: File 'missing.bmp' not "
              "found");
       if (ctx->NotInAnyTopic)
-        puts("Help Compiler will issue Warning 4098: Context string(s) in "
+        helpdeco_warnf("Help Compiler will issue Warning 4098: Context string(s) in "
              "[MAP] section not defined in any topic");
       if (!ctx->opt_extractmacros)
-        puts("Help Compiler may issue Warning 4131: Hash conflict between 'x' "
+        helpdeco_warnf("Help Compiler may issue Warning 4131: Hash conflict between 'x' "
              "and 'y'.");
       if (ctx->warnings) {
-        printf(
+        helpdeco_warnf(
             "HELPDECO had problems with %s. Rebuilt helpfile may behave bad.\n",
             ctx->filename);
       }
       if (ctx->suggested_compiler[0]) {
         if (ctx->win95 && SearchFile(HelpFile, "|Petra", NULL))
           strcat(ctx->suggested_compiler, " /a");
-        printf("Use %s %s to recompile ", ctx->suggested_compiler, hpjfilename);
+        helpdeco_logf("Use %s %s to recompile ", ctx->suggested_compiler, hpjfilename);
         if (ctx->annotation_file)
-          fputs("annotated ", stdout);
-        puts("helpfile.");
+          helpdeco_logf("annotated ");
+        helpdeco_logf("helpfile.");
       }
       break;
     case 1:
@@ -6353,7 +6344,7 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
       break;
     case 3: /* create lookalike RTF */
       SysLoad(HelpFile);
-      fprintf(stderr, "Writing %s...\n", ctx->title);
+      helpdeco_logf("Writing %s...\n", ctx->title);
       ctx->exportplain = TRUE;
       ExportBitmaps(HelpFile);
       PhraseLoad(HelpFile);
@@ -6369,7 +6360,7 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
       break;
     case 4: /* generate contents file */
       SysLoad(HelpFile);
-      fprintf(stderr, "Scanning %s...\n", ctx->title);
+      helpdeco_logf("Scanning %s...\n", ctx->title);
       ContextLoad(HelpFile);
       PhraseLoad(HelpFile);
       ctx->checkexternal = TRUE;
@@ -6390,7 +6381,7 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
       ctx->opt_resolvebrowse = FALSE;
       ctx->checkexternal = TRUE;
       SysLoad(HelpFile);
-      fprintf(stderr, "Parsing %s...\n", ctx->title);
+      helpdeco_logf("Parsing %s...\n", ctx->title);
       ContextLoad(HelpFile);
       PhraseLoad(HelpFile);
       ExportBitmaps(HelpFile);
@@ -6405,12 +6396,12 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
       ctx->opt_resolvebrowse = FALSE;
       ctx->checkexternal = TRUE;
       SysLoad(HelpFile);
-      fprintf(stderr, "Checking %s...\n", ctx->title);
+      helpdeco_logf("Checking %s...\n", ctx->title);
       PhraseLoad(HelpFile);
       FirstPass(HelpFile);
       putc('\n', stderr);
       if (!ctx->external) {
-        printf("No references to external files found in %s.\n", ctx->filename);
+        helpdeco_logf("No references to external files found in %s.\n", ctx->filename);
       } else if (mode == 6) {
         CheckReferences();
       } else {
@@ -6419,7 +6410,7 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
       break;
     case 8: /* create lookalike HTML */
       SysLoad(HelpFile);
-      fprintf(stderr, "Writing %s...\n", ctx->title);
+      helpdeco_logf("Writing %s...\n", ctx->title);
       ctx->exportplain = TRUE;
       SysLoad(HelpFile);
       ExportBitmaps(HelpFile);
@@ -6427,7 +6418,7 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
       snprintf(filename, sizeof(filename), "%s.html", ctx->name);
       rtf = my_fopen(filename, "wt");
       if (rtf) {
-        fprintf(stderr, "Writing html\n");
+        helpdeco_logf("Writing html\n");
         FILE *__html_output = rtf;
         fprintf(__html_output, "<!doctype html>\n");
         fprintf(__html_output, "<html lang=\"en\">\n");
@@ -6442,22 +6433,22 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
                                "solid black; padding: 10px; margin: 10px;}"
                                "</style>"
                                "\n");
-        fprintf(stderr, "Loading fonts\n");
+          helpdeco_logf("Loading fonts\n");
         html_define_fonts(HelpFile, rtf);
         fprintf(__html_output, "</head>\n");
         fprintf(__html_output, "<body>\n");
         fprintf(__html_output, "<helpdeco-document>");
-        fprintf(stderr, "Dumpic topics\n");
+        helpdeco_logf("Dumpic topics\n");
         html_dump(HelpFile, rtf);
         fprintf(__html_output, "</helpdeco-document>");
         fprintf(__html_output, "</body>\n");
         fprintf(__html_output, "</html>\n");
-        fprintf(stderr, "HTML output complete\n");
+        helpdeco_logf("HTML output complete\n");
 
-        putc('\n', stderr);
+        helpdeco_logf("\n");
         my_fclose(__html_output);
       } else {
-        fprintf(stderr, "Could not open output file %s!", filename);
+        helpdeco_warnf("Could not open output file %s!", filename);
       }
       break;
     }
@@ -6466,12 +6457,12 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
       filename[0] = '|';
       strlcpy(filename + 1, dumpfile, sizeof(filename) - 1);
       if (!SearchFile(HelpFile, filename, &FileLength)) {
-        fprintf(stderr, "Internal file %s not found.\n", dumpfile);
+        helpdeco_logf("Internal file %s not found.\n", dumpfile);
         return TRUE;
       }
       dumpfile = filename;
     }
-    printf("FileName: %s FileSize: %ld\n", dumpfile, FileLength);
+    helpdeco_logf("FileName: %s FileSize: %ld\n", dumpfile, FileLength);
     if (exportname) /* export internal file */
     {
       FILE *f;
@@ -6648,7 +6639,7 @@ int main(int argc, char *argv[]) {
             i++;
           }
         } else {
-          fprintf(stderr, "Prefix table full.\n");
+          helpdeco_warnf("Prefix table full.\n");
         }
         break;
       case 'i':
@@ -6700,10 +6691,10 @@ int main(int argc, char *argv[]) {
         ctx->opt_exportLZ77 = TRUE;
         break;
       default:
-        fprintf(stderr, "unknown option '%s' ignored\n", argv[i]);
+        helpdeco_warnf("unknown option '%s' ignored\n", argv[i]);
       }
     } else if (exportname) {
-      fprintf(stderr, "additional parameter '%s' ignored\n", argv[i]);
+      helpdeco_warnf("additional parameter '%s' ignored\n", argv[i]);
     } else if (dumpfile) {
       exportname = argv[i];
     } else if (filename) {
@@ -6725,7 +6716,7 @@ int main(int argc, char *argv[]) {
           _makepath(AnnoFileName, drive, dir, ctx->name, ".ann");
         ctx->annotation_file = fopen(AnnoFileName, "rb");
         if (!ctx->annotation_file) {
-          fprintf(stderr, "Couldn't find annotation file '%s'\n", AnnoFileName);
+          helpdeco_warnf("Couldn't find annotation file '%s'\n", AnnoFileName);
         }
       }
       ctx->prefixhash[0] = 0;
@@ -6733,16 +6724,16 @@ int main(int argc, char *argv[]) {
         ctx->prefixhash[i] = hash(ctx->prefix[i]);
       }
       if (!HelpDeCompile(f, dumpfile, mode, exportname, offset)) {
-        fprintf(stderr, "%s isn't a valid WinHelp file !\n", ctx->filename);
+        helpdeco_warnf("%s isn't a valid WinHelp file !\n", ctx->filename);
       }
       if (annotate && ctx->annotation_file)
         fclose(ctx->annotation_file);
       my_fclose(f);
     } else {
-      fprintf(stderr, "Can not open '%s'\n", ctx->filename);
+      helpdeco_warnf("Can not open '%s'\n", ctx->filename);
     }
   } else {
-    fprintf(stderr,
+    helpdeco_warnf(
             "HELPDECO - decompile *.HLP/*.MVB files of Windows 3.x / 95 - %lu "
             "bit Version 2.1.4\n"
             "M.Winterhoff <mawin@gmx.net>, Geschw.-Scholl-Ring 17, 38444 "

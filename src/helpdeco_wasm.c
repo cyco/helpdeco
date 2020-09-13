@@ -21,6 +21,13 @@ http://www.gnu.org
 #if defined(__EMSCRIPTEN__)
 #include <emscripten.h>
 #endif
+
+#ifndef DEBUG
+#define helpdeco_logf(format, ...) do { } while(0);
+#define helpdeco_warnf(format, ...) do { } while(0);
+#define helpdeco_errorf(format, ...) do { exit(1); } while(0);
+#endif
+
 #include "helpdeco.h"
 
 const char *get_version() { return "2.1.4"; }
@@ -35,10 +42,10 @@ const char *render(char *data, size_t len, const char *path) {
 
   FILE *f = fopen(path, "w+");
   if (!f) {
-    fprintf(stderr, "Could not open %s to write out buffer!\n", path);
+    helpdeco_warnf("Could not open %s to write out buffer!\n", path);
     return NULL;
   }
-  fprintf(stderr, "Writing %ld bytes to %s!\n", len, path);
+  helpdeco_warnf("Writing %ld bytes to %s!\n", len, path);
   fwrite(data, len, 1, f);
   fflush(f);
   fseek(f, 0, SEEK_SET);
@@ -50,10 +57,10 @@ const char *render(char *data, size_t len, const char *path) {
   _makepath(ctx->filename, drive, dir, ctx->name, ctx->ext);
 
   if (!HelpDeCompile(f, NULL, 8, NULL, 0)) {
-    fprintf(stderr, "%s isn't a valid WinHelp file ! (render)\n",
+    helpdeco_warnf("%s isn't a valid WinHelp file ! (render)\n",
             ctx->filename);
   } else {
-    fprintf(stderr, "Done, cleaning up!\n");
+    helpdeco_warnf("Done, cleaning up!\n");
   }
 
   my_fclose(f);

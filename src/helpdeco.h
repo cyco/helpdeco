@@ -900,7 +900,9 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
                    char *exportname, legacy_long offset);
 void helpdeco_free_ctx(HELPDECO_CTX *ctx);
 
+#ifndef helpdeco_logf
 #define helpdeco_logf(format, ...) fprintf(stdout, format, ##__VA_ARGS__);
 #define helpdeco_warnf(format, ...) fprintf(stderr, format, ##__VA_ARGS__);
 #define helpdeco_errorf(format, ...) do { fprintf(stderr, format, ##__VA_ARGS__); exit(1); } while(0);
+#endif
 #endif
