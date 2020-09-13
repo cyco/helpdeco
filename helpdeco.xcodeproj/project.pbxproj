@@ -11,6 +11,7 @@
 		83114CF7250CFA8800BD956D /* helpdec1.c in Sources */ = {isa = PBXBuildFile; fileRef = 83114CF1250CFA8800BD956D /* helpdec1.c */; };
 		83114CF9250CFA8800BD956D /* helpdeco.c in Sources */ = {isa = PBXBuildFile; fileRef = 83114CF3250CFA8800BD956D /* helpdeco.c */; };
 		8331EDF0250E22B800FEB102 /* helpdeco_wasm.c in Sources */ = {isa = PBXBuildFile; fileRef = 8331EDEE250E20A100FEB102 /* helpdeco_wasm.c */; };
+		83AB6A66250ED87B0071AE5A /* mfile.c in Sources */ = {isa = PBXBuildFile; fileRef = 83AB6A65250ED87B0071AE5A /* mfile.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -29,16 +30,20 @@
 		83114CE5250CFA7D00BD956D /* helpdeco */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = helpdeco; sourceTree = BUILT_PRODUCTS_DIR; };
 		83114CEE250CFA8800BD956D /* helper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = helper.h; sourceTree = "<group>"; };
 		83114CEF250CFA8800BD956D /* compat.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = compat.c; sourceTree = "<group>"; };
-		83114CF0250CFA8800BD956D /* helpdeco.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = helpdeco.h; sourceTree = "<group>"; };
 		83114CF1250CFA8800BD956D /* helpdec1.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = helpdec1.c; sourceTree = "<group>"; };
 		83114CF2250CFA8800BD956D /* zapres.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = zapres.c; sourceTree = "<group>"; };
 		83114CF3250CFA8800BD956D /* helpdeco.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = helpdeco.c; sourceTree = "<group>"; };
 		83114CF4250CFA8800BD956D /* compat.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = compat.h; sourceTree = "<group>"; };
 		83114CF5250CFA8800BD956D /* splitmrb.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = splitmrb.c; sourceTree = "<group>"; };
-		83114CFB250D61AB00BD956D /* html.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = html.c; sourceTree = "<group>"; };
 		8331EDEE250E20A100FEB102 /* helpdeco_wasm.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = helpdeco_wasm.c; sourceTree = "<group>"; };
 		8331EDEF250E20FA00FEB102 /* Makefile */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile; sourceTree = SOURCE_ROOT; };
 		8331EDF1250E272B00FEB102 /* example.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = example.html; sourceTree = SOURCE_ROOT; };
+		83AB6A62250ECDFE0071AE5A /* helpdeco-internal.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "helpdeco-internal.h"; sourceTree = "<group>"; };
+		83AB6A63250ED6AE0071AE5A /* helpdeco.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = helpdeco.h; sourceTree = "<group>"; };
+		83AB6A64250ED87B0071AE5A /* mfile.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = mfile.h; sourceTree = "<group>"; };
+		83AB6A65250ED87B0071AE5A /* mfile.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = mfile.c; sourceTree = "<group>"; };
+		83AB6A67250ED9840071AE5A /* types.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = types.h; sourceTree = "<group>"; };
+		83AB6A68250EDA640071AE5A /* helpdec1.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = helpdec1.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -81,16 +86,20 @@
 		83114CED250CFA8800BD956D /* src */ = {
 			isa = PBXGroup;
 			children = (
+				83AB6A68250EDA640071AE5A /* helpdec1.h */,
 				83114CEF250CFA8800BD956D /* compat.c */,
 				83114CF4250CFA8800BD956D /* compat.h */,
 				83114CF1250CFA8800BD956D /* helpdec1.c */,
 				8331EDEE250E20A100FEB102 /* helpdeco_wasm.c */,
+				83AB6A62250ECDFE0071AE5A /* helpdeco-internal.h */,
 				83114CF3250CFA8800BD956D /* helpdeco.c */,
-				83114CF0250CFA8800BD956D /* helpdeco.h */,
+				83AB6A63250ED6AE0071AE5A /* helpdeco.h */,
 				83114CEE250CFA8800BD956D /* helper.h */,
-				83114CFB250D61AB00BD956D /* html.c */,
 				83114CF5250CFA8800BD956D /* splitmrb.c */,
 				83114CF2250CFA8800BD956D /* zapres.c */,
+				83AB6A64250ED87B0071AE5A /* mfile.h */,
+				83AB6A65250ED87B0071AE5A /* mfile.c */,
+				83AB6A67250ED9840071AE5A /* types.h */,
 			);
 			path = src;
 			sourceTree = SOURCE_ROOT;
@@ -152,6 +161,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				83114CF6250CFA8800BD956D /* compat.c in Sources */,
+				83AB6A66250ED87B0071AE5A /* mfile.c in Sources */,
 				83114CF7250CFA8800BD956D /* helpdec1.c in Sources */,
 				83114CF9250CFA8800BD956D /* helpdeco.c in Sources */,
 				8331EDF0250E22B800FEB102 /* helpdeco_wasm.c in Sources */,
