@@ -112,7 +112,7 @@ size_t helpdeco_fread(void *ptr, long bytes, FILE *f) /* save fread function */
 }
 
 size_t helpdeco_gets(char *ptr, size_t size,
-               FILE *f) /* read nul terminated string from regular file */
+                     FILE *f) /* read nul terminated string from regular file */
 {
   size_t i;
   int c;
@@ -789,12 +789,12 @@ extern QWORD get_QWORD(BYTE *b) {
 #define s(a)                                                                   \
   BOOL read_##a(a *obj, FILE *file) {                                          \
     BYTE buf[sizeof_##a];                                                      \
-    if (helpdeco_fread(buf, sizeof_##a, file)) {                                     \
+    if (helpdeco_fread(buf, sizeof_##a, file)) {                               \
       uint32_t i = 0;
 #define s2(a, b)                                                               \
   BOOL read_##a##_to_##b(b *obj, FILE *file) {                                 \
     BYTE buf[sizeof_##a];                                                      \
-    if (helpdeco_fread(buf, sizeof_##a, file)) {                                     \
+    if (helpdeco_fread(buf, sizeof_##a, file)) {                               \
       uint32_t i = 0;
 #define g(a)                                                                   \
   BOOL get_##a(a *obj, BYTE *buf) {                                            \

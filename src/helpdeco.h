@@ -60,7 +60,6 @@ typedef struct {
 #pragma pack(1)
 #endif
 
-
 /* Used to more easily define some functions */
 #define r(a) BOOL read_##a(a *obj, FILE *file);
 #define r2(a, b) BOOL read_##a##_to_##b(b *obj, FILE *file);
@@ -640,7 +639,6 @@ typedef struct /* internal use */
   TOPICOFFSET OtherTopicOffset;
 } ALTERNATIVE;
 
-
 extern void error(const char *format, ...);
 #ifdef HAVE_STRNCPY
 #ifndef strlcpy
@@ -698,6 +696,8 @@ int32_t hash(char *name);
 #endif
 
 #pragma mark -
+typedef enum { Hall, Old } PhraseStyle;
+
 typedef struct {
   BOOL opt_exportLZ77;
   BOOL opt_extractmacros;
@@ -720,7 +720,6 @@ typedef struct {
   BOOL before31;
   BOOL checkexternal;
   BOOL exportplain;
-  BOOL Hall;
   BOOL keyindex['z' - '0' + 1];
   BOOL lists['z' - '0' + 1];
   BOOL lzcompressed;
@@ -731,6 +730,7 @@ typedef struct {
   BOOL warnings;
   BOOL win95;
   char *phrases;
+  PhraseStyle phrase_style;
   char *prefix[8];
   char index_separators[40];
   char oldtable[256];

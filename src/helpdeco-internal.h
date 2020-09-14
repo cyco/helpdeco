@@ -20,6 +20,10 @@ http://www.gnu.org
 
 #ifndef helpdeco_internal_h
 #define helpdeco_internal_h
+
+char *phrase_print(unsigned_legacy_int PhraseNum, char *out, FILE *f);
+char *phrase_expand(unsigned char *str, legacy_long len, char *out);
+
 BOOL html_dump(FILE *HelpFile, FILE *__html_output);
 void html_change_font(FILE *rtf, unsigned_legacy_int i, BOOL ul, BOOL uldb);
 const char *html_font_name(HELPDECO_CTX *ctx, legacy_int id);

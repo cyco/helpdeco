@@ -68,6 +68,7 @@ HELPDECO_CTX *helpdeco_make_ctx(void) {
   ctx->prefix[0] = "";
   ctx->prefix[1] = "idh_";
   ctx->prefix[2] = "helpid_";
+  ctx->phrase_style = Old;
 
   return ctx;
 }
@@ -515,7 +516,7 @@ void SysLoad(FILE *HelpFile) /* gets global values from SYSTEM file */
   char kwbtree[10];
 
   if (!SearchFile(HelpFile, "|SYSTEM", NULL)) {
-      helpdeco_errorf("Internal |SYSTEM file not found. Can't continue.\n");
+    helpdeco_errorf("Internal |SYSTEM file not found. Can't continue.\n");
   }
   read_SYSTEMHEADER(&SysHdr, HelpFile);
   ctx->before31 = SysHdr.Minor < 16;
@@ -549,7 +550,7 @@ void SysLoad(FILE *HelpFile) /* gets global values from SYSTEM file */
         SWin = (SECWINDOW *)SysRec->Data;
         ctx->windowname.entry =
             helpdeco_realloc(ctx->windowname.entry,
-                       (ctx->windowname.count + 1) * sizeof(char *));
+                             (ctx->windowname.count + 1) * sizeof(char *));
         ctx->windowname.entry[ctx->windowname.count] = NULL;
         if (SWin->Flags & WSYSFLAG_NAME) {
           ctx->windowname.entry[ctx->windowname.count] = helpdeco_strdup(SWin->Name);
@@ -1212,7 +1213,7 @@ legacy_int ExtractBitmap(char *szFilename, MFILE *f) {
         putc(byPacked & 1, fTarget);
       }
       if (byType == 8) {
-        helpdeco_putcw(mapmode, fTarget);             /* mapping mode */
+        helpdeco_putcw(mapmode, fTarget); /* mapping mode */
         helpdeco_putw(afh.rcBBox.right, fTarget);  /* width of metafile-picture */
         helpdeco_putw(afh.rcBBox.bottom, fTarget); /* height of metafile-picture */
         helpdeco_putcdw(dwRawSize, fTarget);
@@ -1597,7 +1598,7 @@ void SysList(FILE *HelpFile, FILE *hpj, char *IconFileName) {
         i = 0;
         if (ctx->lzcompressed)
           i |= 8;
-        if (ctx->Hall)
+        if (ctx->phrase_style == Hall)
           i |= 4;
         else if (ctx->phrase.count)
           i |= 2;
@@ -1671,8 +1672,8 @@ void SysList(FILE *HelpFile, FILE *hpj, char *IconFileName) {
                       if (n == ctx->stopword_filename.count) {
                         ctx->stopword_filename.entry =
                             helpdeco_realloc(ctx->stopword_filename.entry,
-                                       (ctx->stopword_filename.count + 1) *
-                                           sizeof(char *));
+                            (ctx->stopword_filename.count + 1) *
+                                sizeof(char *));
                         ctx->stopword_filename
                             .entry[ctx->stopword_filename.count++] =
                             helpdeco_strdup(ptr);
@@ -1814,144 +1815,6 @@ void SysList(FILE *HelpFile, FILE *hpj, char *IconFileName) {
           putc('\n', hpj);
         }
       }
-    }
-  }
-}
-
-/* load phrases for decompression from old Phrases file or new PhrIndex,
-// PhrImage files of HCRTF */
-BOOL PhraseLoad(FILE *HelpFile) {
-  legacy_long FileLength;
-  char junk[30];
-  BOOL newphrases;
-  PHRINDEXHDR PhrIndexHdr;
-  unsigned_legacy_int n;
-  legacy_long l, offset;
-  legacy_long SavePos;
-
-  if (SearchFile(HelpFile, "|PhrIndex", NULL)) {
-    read_PHRINDEXHDR(&PhrIndexHdr, HelpFile);
-    SavePos = ftell(HelpFile);
-    if (SearchFile(HelpFile, "|PhrImage", &FileLength)) {
-      if (FileLength != PhrIndexHdr.phrimagecompressedsize) {
-        helpdeco_warnf("PhrImage FileSize %ld, in PhrIndex.FileHdr %ld\n",
-                PhrIndexHdr.phrimagecompressedsize, FileLength);
-      }
-      ctx->phrase.count = (unsigned_legacy_int)PhrIndexHdr.entries;
-      ctx->phrase.offset =
-          helpdeco_malloc(sizeof(unsigned_legacy_int) * (ctx->phrase.count + 1));
-      ctx->phrases = helpdeco_malloc(PhrIndexHdr.phrimagesize);
-      if (PhrIndexHdr.phrimagesize == PhrIndexHdr.phrimagecompressedsize) {
-        helpdeco_fread(ctx->phrases, PhrIndexHdr.phrimagesize, HelpFile);
-      } else {
-        mfile_decompress_into_buffer(2, HelpFile, FileLength, ctx->phrases,
-                             PhrIndexHdr.phrimagesize);
-      }
-      fseek(HelpFile, SavePos, SEEK_SET);
-
-      offset = 0;
-      ctx->phrase.offset[0] = offset;
-      for (l = 0; l < PhrIndexHdr.entries; l++) {
-        for (n = 1; GetBit(HelpFile); n += 1 << PhrIndexHdr.bits)
-          ;
-        if (GetBit(HelpFile))
-          n += 1;
-        if (PhrIndexHdr.bits > 1)
-          if (GetBit(HelpFile))
-            n += 2;
-        if (PhrIndexHdr.bits > 2)
-          if (GetBit(HelpFile))
-            n += 4;
-        if (PhrIndexHdr.bits > 3)
-          if (GetBit(HelpFile))
-            n += 8;
-        if (PhrIndexHdr.bits > 4)
-          if (GetBit(HelpFile))
-            n += 16;
-        offset += n;
-        ctx->phrase.offset[(legacy_int)l + 1] = offset;
-      }
-    }
-    ctx->Hall = TRUE;
-    helpdeco_logf("%u phrases loaded\n", ctx->phrase.count);
-  } else if (SearchFile(HelpFile, "|Phrases", &FileLength)) {
-    ctx->phrase.count = helpdeco_getw(HelpFile);
-    newphrases =
-        ctx->phrase.count == 0x0800; /* VC4.0: MSDEV\HELP\MSDEV40.MVB */
-    if (newphrases)
-      ctx->phrase.count = helpdeco_getw(HelpFile);
-    if (helpdeco_getw(HelpFile) != 0x0100) {
-      error("Unknown |Phrases file structure");
-      return FALSE;
-    }
-    if (ctx->phrase.count) {
-      if (ctx->before31) {
-        offset = (ctx->phrase.count + 1) * sizeof(int16_t);
-        FileLength -= (ctx->phrase.count + 1) * sizeof(int16_t) + 4;
-        l = FileLength;
-      } else {
-        l = helpdeco_getdw(HelpFile);
-        if (newphrases) {
-          helpdeco_fread(&junk, sizeof(junk), HelpFile);
-          offset = (ctx->phrase.count + 1) * sizeof(int16_t);
-          FileLength -=
-              (ctx->phrase.count + 1) * sizeof(int16_t) + sizeof(junk) + 10;
-        } else {
-          offset = (ctx->phrase.count + 1) * sizeof(int16_t);
-          FileLength -= (ctx->phrase.count + 1) * sizeof(int16_t) + 8;
-        }
-      }
-      ctx->phrase.offset =
-          helpdeco_malloc(sizeof(unsigned_legacy_int) * (ctx->phrase.count + 1));
-      for (n = 0; n <= ctx->phrase.count; n++)
-        ctx->phrase.offset[n] = helpdeco_getw(HelpFile) - offset;
-      ctx->phrases = helpdeco_malloc(l);
-      mfile_decompress_into_buffer((ctx->before31 ? 0 : 2), HelpFile, FileLength,
-                           ctx->phrases, l);
-      fprintf(stderr, "%u phrases loaded\n", ctx->phrase.count);
-    }
-    ctx->Hall = FALSE;
-  }
-  return TRUE;
-}
-
-/* write phrase PhraseNum to out and returns advanced out
-// or to f it out = NULL or uses PrintString if f = NULL, returns NULL then */
-char *PrintPhrase(unsigned_legacy_int PhraseNum, char *out, FILE *f) {
-  char *ptr;
-  unsigned_legacy_int len;
-
-  if (PhraseNum >= ctx->phrase.count) {
-    error("Phrase %u does not exist", PhraseNum);
-    return out;
-  }
-  ptr = ctx->phrases + ctx->phrase.offset[PhraseNum];
-  len = ctx->phrase.offset[PhraseNum + 1] - ctx->phrase.offset[PhraseNum];
-  if (out) {
-    memcpy(out, ptr, len);
-    return out + len;
-  }
-  if (f) {
-    fwrite(ptr, len, 1, f);
-  } else {
-    PrintString(ptr, len);
-  }
-  return NULL;
-}
-
-/* writeout .PH file from already loaded phrases */
-void PhraseList(char *FileName) {
-  FILE *f;
-  unsigned_legacy_int n;
-
-  if (ctx->phrase.count) {
-    f = helpdeco_fopen(FileName, "wt");
-    if (f) {
-      for (n = 0; n < ctx->phrase.count; n++) {
-        PrintPhrase(n, NULL, f);
-        putc('\n', f);
-      }
-      helpdeco_fclose(f);
     }
   }
 }
@@ -2425,67 +2288,12 @@ legacy_long TopicRead(FILE *HelpFile, legacy_long TopicPos, void *dest,
   return NumBytes;
 }
 
-/* Hall or oldstyle Phrase replacement of str into out */
-char *PhraseReplace(unsigned char *str, legacy_long len, char *out) {
-  legacy_int CurChar;
-
-  if (ctx->Hall) {
-    while (len) {
-      CurChar = *str++;
-      len--;
-      if ((CurChar & 1) == 0) /* phrases 0..127 */
-      {
-        out = PrintPhrase(CurChar / 2, out, NULL);
-      } else if ((CurChar & 3) == 1) /* phrases 128..16511 */
-      {
-        CurChar = 128 + (CurChar / 4) * 256 + *str++;
-        len--;
-        out = PrintPhrase(CurChar, out, NULL);
-      } else if ((CurChar & 7) == 3) /* copy next n characters */
-      {
-        while (CurChar > 0) {
-          *out++ = *str++;
-          len--;
-          CurChar -= 8;
-        }
-      } else if ((CurChar & 0x0F) == 0x07) {
-        while (CurChar > 0) {
-          *out++ = ' ';
-          CurChar -= 16;
-        }
-      } else /* if((CurChar&0x0F)==0x0F) */
-      {
-        while (CurChar > 0) {
-          *out++ = '\0';
-          CurChar -= 16;
-        }
-      }
-    }
-  } else {
-    while (len) {
-      CurChar = *str++;
-      len--;
-      if (CurChar > 0 && CurChar < 16) /* phrase 0..1919 */
-      {
-        CurChar = 256 * (CurChar - 1) + *str++;
-        len--;
-        out = PrintPhrase(CurChar / 2, out, NULL);
-        if (CurChar & 1)
-          *out++ = ' ';
-      } else {
-        *out++ = CurChar;
-      }
-    }
-  }
-  return out;
-}
-
 /* reads next chunk from |TOPIC like TopicRead, but does phrase decompression
 // if Length > NumBytes, suitable to read LinkData2. If phrase decompression
 // doesn't expands to Length bytes, buffer is padded using 0. TopicPhraseRead
 // always NUL-terminates at dest[Length] just to be save */
-legacy_long TopicPhraseRead(FILE *HelpFile, legacy_long TopicPos, char *dest,
-                            legacy_long NumBytes, legacy_long Length) {
+legacy_long topic_read_phrase(FILE *HelpFile, legacy_long TopicPos, char *dest,
+                              legacy_long NumBytes, legacy_long Length) {
   char *buffer;
   legacy_long BytesRead;
   legacy_long i;
@@ -2507,7 +2315,7 @@ legacy_long TopicPhraseRead(FILE *HelpFile, legacy_long TopicPos, char *dest,
   } else {
     buffer = helpdeco_malloc(NumBytes);
     BytesRead = TopicRead(HelpFile, TopicPos, buffer, NumBytes);
-    NumBytes = PhraseReplace(buffer, NumBytes, dest) - dest;
+    NumBytes = phrase_expand(buffer, NumBytes, dest) - dest;
     free(buffer);
     buffer = NULL;
     if (NumBytes > Length) {
@@ -2904,8 +2712,8 @@ uint32_t AddLink(legacy_long StartTopic, legacy_long NextTopic,
     if (ctx->browse.entry[i].StartTopic == -1)
       break;
   if (i == ctx->browse.count)
-    ctx->browse.entry =
-        helpdeco_realloc(ctx->browse.entry, ++ctx->browse.count * sizeof(BROWSE));
+    ctx->browse.entry = helpdeco_realloc(ctx->browse.entry,
+                                         ++ctx->browse.count * sizeof(BROWSE));
   for (j = 0; j < ctx->start.count; j++)
     if (ctx->start.entry[j].StartTopic == StartTopic)
       break;
@@ -3225,9 +3033,9 @@ FILE *TopicDumpRTF(FILE *HelpFile, FILE *rtf, FILE *hpj, BOOL makertf) {
           TopicLink.BlockSize) /* read LinkData2 using phrase replacement */
       {
         LinkData2 = helpdeco_malloc(TopicLink.DataLen2 + 1);
-        if (TopicPhraseRead(HelpFile, 0, LinkData2,
-                            TopicLink.BlockSize - TopicLink.DataLen1,
-                            TopicLink.DataLen2) !=
+        if (topic_read_phrase(HelpFile, 0, LinkData2,
+                              TopicLink.BlockSize - TopicLink.DataLen1,
+                              TopicLink.DataLen2) !=
             TopicLink.BlockSize - TopicLink.DataLen1)
           break;
       } else
@@ -3837,7 +3645,7 @@ FILE *TopicDumpRTF(FILE *HelpFile, FILE *rtf, FILE *hpj, BOOL makertf) {
                   case 1:
                     hotspot = helpdeco_realloc(hotspot,
                                          strlen(cmd) + strlen(arg) + 1 +
-                                             strlen(GetWindowName(ptr[8])) + 1);
+                                     strlen(GetWindowName(ptr[8])) + 1);
                     sprintf(hotspot, "%s%s>%s", cmd, arg,
                             GetWindowName(ptr[8]));
                     break;
@@ -3918,7 +3726,7 @@ void ContextLoad(FILE *HelpFile) {
         n = GetNextPage(HelpFile, &buf);
       }
       helpdeco_logf("%d topic offsets and hash values loaded\n",
-              ctx->context_rec.count);
+                    ctx->context_rec.count);
       qsort(ctx->context_rec.entry, ctx->context_rec.count, sizeof(CONTEXTREC),
             ContextRecCmp);
     }
@@ -4175,7 +3983,7 @@ void PhrImageDump(FILE *HelpFile) {
         }
         ptr = helpdeco_malloc(PhrIndexHdr.phrimagesize);
         bytes = mfile_decompress_into_buffer(2, HelpFile, FileLength, ptr,
-                                     PhrIndexHdr.phrimagesize);
+                                             PhrIndexHdr.phrimagesize);
         HexDumpMemory(ptr, bytes);
         free(ptr);
         ptr = NULL;
@@ -4224,16 +4032,6 @@ void BTreeDump(FILE *HelpFile, char text[]) {
       }
     }
     n = GetNextPage(HelpFile, &buf);
-  }
-}
-
-void PhraseDump(void) {
-  unsigned_legacy_int n;
-
-  for (n = 0; n < ctx->phrase.count; n++) {
-    printf("%-5d - ", n);
-    PrintPhrase(n, NULL, NULL);
-    putchar('\n');
   }
 }
 
@@ -4401,7 +4199,7 @@ void DumpTopic(FILE *HelpFile, legacy_long TopicPos) {
         TopicLink.BlockSize) /* read LinkData2 using phrase replacement */
     {
       LinkData2 = helpdeco_malloc(TopicLink.DataLen2 + 1);
-      if (TopicPhraseRead(
+      if (topic_read_phrase(
               HelpFile, 0, LinkData2, TopicLink.BlockSize - TopicLink.DataLen1,
               TopicLink.DataLen2) != TopicLink.BlockSize - TopicLink.DataLen1)
         break;
@@ -4842,7 +4640,7 @@ void GuessFromKeywords(FILE *HelpFile) {
               m = helpdeco_getw(HelpFile);
               KWDataOffset = helpdeco_getdw(HelpFile);
               if (KWDataOffset / 4 + m > FileLength) {
-                  helpdeco_errorf("malformed keytopic file\n");
+                helpdeco_errorf("malformed keytopic file\n");
               }
               for (j = 0; j < m; j++) {
                 TopicOffset = keytopic[KWDataOffset / 4 + j];
@@ -4863,10 +4661,10 @@ void GuessFromKeywords(FILE *HelpFile) {
       }
     }
   if (ctx->guessed > 0) {
-      helpdeco_logf("%ld context ids found\n", ctx->guessed);
+    helpdeco_logf("%ld context ids found\n", ctx->guessed);
   } else {
     helpdeco_warnf("no context ids found\n(you may use option /g to turn off guessing "
-          "on this help file)\n");
+        "on this help file)\n");
   }
 }
 
@@ -4939,7 +4737,7 @@ void FirstPass(FILE *HelpFile) {
         TopicLink.BlockSize) /* read LinkData2 using phrase replacement */
     {
       LinkData2 = helpdeco_malloc(TopicLink.DataLen2 + 1);
-      if (TopicPhraseRead(
+      if (topic_read_phrase(
               HelpFile, 0L, LinkData2, TopicLink.BlockSize - TopicLink.DataLen1,
               TopicLink.DataLen2) != TopicLink.BlockSize - TopicLink.DataLen1)
         break;
@@ -4985,7 +4783,7 @@ void FirstPass(FILE *HelpFile) {
         if (BogusTopicOffset != TopicOffset) {
           ctx->alternative.entry =
               helpdeco_realloc(ctx->alternative.entry,
-                         (ctx->alternative.count + 1) * sizeof(ALTERNATIVE));
+              (ctx->alternative.count + 1) * sizeof(ALTERNATIVE));
           ctx->alternative.entry[ctx->alternative.count].TopicOffset =
               TopicOffset;
           ctx->alternative.entry[ctx->alternative.count].OtherTopicOffset =
@@ -5270,7 +5068,7 @@ void ContextList(FILE *HelpFile) {
         TopicLink.BlockSize) /* read LinkData2 using phrase replacement */
     {
       LinkData2 = helpdeco_malloc(TopicLink.DataLen2 + 1);
-      if (TopicPhraseRead(
+      if (topic_read_phrase(
               HelpFile, 0, LinkData2, TopicLink.BlockSize - TopicLink.DataLen1,
               TopicLink.DataLen2) != TopicLink.BlockSize - TopicLink.DataLen1)
         break;
@@ -5371,6 +5169,217 @@ void ContextList(FILE *HelpFile) {
   }
 }
 
+#pragma mark - Phrases
+BOOL load_phrases_from_index(FILE *HelpFile, legacy_long FileLength) {
+  PHRINDEXHDR PhrIndexHdr;
+  unsigned_legacy_int n;
+  legacy_long l, offset;
+  legacy_long SavePos;
+
+  read_PHRINDEXHDR(&PhrIndexHdr, HelpFile);
+  SavePos = ftell(HelpFile);
+  if (SearchFile(HelpFile, "|PhrImage", &FileLength)) {
+    if (FileLength != PhrIndexHdr.phrimagecompressedsize) {
+      helpdeco_warnf("PhrImage FileSize %ld, in PhrIndex.FileHdr %ld\n",
+                     PhrIndexHdr.phrimagecompressedsize, FileLength);
+    }
+    ctx->phrase.count = (unsigned_legacy_int)PhrIndexHdr.entries;
+    ctx->phrase.offset =
+        helpdeco_malloc(sizeof(unsigned_legacy_int) * (ctx->phrase.count + 1));
+    ctx->phrases = helpdeco_malloc(PhrIndexHdr.phrimagesize);
+    if (PhrIndexHdr.phrimagesize == PhrIndexHdr.phrimagecompressedsize) {
+      helpdeco_fread(ctx->phrases, PhrIndexHdr.phrimagesize, HelpFile);
+    } else {
+      mfile_decompress_into_buffer(2, HelpFile, FileLength, ctx->phrases,
+                                   PhrIndexHdr.phrimagesize);
+    }
+    fseek(HelpFile, SavePos, SEEK_SET);
+
+    offset = 0;
+    ctx->phrase.offset[0] = offset;
+    for (l = 0; l < PhrIndexHdr.entries; l++) {
+      for (n = 1; GetBit(HelpFile); n += 1 << PhrIndexHdr.bits)
+        ;
+      if (GetBit(HelpFile))
+        n += 1;
+      if (PhrIndexHdr.bits > 1)
+        if (GetBit(HelpFile))
+          n += 2;
+      if (PhrIndexHdr.bits > 2)
+        if (GetBit(HelpFile))
+          n += 4;
+      if (PhrIndexHdr.bits > 3)
+        if (GetBit(HelpFile))
+          n += 8;
+      if (PhrIndexHdr.bits > 4)
+        if (GetBit(HelpFile))
+          n += 16;
+      offset += n;
+      ctx->phrase.offset[(legacy_int)l + 1] = offset;
+    }
+  }
+  ctx->phrase_style = Hall;
+  return TRUE;
+}
+
+BOOL load_phrases_from_phrases(FILE *HelpFile, legacy_long FileLength) {
+  char junk[30];
+  BOOL newphrases;
+  unsigned_legacy_int n;
+  legacy_long l, offset;
+
+  ctx->phrase.count = helpdeco_getw(HelpFile);
+  newphrases = ctx->phrase.count == 0x0800; /* VC4.0: MSDEV\HELP\MSDEV40.MVB */
+  if (newphrases)
+    ctx->phrase.count = helpdeco_getw(HelpFile);
+  if (helpdeco_getw(HelpFile) != 0x0100) {
+    error("Unknown |Phrases file structure");
+    return FALSE;
+  }
+  if (ctx->phrase.count) {
+    if (ctx->before31) {
+      offset = (ctx->phrase.count + 1) * sizeof(int16_t);
+      FileLength -= (ctx->phrase.count + 1) * sizeof(int16_t) + 4;
+      l = FileLength;
+    } else {
+      l = helpdeco_getdw(HelpFile);
+      if (newphrases) {
+        helpdeco_fread(&junk, sizeof(junk), HelpFile);
+        offset = (ctx->phrase.count + 1) * sizeof(int16_t);
+        FileLength -=
+            (ctx->phrase.count + 1) * sizeof(int16_t) + sizeof(junk) + 10;
+      } else {
+        offset = (ctx->phrase.count + 1) * sizeof(int16_t);
+        FileLength -= (ctx->phrase.count + 1) * sizeof(int16_t) + 8;
+      }
+    }
+    ctx->phrase.offset =
+        helpdeco_malloc(sizeof(unsigned_legacy_int) * (ctx->phrase.count + 1));
+    for (n = 0; n <= ctx->phrase.count; n++)
+      ctx->phrase.offset[n] = helpdeco_getw(HelpFile) - offset;
+    ctx->phrases = helpdeco_malloc(l);
+    mfile_decompress_into_buffer((ctx->before31 ? 0 : 2), HelpFile, FileLength,
+                                 ctx->phrases, l);
+  }
+  return TRUE;
+}
+
+/* load phrases for decompression from old Phrases file or new PhrIndex,
+// PhrImage files of HCRTF */
+BOOL helpdeco_load_phrases(FILE *HelpFile) {
+  legacy_long FileLength;
+
+  if (SearchFile(HelpFile, "|PhrIndex", &FileLength)) {
+    load_phrases_from_index(HelpFile, FileLength);
+    helpdeco_logf("%u phrases loaded\n", ctx->phrase.count);
+  } else if (SearchFile(HelpFile, "|Phrases", &FileLength)) {
+    load_phrases_from_phrases(HelpFile, FileLength);
+    fprintf(stderr, "%u phrases loaded\n", ctx->phrase.count);
+
+    ctx->phrase_style = Old;
+  } else {
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+/* write phrase PhraseNum to out and returns advanced out
+// or to f it out = NULL or uses PrintString if f = NULL, returns NULL then */
+char *phrase_print(unsigned_legacy_int PhraseNum, char *out, FILE *f) {
+  char *ptr;
+  unsigned_legacy_int len;
+
+  if (PhraseNum >= ctx->phrase.count) {
+    error("Phrase %u does not exist", PhraseNum);
+    return out;
+  }
+  ptr = ctx->phrases + ctx->phrase.offset[PhraseNum];
+  len = ctx->phrase.offset[PhraseNum + 1] - ctx->phrase.offset[PhraseNum];
+  if (out) {
+    memcpy(out, ptr, len);
+    return out + len;
+  }
+  if (f) {
+    fwrite(ptr, len, 1, f);
+  } else {
+    PrintString(ptr, len);
+  }
+  return NULL;
+}
+
+/* writeout .PH file from already loaded phrases */
+void phrase_dump(char *FileName) {
+  FILE *f;
+  unsigned_legacy_int n;
+
+  if (ctx->phrase.count) {
+    f = helpdeco_fopen(FileName, "wt");
+    if (f) {
+      for (n = 0; n < ctx->phrase.count; n++) {
+        phrase_print(n, NULL, f);
+        putc('\n', f);
+      }
+      helpdeco_fclose(f);
+    }
+  }
+}
+
+/* Hall or oldstyle Phrase replacement of str into out */
+char *phrase_expand(unsigned char *str, legacy_long len, char *out) {
+  legacy_int CurChar;
+
+  if (ctx->phrase_style == Hall) {
+    while (len) {
+      CurChar = *str++;
+      len--;
+      if ((CurChar & 1) == 0) /* phrases 0..127 */
+      {
+        out = phrase_print(CurChar / 2, out, NULL);
+      } else if ((CurChar & 3) == 1) /* phrases 128..16511 */
+      {
+        CurChar = 128 + (CurChar / 4) * 256 + *str++;
+        len--;
+        out = phrase_print(CurChar, out, NULL);
+      } else if ((CurChar & 7) == 3) /* copy next n characters */
+      {
+        while (CurChar > 0) {
+          *out++ = *str++;
+          len--;
+          CurChar -= 8;
+        }
+      } else if ((CurChar & 0x0F) == 0x07) {
+        while (CurChar > 0) {
+          *out++ = ' ';
+          CurChar -= 16;
+        }
+      } else /* if((CurChar&0x0F)==0x0F) */
+      {
+        while (CurChar > 0) {
+          *out++ = '\0';
+          CurChar -= 16;
+        }
+      }
+    }
+  } else {
+    while (len) {
+      CurChar = *str++;
+      len--;
+      if (CurChar > 0 && CurChar < 16) /* phrase 0..1919 */
+      {
+        CurChar = 256 * (CurChar - 1) + *str++;
+        len--;
+        out = phrase_print(CurChar / 2, out, NULL);
+        if (CurChar & 1)
+          *out++ = ' ';
+      } else {
+        *out++ = CurChar;
+      }
+    }
+  }
+  return out;
+}
+
 #pragma mark -
 #pragma mark HTML Output
 BOOL html_dump(FILE *HelpFile, FILE *__html_output) {
@@ -5453,7 +5462,7 @@ FILE *dev_null = fopen("/dev/null", "w");
         TopicLink.BlockSize) /* read LinkData2 using phrase replacement */
     {
       LinkData2 = helpdeco_malloc(TopicLink.DataLen2 + 1);
-      if (TopicPhraseRead(
+      if (topic_read_phrase(
               HelpFile, 0, LinkData2, TopicLink.BlockSize - TopicLink.DataLen1,
               TopicLink.DataLen2) != TopicLink.BlockSize - TopicLink.DataLen1)
         break;
@@ -6241,8 +6250,17 @@ BOOL html_define_fonts(FILE *HelpFile, FILE *rtf) {
   return TRUE;
 }
 
-
 #pragma mark -
+void dump_phrases(void) {
+  unsigned_legacy_int n;
+
+  for (n = 0; n < ctx->phrase.count; n++) {
+    printf("%-5d - ", n);
+    phrase_print(n, NULL, NULL);
+    putchar('\n');
+  }
+}
+
 BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
                    char *exportname, legacy_long offset) {
   char filename[PATH_MAX];
@@ -6261,7 +6279,7 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
       SysLoad(HelpFile);
       helpdeco_logf("Decompiling %s...\n", ctx->title);
       ContextLoad(HelpFile);
-      PhraseLoad(HelpFile);
+      helpdeco_load_phrases(HelpFile);
       ExportBitmaps(HelpFile);
       helpdeco_logf("Pass 1...\n");
       FirstPass(HelpFile); /* valid only after ExportBitmaps */
@@ -6284,7 +6302,7 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
           AliasList(hpj); /* after ContextLoad, before TopicDump */
         strcpy(filename, ctx->name);
         strcat(filename, ".ph");
-        PhraseList(filename); /* after PhraseLoad */
+        phrase_dump(filename); /* after PhraseLoad */
         BuildRTFName(filename, ctx->opt_topics_per_rtf > 0);
         rtf = helpdeco_fopen(filename, "wt");
         if (rtf) {
@@ -6307,21 +6325,21 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
       if (ctx->phrase.offset) {
         if (ctx->win95) {
           helpdeco_warnf("Help Compiler will issue Note HC1002: Using existing phrase "
-               "table");
+              "table");
         } else {
           helpdeco_warnf("Help Compiler will issue Warning 5098: Using old key-phrase "
-               "table");
+              "table");
         }
       }
       if (ctx->missing)
         helpdeco_warnf("Help Compiler will issue Error 1230: File 'missing.bmp' not "
-             "found");
+            "found");
       if (ctx->NotInAnyTopic)
         helpdeco_warnf("Help Compiler will issue Warning 4098: Context string(s) in "
-             "[MAP] section not defined in any topic");
+            "[MAP] section not defined in any topic");
       if (!ctx->opt_extractmacros)
         helpdeco_warnf("Help Compiler may issue Warning 4131: Hash conflict between 'x' "
-             "and 'y'.");
+            "and 'y'.");
       if (ctx->warnings) {
         helpdeco_warnf(
             "HELPDECO had problems with %s. Rebuilt helpfile may behave bad.\n",
@@ -6330,7 +6348,8 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
       if (ctx->suggested_compiler[0]) {
         if (ctx->win95 && SearchFile(HelpFile, "|Petra", NULL))
           strcat(ctx->suggested_compiler, " /a");
-        helpdeco_logf("Use %s %s to recompile ", ctx->suggested_compiler, hpjfilename);
+        helpdeco_logf("Use %s %s to recompile ", ctx->suggested_compiler,
+                      hpjfilename);
         if (ctx->annotation_file)
           helpdeco_logf("annotated ");
         helpdeco_logf("helpfile.");
@@ -6347,7 +6366,7 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
       helpdeco_logf("Writing %s...\n", ctx->title);
       ctx->exportplain = TRUE;
       ExportBitmaps(HelpFile);
-      PhraseLoad(HelpFile);
+      helpdeco_load_phrases(HelpFile);
       BuildRTFName(filename, ctx->opt_topics_per_rtf > 0);
       rtf = helpdeco_fopen(filename, "wt");
       if (rtf) {
@@ -6362,7 +6381,7 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
       SysLoad(HelpFile);
       helpdeco_logf("Scanning %s...\n", ctx->title);
       ContextLoad(HelpFile);
-      PhraseLoad(HelpFile);
+      helpdeco_load_phrases(HelpFile);
       ctx->checkexternal = TRUE;
       ExportBitmaps(HelpFile);
       FirstPass(HelpFile);
@@ -6383,7 +6402,7 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
       SysLoad(HelpFile);
       helpdeco_logf("Parsing %s...\n", ctx->title);
       ContextLoad(HelpFile);
-      PhraseLoad(HelpFile);
+      helpdeco_load_phrases(HelpFile);
       ExportBitmaps(HelpFile);
       FirstPass(HelpFile);
       putc('\n', stderr);
@@ -6397,7 +6416,7 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
       ctx->checkexternal = TRUE;
       SysLoad(HelpFile);
       helpdeco_logf("Checking %s...\n", ctx->title);
-      PhraseLoad(HelpFile);
+      helpdeco_load_phrases(HelpFile);
       FirstPass(HelpFile);
       putc('\n', stderr);
       if (!ctx->external) {
@@ -6414,7 +6433,7 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
       ctx->exportplain = TRUE;
       SysLoad(HelpFile);
       ExportBitmaps(HelpFile);
-      PhraseLoad(HelpFile);
+      helpdeco_load_phrases(HelpFile);
       snprintf(filename, sizeof(filename), "%s.html", ctx->name);
       rtf = helpdeco_fopen(filename, "wt");
       if (rtf) {
@@ -6433,7 +6452,7 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
                                "solid black; padding: 10px; margin: 10px;}"
                                "</style>"
                                "\n");
-          helpdeco_logf("Loading fonts\n");
+        helpdeco_logf("Loading fonts\n");
         html_define_fonts(HelpFile, rtf);
         fprintf(__html_output, "</head>\n");
         fprintf(__html_output, "<body>\n");
@@ -6476,7 +6495,7 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
       HexDump(HelpFile, FileLength, offset);
     } else if (strcmp(dumpfile, "|TOPIC") == 0) {
       SysLoad(HelpFile);
-      PhraseLoad(HelpFile);
+      helpdeco_load_phrases(HelpFile);
       DumpTopic(HelpFile, offset);
     } else if (strcmp(dumpfile + strlen(dumpfile) - 4, ".grp") == 0) {
       GroupDump(HelpFile);
@@ -6488,8 +6507,8 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
     } else if (strcmp(dumpfile, "|Phrases") == 0 ||
                strcmp(dumpfile, "|PhrIndex") == 0) {
       SysLoad(HelpFile);
-      PhraseLoad(HelpFile);
-      PhraseDump();
+      helpdeco_load_phrases(HelpFile);
+      dump_phrases();
     } else if (strcmp(dumpfile, "|SYSTEM") == 0) {
       SysDump(HelpFile);
     } else if (strcmp(dumpfile, "|TOMAP") == 0) {
@@ -6734,51 +6753,51 @@ int main(int argc, char *argv[]) {
     }
   } else {
     helpdeco_warnf(
-            "HELPDECO - decompile *.HLP/*.MVB files of Windows 3.x / 95 - %lu "
-            "bit Version 2.1.4\n"
-            "M.Winterhoff <mawin@gmx.net>, Geschw.-Scholl-Ring 17, 38444 "
-            "Wolfsburg, Germany\n"
-            "\n"
-            "usage:   HELPDECO helpfile[.hlp]    [" OPTSTR
-            "y]  - decompile helpfile into all sources\n"
-            "         HELPDECO helpfile[.hlp]    [" OPTSTR "y] " OPTSTR
-            "a[annfile.ANN]  - and add annotations\n"
+        "HELPDECO - decompile *.HLP/*.MVB files of Windows 3.x / 95 - %lu "
+        "bit Version 2.1.4\n"
+        "M.Winterhoff <mawin@gmx.net>, Geschw.-Scholl-Ring 17, 38444 "
+        "Wolfsburg, Germany\n"
+        "\n"
+        "usage:   HELPDECO helpfile[.hlp]    [" OPTSTR
+        "y]  - decompile helpfile into all sources\n"
+        "         HELPDECO helpfile[.hlp]    [" OPTSTR "y] " OPTSTR
+        "a[annfile.ANN]  - and add annotations\n"
             "         HELPDECO helpfile[.hlp] " OPTSTR "r [" OPTSTR
             "y] [" OPTSTR "n]    - decompile into lookalike RTF\n"
-            "         HELPDECO helpfile[.hlp] " OPTSTR
-            "w    - decompile into lookalike HTML\n"
-            "         HELPDECO helpfile[.hlp] " OPTSTR "c [" OPTSTR
-            "y]  - generate Win95 .CNT content file\n"
-            "         HELPDECO helpfile[.hlp] " OPTSTR
-            "l       - list entry points of this helpfile\n"
-            "         HELPDECO helpfile[.hlp] " OPTSTR "e [" OPTSTR
-            "f]  - list references to other helpfiles\n"
-            "         HELPDECO helpfile[.hlp] " OPTSTR "p [" OPTSTR
-            "f]  - check references to other helpfiles\n"
-            "         HELPDECO helpfile[.hlp] " OPTSTR "d [" OPTSTR
-            "x]  - display internal directory\n"
-            "         HELPDECO helpfile[.hlp] \"internalfile\" [" OPTSTR
-            "x]    - display internal file\n"
-            "         HELPDECO helpfile[.hlp] \"internalfile\" filename - "
-            "export internal file\n"
-            "options: " OPTSTR "y overwrite without warning, " OPTSTR
-            "f list referencing topics, " OPTSTR "x hex dump\n"
-            "         " OPTSTR "g no guessing, " OPTSTR
-            "hprefix add known contextid prefix, " OPTSTR "n no page breaks\n"
-            "To recreate all source files necessary to rebuild a Windows "
-            "helpfile, create\n"
-            "a directory, change to this directory and call HELPDECO with the "
-            "path and name\n"
-            "of the helpfile to dissect. HELPDECO will extract all files "
-            "contained in the\n"
-            "helpfile in two passes and deposit them in the current directory. "
-            "You may then\n"
-            "rebuild the helpfile using the appropriate help compiler HC30, "
-            "HC31, HCP, HCW,\n"
-            "HCRTF, MVC, WMVC or MVCC. The file will not be identical, but "
-            "should look and\n"
-            "work like the original.\n",
-            sizeof(int) * 8);
+        "         HELPDECO helpfile[.hlp] " OPTSTR
+        "w    - decompile into lookalike HTML\n"
+        "         HELPDECO helpfile[.hlp] " OPTSTR "c [" OPTSTR
+        "y]  - generate Win95 .CNT content file\n"
+        "         HELPDECO helpfile[.hlp] " OPTSTR
+        "l       - list entry points of this helpfile\n"
+        "         HELPDECO helpfile[.hlp] " OPTSTR "e [" OPTSTR
+        "f]  - list references to other helpfiles\n"
+        "         HELPDECO helpfile[.hlp] " OPTSTR "p [" OPTSTR
+        "f]  - check references to other helpfiles\n"
+        "         HELPDECO helpfile[.hlp] " OPTSTR "d [" OPTSTR
+        "x]  - display internal directory\n"
+        "         HELPDECO helpfile[.hlp] \"internalfile\" [" OPTSTR
+        "x]    - display internal file\n"
+        "         HELPDECO helpfile[.hlp] \"internalfile\" filename - "
+        "export internal file\n"
+        "options: " OPTSTR "y overwrite without warning, " OPTSTR
+        "f list referencing topics, " OPTSTR "x hex dump\n"
+        "         " OPTSTR "g no guessing, " OPTSTR
+        "hprefix add known contextid prefix, " OPTSTR "n no page breaks\n"
+        "To recreate all source files necessary to rebuild a Windows "
+        "helpfile, create\n"
+        "a directory, change to this directory and call HELPDECO with the "
+        "path and name\n"
+        "of the helpfile to dissect. HELPDECO will extract all files "
+        "contained in the\n"
+        "helpfile in two passes and deposit them in the current directory. "
+        "You may then\n"
+        "rebuild the helpfile using the appropriate help compiler HC30, "
+        "HC31, HCP, HCW,\n"
+        "HCRTF, MVC, WMVC or MVCC. The file will not be identical, but "
+        "should look and\n"
+        "work like the original.\n",
+        sizeof(int) * 8);
   }
 
   helpdeco_free_ctx(ctx);
