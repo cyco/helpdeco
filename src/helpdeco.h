@@ -659,12 +659,12 @@ extern size_t strlcpy(char *dest, const char *src,
 #endif
 
 #include "helpdec1.h"
+
 extern legacy_long copy(FILE *f, legacy_long bytes, FILE *out);
 extern void HexDump(FILE *f, legacy_long FileLength, legacy_long offset);
 extern void HexDumpMemory(void *bypMem, unsigned_legacy_int FileLength);
 extern char *PrintString(char *str, unsigned_legacy_int len);
 extern BOOL GetBit(FILE *f);
-extern void putrtf(FILE *rtf, const char *str);
 extern int16_t scanint(char **ptr);   /* scan a compressed short */
 extern uint16_t scanword(char **ptr); /* scan a compressed unsiged short */
 extern uint32_t scanlong(char **ptr); /* scan a compressed long */

@@ -1846,389 +1846,6 @@ unsigned char AddColor(unsigned char r, unsigned char g, unsigned char b) {
   return n;
 }
 
-/* load fonts from help file, filling up internal font structure,
-// writing fonttbl, colortbl, and styletbl to rtf file */
-void FontLoadRTF(FILE *HelpFile, FILE *rtf, FILE *hpj) {
-  const static char *const BestFonts[] = {
-      "Arial",  "Times New Roman", "MS Sans Serif", "MS Serif",    "Helv",
-      "TmsRmn", "MS Sans Serif",   "Helvetica",     "Times Roman", "Times"};
-  legacy_int default_font = 0;
-  CHARMAPHEADER CharmapHeader;
-  FONTHEADER FontHdr;
-  FILE *f;
-#define FontName_len 33
-  char FontName[FontName_len];
-#define CharMap_len 33
-  char CharMap[CharMap_len];
-  char *ptr;
-  char *p;
-  legacy_long FontStart;
-  legacy_int i, j, k, l, len;
-  unsigned char *family;
-  BOOL charmap;
-  OLDFONT oldfont;
-  NEWFONT newfont;
-  MVBFONT mvbfont;
-  MVBSTYLE *mvbstyle;
-  NEWSTYLE *newstyle;
-  FONTDESCRIPTOR *fd;
-
-  if (SearchFile(HelpFile, "|FONT", NULL)) {
-    FontStart = ftell(HelpFile);
-    read_FONTHEADER(&FontHdr, HelpFile);
-    ctx->fontname.count = FontHdr.NumFacenames;
-    len = (FontHdr.DescriptorsOffset - FontHdr.FacenamesOffset) /
-          ctx->fontname.count;
-    if (len > FontName_len) {
-      helpdeco_errorf("malformed |FONT file\n");
-    }
-    ctx->fontname.entry = helpdeco_malloc(ctx->fontname.count * sizeof(char *));
-    family = helpdeco_malloc(ctx->fontname.count * sizeof(unsigned char));
-    memset(family, 0, ctx->fontname.count * sizeof(unsigned char));
-    charmap = FALSE;
-    mvbstyle = NULL;
-    newstyle = NULL;
-    for (i = 0; i < ctx->fontname.count; i++) {
-      fseek(HelpFile, FontStart + FontHdr.FacenamesOffset + len * i, SEEK_SET);
-      helpdeco_fread(FontName, len, HelpFile);
-      FontName[len] = '\0';
-      if (FontName[0] == '\000') {
-        strcpy(FontName, BestFonts[default_font]);
-      }
-      ptr = strchr(FontName, ',');
-      if (ptr && FontHdr.FacenamesOffset >= 16) {
-        *ptr++ = '\0';
-        fseek(HelpFile, FontStart + FontHdr.CharmapsOffset, SEEK_SET);
-        for (j = 0; hpj && j < FontHdr.NumCharmaps; j++) {
-          helpdeco_fread(CharMap, 32, HelpFile);
-          CharMap[32] = '\0';
-          p = strchr(CharMap, ',');
-          if (p && strcmp(p + 1, ptr) == 0 &&
-              strcmp(CharMap, "|MVCHARTAB,0") != 0) {
-            if (!charmap) {
-              fputs("[CHARMAP]\n", hpj);
-              charmap = TRUE;
-            }
-            *p++ = '\0';
-            if (strcmp(p, "0") == 0) {
-              fprintf(hpj, "DEFAULT=%s\n", CharMap);
-            } else {
-              fprintf(hpj, "%s=%s\n", FontName, CharMap);
-            }
-            break;
-          }
-        }
-      }
-      ctx->fontname.entry[i] = helpdeco_strdup(FontName);
-    }
-    if (charmap)
-      putc('\n', hpj);
-    if (hpj && FontHdr.FacenamesOffset >= 16)
-      for (j = 0; j < FontHdr.NumCharmaps; j++) {
-        fseek(HelpFile, FontStart + FontHdr.CharmapsOffset + j * 32, SEEK_SET);
-        helpdeco_fread(CharMap, 32, HelpFile);
-        CharMap[32] = '\0';
-        p = strchr(CharMap, ',');
-        if (p && strcmp(CharMap, "|MVCHARTAB,0") != 0) {
-          *p++ = '\0';
-          if (SearchFile(HelpFile, CharMap, NULL)) {
-            read_CHARMAPHEADER(&CharmapHeader, HelpFile);
-            f = helpdeco_fopen(CharMap, "wt");
-            if (f) {
-              fprintf(f, "%d,\n", CharmapHeader.Entries);
-              for (k = 0; k < CharmapHeader.Entries; k++) {
-                fprintf(f, "%5u,", helpdeco_getw(HelpFile));
-                fprintf(f, "%5u,", helpdeco_getw(HelpFile));
-                fprintf(f, "%3u,", getc(HelpFile));
-                fprintf(f, "%3u,", getc(HelpFile));
-                fprintf(f, "%3u,", getc(HelpFile));
-                fprintf(f, "%3u,\n", getc(HelpFile));
-                helpdeco_getw(HelpFile);
-              }
-              fprintf(f, "%d,\n", CharmapHeader.Ligatures);
-              for (k = 0; k < CharmapHeader.Ligatures; k++) {
-                for (l = 0; l < CharmapHeader.LigLen; l++) {
-                  fprintf(f, "%3u,", getc(HelpFile));
-                }
-                putc('\n', f);
-              }
-              helpdeco_fclose(f);
-            }
-          }
-        }
-      }
-    fseek(HelpFile, FontStart + FontHdr.DescriptorsOffset, SEEK_SET);
-    ctx->color.count = 1; /* auto */
-    ctx->color.entry[0].r = 1;
-    ctx->color.entry[0].g = 1;
-    ctx->color.entry[0].b = 0;
-    ctx->font.count = FontHdr.NumDescriptors;
-    if (ctx->font.entry)
-      free(ctx->font.entry);
-    ctx->font.entry = helpdeco_malloc(ctx->font.count * sizeof(FONTDESCRIPTOR));
-    memset(ctx->font.entry, 0, ctx->font.count * sizeof(FONTDESCRIPTOR));
-    if (FontHdr.FacenamesOffset >= 16) {
-      ctx->scaling = 1;
-      ctx->rounderr = 0;
-      for (i = 0; i < FontHdr.NumDescriptors; i++) {
-        read_MVBFONT(&mvbfont, HelpFile);
-        fd = ctx->font.entry + i;
-        fd->FontName = mvbfont.FontName;
-        fd->HalfPoints = -2 * mvbfont.Height;
-        fd->Bold = mvbfont.Weight > 500;
-        fd->Italic = mvbfont.Italic != 0;
-        fd->Underline = mvbfont.Underline != 0;
-        fd->StrikeOut = mvbfont.StrikeOut != 0;
-        fd->DoubleUnderline = mvbfont.DoubleUnderline != 0;
-        fd->SmallCaps = mvbfont.SmallCaps != 0;
-        fd->textcolor =
-            AddColor(mvbfont.FGRGB[0], mvbfont.FGRGB[1], mvbfont.FGRGB[2]);
-        fd->backcolor =
-            AddColor(mvbfont.BGRGB[0], mvbfont.BGRGB[1], mvbfont.BGRGB[2]);
-        fd->FontFamily = mvbfont.PitchAndFamily >> 4;
-        fd->style = mvbfont.style;
-        fd->up = mvbfont.up;
-        fd->expndtw = mvbfont.expndtw;
-      }
-      fseek(HelpFile, FontStart + FontHdr.FormatsOffset, SEEK_SET);
-      mvbstyle = helpdeco_malloc(FontHdr.NumFormats * sizeof(MVBSTYLE));
-      for (i = 0; i < FontHdr.NumFormats; i++) {
-        MVBSTYLE *m = mvbstyle + i;
-        ;
-        read_MVBSTYLE(m, HelpFile);
-        m->font.FGRGB[0] =
-            AddColor(m->font.FGRGB[0], m->font.FGRGB[1], m->font.FGRGB[2]);
-        m->font.BGRGB[0] =
-            AddColor(m->font.BGRGB[0], m->font.BGRGB[1], m->font.BGRGB[2]);
-      }
-    } else if (FontHdr.FacenamesOffset >= 12) {
-      ctx->scaling = 1;
-      ctx->rounderr = 0;
-      for (i = 0; i < FontHdr.NumDescriptors; i++) {
-        read_NEWFONT(&newfont, HelpFile);
-        fd = ctx->font.entry + i;
-        fd->Bold = newfont.Weight > 500;
-        fd->Italic = newfont.Italic != 0;
-        fd->Underline = newfont.Underline != 0;
-        fd->StrikeOut = newfont.StrikeOut != 0;
-        fd->DoubleUnderline = newfont.DoubleUnderline != 0;
-        fd->SmallCaps = newfont.SmallCaps != 0;
-        fd->FontName = newfont.FontName;
-        fd->HalfPoints = -2 * newfont.Height;
-        fd->textcolor =
-            AddColor(newfont.FGRGB[0], newfont.FGRGB[1], newfont.FGRGB[2]);
-        fd->backcolor =
-            AddColor(newfont.BGRGB[0], newfont.BGRGB[1], newfont.BGRGB[2]);
-        fd->FontFamily = newfont.PitchAndFamily >> 4;
-      }
-      fseek(HelpFile, FontStart + FontHdr.FormatsOffset, SEEK_SET);
-      newstyle = helpdeco_malloc(FontHdr.NumFormats * sizeof(NEWSTYLE));
-      for (i = 0; i < FontHdr.NumFormats; i++) {
-        NEWSTYLE *m = newstyle + i;
-        ;
-        read_NEWSTYLE(m, HelpFile);
-        m->font.FGRGB[0] =
-            AddColor(m->font.FGRGB[0], m->font.FGRGB[1], m->font.FGRGB[2]);
-        m->font.BGRGB[0] =
-            AddColor(m->font.BGRGB[0], m->font.BGRGB[1], m->font.BGRGB[2]);
-      }
-    } else {
-      ctx->scaling = 10;
-      ctx->rounderr = 5;
-      for (i = 0; i < FontHdr.NumDescriptors; i++) {
-        read_OLDFONT(&oldfont, HelpFile);
-        fd = ctx->font.entry + i;
-        fd->Bold = (oldfont.Attributes & FONT_BOLD) != 0;
-        fd->Italic = (oldfont.Attributes & FONT_ITAL) != 0;
-        fd->Underline = (oldfont.Attributes & FONT_UNDR) != 0;
-        fd->StrikeOut = (oldfont.Attributes & FONT_STRK) != 0;
-        fd->DoubleUnderline = (oldfont.Attributes & FONT_DBUN) != 0;
-        fd->SmallCaps = (oldfont.Attributes & FONT_SMCP) != 0;
-        fd->FontName = oldfont.FontName;
-        fd->HalfPoints = oldfont.HalfPoints;
-        fd->textcolor =
-            AddColor(oldfont.FGRGB[0], oldfont.FGRGB[1], oldfont.FGRGB[2]);
-        fd->backcolor =
-            AddColor(oldfont.BGRGB[0], oldfont.BGRGB[1], oldfont.BGRGB[2]);
-        if (oldfont.FontFamily < 6) {
-          fd->FontFamily = lookup[oldfont.FontFamily];
-        } else {
-          fd->FontFamily = oldfont.FontFamily;
-        }
-      }
-    }
-    for (i = 0; i < FontHdr.NumDescriptors; i++) {
-      if (ctx->font.entry[i].FontName < ctx->fontname.count) {
-        family[ctx->font.entry[i].FontName] = ctx->font.entry[i].FontFamily;
-      }
-    }
-    ctx->default_font = 0;
-    l = sizeof(BestFonts) / sizeof(BestFonts[0]);
-    if (ctx->fontname.entry) {
-      for (i = 0; i < ctx->fontname.count; i++)
-        if (family[i]) {
-          for (j = 0; j < l; j++) {
-            if (stricmp(ctx->fontname.entry[i], BestFonts[j]) == 0) {
-              ctx->default_font = i;
-              l = j;
-              break;
-            }
-          }
-        }
-    }
-    fprintf(rtf, "{\\rtf1\\ansi\\deff%d\n{\\fonttbl", ctx->default_font);
-    for (i = 0; i < ctx->fontname.count; i++) {
-      fprintf(rtf, "{\\f%d\\f%s %s;}", i, FontFamily(family[i]),
-              ctx->fontname.entry[i]);
-      free(ctx->fontname.entry[i]);
-      ctx->fontname.entry[i] = NULL;
-    }
-    free(ctx->fontname.entry);
-    ctx->fontname.entry = NULL;
-    fputs("}\n", rtf);
-    if (ctx->color.count > 1) {
-      fputs("{\\colortbl;", rtf);
-      for (i = 1; i < ctx->color.count; i++)
-        fprintf(rtf, "\\red%d\\green%d\\blue%d;", ctx->color.entry[i].r,
-                ctx->color.entry[i].g, ctx->color.entry[i].b);
-      fputs("}\n", rtf);
-    }
-    fprintf(rtf, "{\\stylesheet{\\fs%d \\snext0 Normal;}\n",
-            ctx->font.entry[0].HalfPoints);
-    if (mvbstyle) {
-      for (i = 0; i < FontHdr.NumFormats; i++) {
-        MVBSTYLE *m, *n;
-
-        m = mvbstyle + i;
-        fprintf(rtf, "{\\*\\cs%u \\additive", m->StyleNum + 9);
-        if (m->BasedOn) {
-          n = mvbstyle + (m->BasedOn - 1);
-          if (m->font.FontName != n->font.FontName)
-            fprintf(rtf, "\\f%d", m->font.FontName);
-          if (m->font.expndtw != n->font.expndtw)
-            fprintf(rtf, "\\expndtw%d", m->font.expndtw);
-          if (m->font.FGRGB[0] != n->font.FGRGB[0])
-            fprintf(rtf, "\\cf%d", m->font.FGRGB[0]);
-          if (m->font.BGRGB[0] != n->font.BGRGB[0])
-            fprintf(rtf, "\\cb%d", m->font.BGRGB[0]);
-          if (m->font.Height != n->font.Height)
-            fprintf(rtf, "\\fs%ld", -2L * m->font.Height);
-          if ((m->font.Weight > 500) != (n->font.Weight > 500))
-            fprintf(rtf, "\\b%d", m->font.Weight > 500);
-          if (m->font.Italic != n->font.Italic)
-            fprintf(rtf, "\\i%d", m->font.Italic);
-          if (m->font.Underline != n->font.Underline)
-            fprintf(rtf, "\\ul%d", m->font.Underline);
-          if (m->font.StrikeOut != n->font.StrikeOut)
-            fprintf(rtf, "\\strike%d", m->font.StrikeOut);
-          if (m->font.DoubleUnderline != n->font.DoubleUnderline)
-            fprintf(rtf, "\\uldb%d", m->font.DoubleUnderline);
-          if (m->font.SmallCaps != n->font.SmallCaps)
-            fprintf(rtf, "\\scaps%d", m->font.SmallCaps);
-          if (m->font.up != n->font.up)
-            fprintf(rtf, "\\up%d", abs(m->font.up));
-          fprintf(rtf, " \\sbasedon%u", m->BasedOn + 9);
-        } else {
-          fprintf(rtf, "\\f%d", m->font.FontName);
-          if (m->font.Italic)
-            fputs("\\i", rtf);
-          if (m->font.Weight > 500)
-            fputs("\\b", rtf);
-          if (m->font.Underline)
-            fputs("\\ul", rtf);
-          if (m->font.StrikeOut)
-            fputs("\\strike", rtf);
-          if (m->font.DoubleUnderline)
-            fputs("\\uldb", rtf);
-          if (m->font.SmallCaps)
-            fputs("\\scaps", rtf);
-          if (m->font.expndtw)
-            fprintf(rtf, "\\expndtw%d", m->font.expndtw);
-          if (m->font.up > 0)
-            fprintf(rtf, "\\up%d", m->font.up);
-          else if (m->font.up < 0)
-            fprintf(rtf, "\\dn%d", -m->font.up);
-          fprintf(rtf, "\\fs%ld", -2 * m->font.Height);
-          if (m->font.FGRGB[0])
-            fprintf(rtf, "\\cf%d", m->font.FGRGB[0]);
-          if (m->font.BGRGB[0])
-            fprintf(rtf, "\\cb%d", m->font.BGRGB[0]);
-        }
-        fprintf(rtf, " %s;}\n", m->StyleName);
-      }
-      free(mvbstyle);
-      mvbstyle = NULL;
-    } else if (newstyle) {
-      for (i = 0; i < FontHdr.NumFormats; i++) {
-        NEWSTYLE *m, *n;
-
-        m = newstyle + i;
-        fprintf(rtf, "{\\*\\cs%u \\additive", m->StyleNum + 9);
-        if (m->BasedOn) {
-          n = newstyle + (m->BasedOn - 1);
-          if (m->font.FontName != n->font.FontName)
-            fprintf(rtf, "\\f%d", m->font.FontName);
-          if (m->font.FGRGB[0] != n->font.FGRGB[0])
-            fprintf(rtf, "\\cf%d", m->font.FGRGB[0]);
-          if (m->font.BGRGB[0] != n->font.BGRGB[0])
-            fprintf(rtf, "\\cb%d", m->font.BGRGB[0]);
-          if (m->font.Height != n->font.Height)
-            fprintf(rtf, "\\fs%ld", -2L * m->font.Height);
-          if ((m->font.Weight > 500) != (n->font.Weight > 500))
-            fprintf(rtf, "\\b%d", m->font.Weight > 500);
-          if (m->font.Italic != n->font.Italic)
-            fprintf(rtf, "\\i%d", m->font.Italic);
-          if (m->font.Underline != n->font.Underline)
-            fprintf(rtf, "\\ul%d", m->font.Underline);
-          if (m->font.StrikeOut != n->font.StrikeOut)
-            fprintf(rtf, "\\strike%d", m->font.StrikeOut);
-          if (m->font.DoubleUnderline != n->font.DoubleUnderline)
-            fprintf(rtf, "\\uldb%d", m->font.DoubleUnderline);
-          if (m->font.SmallCaps != n->font.SmallCaps)
-            fprintf(rtf, "\\scaps%d", m->font.SmallCaps);
-          fprintf(rtf, " \\sbasedon%u", m->BasedOn + 9);
-        } else {
-          fprintf(rtf, "\\f%d", m->font.FontName);
-          if (m->font.Italic)
-            fputs("\\i", rtf);
-          if (m->font.Weight > 500)
-            fputs("\\b", rtf);
-          if (m->font.Underline)
-            fputs("\\ul", rtf);
-          if (m->font.StrikeOut)
-            fputs("\\strike", rtf);
-          if (m->font.DoubleUnderline)
-            fputs("\\uldb", rtf);
-          if (m->font.SmallCaps)
-            fputs("\\scaps", rtf);
-          fprintf(rtf, "\\fs%ld", -2 * m->font.Height);
-          if (m->font.FGRGB[0])
-            fprintf(rtf, "\\cf%d", m->font.FGRGB[0]);
-          if (m->font.BGRGB[0])
-            fprintf(rtf, "\\cb%d", m->font.BGRGB[0]);
-        }
-        fprintf(rtf, " %s;}\n", m->StyleName);
-      }
-      free(newstyle);
-      newstyle = NULL;
-    }
-    if (family) {
-      free(family);
-      family = NULL;
-    }
-    fputs("}\\pard\\plain\n", rtf);
-    memset(&ctx->current_font, 0, sizeof(ctx->current_font));
-    ctx->current_font.FontName = ctx->default_font;
-    if (hpj) {
-      fprintf(stderr, "%u font names, %u font descriptors", ctx->fontname.count,
-              FontHdr.NumDescriptors);
-      if (FontHdr.FacenamesOffset >= 12)
-        printf(", %u font styles", FontHdr.NumFormats);
-      fputs(" loaded\n", stderr);
-    }
-  }
-}
-
 /* read NumBytes from |TOPIC starting at TopicPos (or if TopicPos is 0
 // where last left off) into dest, returning number of bytes read.
 // TopicRead handles LZ77 decompression and the crossing of topic blocks */
@@ -2326,32 +1943,6 @@ legacy_long topic_read_phrase(FILE *HelpFile, legacy_long TopicPos, char *dest,
   while (NumBytes <= Length)
     dest[NumBytes++] = '\0';
   return BytesRead;
-}
-
-void Annotate(legacy_long pos, FILE *rtf) {
-  legacy_long FileLength;
-  char FileName[19];
-  legacy_int i;
-  legacy_long l;
-
-  sprintf(FileName, "%ld!0", pos);
-  if (SearchFile(ctx->annotation_file, FileName, &FileLength)) {
-    fputs("{\\v {\\*\\atnid ANN}\\chatn {\\*\\annotation \\pard\\plain "
-          "{\\chatn }",
-          rtf);
-    for (l = 0; l < FileLength && (i = getc(ctx->annotation_file)) != -1; l++) {
-      if (i == 0x0D) {
-        fputs("\\par\n", rtf);
-      } else if (i != '{' && i != '}' && i != '\\' && isprint(i)) {
-        putc(i, rtf);
-      } else if (i == '{') {
-        fputs("\\{\\-", rtf);
-      } else if (i != '\0' && i != 0x0A) {
-        fprintf(rtf, "\\'%02x", i);
-      }
-    }
-    fputs("}}", rtf);
-  }
 }
 
 /* collect all keywords assigned to positions starting at NextKeywordOffset
@@ -2455,48 +2046,6 @@ void CollectKeywords(FILE *HelpFile) {
   fseek(HelpFile, savepos, SEEK_SET);
   for (i = 0; i < 22; i++)
     fputs("\b \b", stderr);
-}
-
-/* writes out all keywords appearing up to position TopicOffset and eats
-// them up so they are not written out again. Merges keywords if possible */
-void ListKeywords(FILE *HelpFile, FILE *rtf, legacy_long TopicOffset) {
-  legacy_int len, footnote, keyindex;
-
-  if (ctx->NextKeywordRec >= ctx->keyword_rec.count) {
-    if (ctx->NextKeywordOffset == 0x7FFFFFFFL)
-      return;
-    CollectKeywords(HelpFile);
-  }
-  footnote = keyindex = len = 0;
-  while (ctx->NextKeywordRec < ctx->keyword_rec.count &&
-         ctx->keyword_rec.entry[ctx->NextKeywordRec].TopicOffset <=
-             TopicOffset) {
-    if (len > 0 &&
-        (ctx->keyword_rec.entry[ctx->NextKeywordRec].Footnote != footnote ||
-         ctx->keyword_rec.entry[ctx->NextKeywordRec].KeyIndex != keyindex ||
-         len + strlen(ctx->keyword_rec.entry[ctx->NextKeywordRec].Keyword) >
-             (ctx->after31 ? 1023 : 254))) {
-      fputs("}\n", rtf);
-      len = 0;
-    }
-    if (len > 0) {
-      putc(';', rtf);
-    } else if (ctx->keyword_rec.entry[ctx->NextKeywordRec].KeyIndex) {
-      fprintf(rtf, "{\\up K}{\\footnote\\pard\\plain{\\up K} %c:",
-              ctx->keyword_rec.entry[ctx->NextKeywordRec].Footnote);
-    } else {
-      fprintf(rtf, "{\\up %c}{\\footnote\\pard\\plain{\\up %c} ",
-              ctx->keyword_rec.entry[ctx->NextKeywordRec].Footnote,
-              ctx->keyword_rec.entry[ctx->NextKeywordRec].Footnote);
-    }
-    len += strlen(ctx->keyword_rec.entry[ctx->NextKeywordRec].Keyword) + 1;
-    putrtf(rtf, ctx->keyword_rec.entry[ctx->NextKeywordRec].Keyword);
-    footnote = ctx->keyword_rec.entry[ctx->NextKeywordRec].Footnote;
-    keyindex = ctx->keyword_rec.entry[ctx->NextKeywordRec].KeyIndex;
-    ctx->NextKeywordRec++;
-  }
-  if (len)
-    fputs("}\n", rtf);
 }
 
 /* create > footnote if topic at TopicOffset has a window assigned to
@@ -2830,128 +2379,6 @@ uint32_t BackLinkLink(legacy_long TopicOffset, legacy_long OtherTopicOffset,
   return result;
 }
 
-/* create numbered rtf file names, no numbering if i=0 */
-void BuildRTFName(char *buffer, legacy_int i) {
-  char num[7];
-
-  strcpy(buffer, ctx->name);
-  if (i) {
-    snprintf(num, 7, "%d", i);
-    if (strlen(buffer) + strlen(num) > 8) {
-      buffer[8 - strlen(num)] = '\0';
-    }
-    strcat(buffer, num);
-  }
-  strcat(buffer, ".rtf");
-}
-
-/* emit rtf commands to change to font i.
-// ul forces underline on, uldb forces doubleunderline on */
-void ChangeFont(FILE *rtf, unsigned_legacy_int i, BOOL ul, BOOL uldb) {
-  FONTDESCRIPTOR *f;
-  legacy_long pos;
-
-  if (i < ctx->font.count) {
-    pos = ftell(rtf);
-    f = ctx->font.entry + i;
-    if (f->style) {
-      fprintf(rtf, "\\plain\\cs%d", f->style + 9);
-      if (uldb)
-        fputs("\\uldb", rtf);
-      else if (ul)
-        fputs("\\ul", rtf);
-    } else {
-      /* HC30 can't reset, so reset using \plain */
-      if ((ctx->current_font.Bold && !f->Bold) ||
-          (ctx->current_font.Italic && !f->Italic) ||
-          (ctx->current_font.Underline && !(!uldb && (ul || f->Underline))) ||
-          (ctx->current_font.StrikeOut && !f->StrikeOut) ||
-          (ctx->current_font.DoubleUnderline && !(uldb || f->DoubleUnderline)) ||
-          (ctx->current_font.SmallCaps && !f->SmallCaps) ||
-          (ctx->current_font.FontName && !f->FontName) ||
-          (ctx->current_font.textcolor && !f->textcolor) ||
-          (ctx->current_font.backcolor && !f->backcolor) ||
-          (ctx->current_font.up && !f->up) ||
-          (ctx->current_font.style && !f->style)) {
-        fputs("\\plain", rtf);
-        memset(&ctx->current_font, 0, sizeof(ctx->current_font));
-        ctx->current_font.FontName = ctx->default_font;
-      }
-      if (f->FontName != ctx->current_font.FontName)
-        fprintf(rtf, "\\f%d", f->FontName);
-      if (f->Italic && !ctx->current_font.Italic)
-        fputs("\\i", rtf);
-      if (f->Bold && !ctx->current_font.Bold)
-        fputs("\\b", rtf);
-      if (!uldb && (ul || f->Underline) && !ctx->current_font.Bold)
-        fputs("\\ul", rtf);
-      if (f->StrikeOut && !ctx->current_font.StrikeOut)
-        fputs("\\strike", rtf);
-      if ((uldb || f->DoubleUnderline) && !ctx->current_font.DoubleUnderline)
-        fputs("\\uldb", rtf);
-      if (f->SmallCaps && !ctx->current_font.SmallCaps)
-        fputs("\\scaps", rtf);
-      if (f->expndtw != ctx->current_font.expndtw)
-        fprintf(rtf, "\\expndtw%d", f->expndtw);
-      if (f->up != ctx->current_font.up) {
-        if (f->up > 0)
-          fprintf(rtf, "\\up%d", f->up);
-        else if (f->up < 0)
-          fprintf(rtf, "\\dn%d", -f->up);
-      }
-      if (f->HalfPoints != ctx->current_font.HalfPoints)
-        fprintf(rtf, "\\fs%d", f->HalfPoints);
-      if (f->textcolor != ctx->current_font.textcolor)
-        fprintf(rtf, "\\cf%d", f->textcolor);
-      if (f->backcolor != ctx->current_font.backcolor)
-        fprintf(rtf, "\\cb%d", f->backcolor);
-    }
-    memcpy(&ctx->current_font, f, sizeof(ctx->current_font));
-    if (ul)
-      ctx->current_font.Underline = 1;
-    if (uldb) {
-      ctx->current_font.Underline = 0;
-      ctx->current_font.DoubleUnderline = 1;
-    }
-    if (ftell(rtf) != pos)
-      putc(' ', rtf);
-  }
-}
-
-/* list all groups the topic TopicNum is assigned to and/or emit footnote
-// for browse sequence of this topic as + footnote into rtf file */
-void ListGroups(FILE *rtf, legacy_long TopicNum, uint32_t BrowseNum) {
-  legacy_int i;
-  BOOL grouplisted;
-
-  grouplisted = FALSE;
-  for (i = 0; i < ctx->group.count; i++)
-    if (ctx->group.entry[i].GroupHeader.GroupType == 1 ||
-        ctx->group.entry[i].GroupHeader.GroupType == 2) {
-      if ((TopicNum >= ctx->group.entry[i].GroupHeader.FirstTopic &&
-           TopicNum <= ctx->group.entry[i].GroupHeader.LastTopic) &&
-          ((ctx->group.entry[i].GroupHeader.GroupType == 1 ||
-            ctx->group.entry[i].GroupHeader.GroupType == 2) &&
-           (ctx->group.entry[i].Bitmap[TopicNum >> 3] &
-            (1 << (TopicNum & 7))))) {
-        if (!grouplisted) {
-          fputs("{\\up +}{\\footnote\\pard\\plain{\\up +} ", rtf);
-          if (BrowseNum)
-            fprintf(rtf, "BROWSE%04x:%04x", (uint16_t)BrowseNum,
-                    (uint16_t)(BrowseNum >> 16));
-          grouplisted = TRUE;
-        }
-        fprintf(rtf, ";%s", ctx->group.entry[i].Name);
-      }
-    }
-  if (grouplisted) {
-    fputs("}\n", rtf);
-  } else if (BrowseNum) {
-    fprintf(rtf, "{\\up +}{\\footnote\\pard\\plain{\\up +} BROWSE%04x:%04x}\n",
-            (uint16_t)BrowseNum, (uint16_t)(BrowseNum >> 16));
-  }
-}
-
 /* advances TopicOffset to next block in |TOPIC if setting of TopicPos to
 // NextBlock crosses TOPICBLOCKHEADER */
 TOPICOFFSET NextTopicOffset(TOPICOFFSET TopicOffset, TOPICPOS NextBlock,
@@ -2965,824 +2392,6 @@ TOPICOFFSET NextTopicOffset(TOPICOFFSET TopicOffset, TOPICPOS NextBlock,
            0x8000;
   }
   return TopicOffset;
-}
-
-/* TopicDump: converts the internal |TOPIC file to RTF format suitable for
-// recompilation inserting footnotes with information from other internal
-// files as required */
-FILE *TopicDumpRTF(FILE *HelpFile, FILE *rtf, FILE *hpj, BOOL makertf) {
-  TOPICLINK TopicLink;
-  char *LinkData1; /* Data associated with this link */
-  legacy_long nonscroll = -1;
-  char *LinkData2; /* Second set of data */
-  legacy_int fontset, i;
-  legacy_int NextContextRec;
-  uint32_t BrowseNum;
-  char *hotspot;
-  char *arg;
-  BOOL firsttopic = TRUE;
-  BOOL ul, uldb;
-  legacy_int nextbitmap, TopicInRTF, NumberOfRTF;
-  legacy_long TopicNum, TopicOffset, TopicPos;
-  legacy_int col, cols, lastcol;
-  int16_t *iptr;
-  uint16_t x1, x2, x3;
-  int16_t y1;
-  legacy_long l1 = 0;
-  char *ptr;
-  char *cmd;
-  char *str;
-  legacy_long ActualTopicOffset = 0, MaxTopicOffset = 0;
-  TOPICHEADER30 *TopicHdr30;
-  TOPICHEADER *TopicHdr;
-  legacy_long BogusTopicOffset;
-
-  if (SearchFile(HelpFile, "|TOPIC", &ctx->topic_file_length)) {
-    fontset = -1;
-    nextbitmap = 1;
-    if (ctx->browse.entry)
-      free(ctx->browse.entry);
-    ctx->browse.entry = NULL;
-    ctx->browse.count = 0;
-    NextContextRec = 0;
-    ul = uldb = FALSE;
-    hotspot = NULL;
-    TopicOffset = 0;
-    TopicPos = 12;
-    TopicNum = 16;
-    TopicInRTF = 0;
-    NumberOfRTF = 1;
-    while (TopicRead(HelpFile, TopicPos, &TopicLink, sizeof(TopicLink)) ==
-           sizeof(TOPICLINK)) {
-      if (ctx->before31) {
-        if (TopicPos + TopicLink.NextBlock >= ctx->topic_file_length)
-          break;
-      } else {
-        if (TopicLink.NextBlock <= 0)
-          break;
-      }
-      if (TopicLink.DataLen1 > sizeof(TOPICLINK)) {
-        LinkData1 = helpdeco_malloc(TopicLink.DataLen1 - sizeof(TOPICLINK) + 1);
-        if (TopicRead(HelpFile, 0, LinkData1,
-                      TopicLink.DataLen1 - sizeof(TOPICLINK)) !=
-            TopicLink.DataLen1 - sizeof(TOPICLINK))
-          break;
-      } else
-        LinkData1 = NULL;
-      if (TopicLink.DataLen1 <
-          TopicLink.BlockSize) /* read LinkData2 using phrase replacement */
-      {
-        LinkData2 = helpdeco_malloc(TopicLink.DataLen2 + 1);
-        if (topic_read_phrase(HelpFile, 0, LinkData2,
-                              TopicLink.BlockSize - TopicLink.DataLen1,
-                              TopicLink.DataLen2) !=
-            TopicLink.BlockSize - TopicLink.DataLen1)
-          break;
-      } else
-        LinkData2 = NULL;
-      if (LinkData1 && TopicLink.RecordType ==
-                           TL_TOPICHDR) /* display a Topic Header record */
-      {
-        if (ctx->opt_topics_per_rtf &&
-            ++TopicInRTF >= ctx->opt_topics_per_rtf) {
-          putc('}', rtf);
-          helpdeco_fclose(rtf);
-          BuildRTFName(scratch_buffer, ++NumberOfRTF);
-          if (hpj)
-            fprintf(hpj, "%s\n", scratch_buffer);
-          rtf = helpdeco_fopen(scratch_buffer, "wt");
-          FontLoadRTF(HelpFile, rtf, NULL);
-          TopicInRTF = 0;
-        } else if (!firsttopic) {
-          if (makertf && ctx->opt_nopagebreak) {
-            fputs("\\par\n", rtf);
-          } else {
-            fputs("\\page\n", rtf);
-          }
-        }
-        firsttopic = FALSE;
-        helpdeco_logf("\nTopic %ld...", TopicNum - 15);
-        if (!makertf) {
-          BrowseNum = 0;
-          if (ctx->before31) {
-            TopicHdr30 = (TOPICHEADER30 *)LinkData1;
-            fprintf(rtf, "{\\up #}{\\footnote\\pard\\plain{\\up #} TOPIC%ld}\n",
-                    TopicNum);
-            if (ctx->opt_resolvebrowse) {
-              if ((TopicHdr30->NextTopicNum > TopicNum &&
-                   TopicHdr30->PrevTopicNum > TopicNum) ||
-                  (TopicHdr30->NextTopicNum == -1 &&
-                   TopicHdr30->PrevTopicNum > TopicNum) ||
-                  (TopicHdr30->NextTopicNum > TopicNum &&
-                   TopicHdr30->PrevTopicNum == -1)) {
-                BrowseNum = AddLink(TopicNum, TopicHdr30->NextTopicNum,
-                                    TopicHdr30->PrevTopicNum);
-              } else if (TopicHdr30->NextTopicNum != -1 &&
-                         TopicHdr30->NextTopicNum < TopicNum &&
-                         TopicHdr30->PrevTopicNum != -1 &&
-                         TopicHdr30->PrevTopicNum < TopicNum) {
-                BrowseNum =
-                    MergeLink(TopicNum, TopicNum, TopicHdr30->NextTopicNum,
-                              TopicHdr30->PrevTopicNum);
-              } else if (TopicHdr30->NextTopicNum != -1 &&
-                         TopicHdr30->NextTopicNum < TopicNum &&
-                         (TopicHdr30->PrevTopicNum == -1 ||
-                          TopicHdr30->PrevTopicNum > TopicNum)) {
-                BrowseNum =
-                    BackLinkLink(TopicNum, TopicNum, TopicHdr30->NextTopicNum,
-                                 TopicHdr30->PrevTopicNum);
-              } else if (TopicHdr30->PrevTopicNum != -1 &&
-                         TopicHdr30->PrevTopicNum < TopicNum &&
-                         (TopicHdr30->NextTopicNum == -1 ||
-                          TopicHdr30->NextTopicNum > TopicNum)) {
-                BrowseNum =
-                    LinkLink(TopicNum, TopicNum, TopicHdr30->NextTopicNum,
-                             TopicHdr30->PrevTopicNum);
-              }
-            }
-            ListKeywords(HelpFile, rtf, TopicPos);
-          } else {
-            BogusTopicOffset =
-                NextTopicOffset(TopicOffset, TopicLink.NextBlock, TopicPos);
-            TopicHdr = (TOPICHEADER *)LinkData1;
-            if (TopicHdr->Scroll != -1) {
-              nonscroll = TopicHdr->Scroll;
-            } else {
-              nonscroll = TopicHdr->NextTopic;
-            }
-            if (ctx->opt_resolvebrowse) {
-              if ((TopicHdr->BrowseFor > TopicOffset &&
-                   TopicHdr->BrowseBck > TopicOffset) ||
-                  (TopicHdr->BrowseFor == -1 &&
-                   TopicHdr->BrowseBck > TopicOffset) ||
-                  (TopicHdr->BrowseFor > TopicOffset &&
-                   TopicHdr->BrowseBck == -1)) {
-                BrowseNum = AddLink(TopicOffset, TopicHdr->BrowseFor,
-                                    TopicHdr->BrowseBck);
-              } else if (TopicHdr->BrowseFor != -1 &&
-                         TopicHdr->BrowseFor < TopicOffset &&
-                         TopicHdr->BrowseBck != -1 &&
-                         TopicHdr->BrowseBck < TopicOffset) {
-                BrowseNum = MergeLink(TopicOffset, BogusTopicOffset,
-                                      TopicHdr->BrowseFor, TopicHdr->BrowseBck);
-              } else if (TopicHdr->BrowseFor != -1 &&
-                         TopicHdr->BrowseFor < TopicOffset &&
-                         (TopicHdr->BrowseBck == -1 ||
-                          TopicHdr->BrowseBck > TopicOffset)) {
-                BrowseNum =
-                    BackLinkLink(TopicOffset, BogusTopicOffset,
-                                 TopicHdr->BrowseFor, TopicHdr->BrowseBck);
-              } else if (TopicHdr->BrowseBck != -1 &&
-                         TopicHdr->BrowseBck < TopicOffset &&
-                         (TopicHdr->BrowseFor == -1 ||
-                          TopicHdr->BrowseFor > TopicOffset)) {
-                BrowseNum = LinkLink(TopicOffset, BogusTopicOffset,
-                                     TopicHdr->BrowseFor, TopicHdr->BrowseBck);
-              }
-            }
-          }
-          ListGroups(rtf, TopicNum - 16, BrowseNum);
-          if (LinkData2 && TopicLink.DataLen2 > 0) {
-            if (*LinkData2) {
-              fputs("{\\up $}{\\footnote\\pard\\plain{\\up $} ", rtf);
-              putrtf(rtf, LinkData2);
-              fputs("}\n", rtf);
-            }
-            for (i = strlen(LinkData2) + 1; i < TopicLink.DataLen2;
-                 i += strlen(LinkData2 + i) + 1) {
-              fputs("{\\up !}{\\footnote\\pard\\plain{\\up !} ", rtf);
-              if (!ctx->after31 && strlen(LinkData2 + i) > 254) {
-                printf("Help compiler will issue Warning 3511: Macro '%s' "
-                       "exceeds limit of 254 characters\n",
-                       LinkData2 + i);
-              }
-              putrtf(rtf, LinkData2 + i);
-              fputs("}\n", rtf);
-            }
-          }
-          while (NextContextRec < ctx->context_rec.count &&
-                 ctx->context_rec.entry[NextContextRec].TopicOffset <=
-                     TopicOffset) {
-            fputs("{\\up #}{\\footnote\\pard\\plain{\\up #} ", rtf);
-            putrtf(rtf,
-                   unhash(ctx->context_rec.entry[NextContextRec].HashValue));
-            fputs("}\n", rtf);
-            if (!ctx->mvp)
-              while (
-                  NextContextRec + 1 < ctx->context_rec.count &&
-                  ctx->context_rec.entry[NextContextRec].TopicOffset ==
-                      ctx->context_rec.entry[NextContextRec + 1].TopicOffset) {
-                NextContextRec++;
-              }
-            NextContextRec++;
-          }
-          i = ListWindows(HelpFile, TopicOffset);
-          if (i != -1)
-            fprintf(rtf, "{\\up >}{\\footnote\\pard\\plain{\\up >} %s}\n",
-                    GetWindowName(i));
-        }
-        TopicNum++;
-      } else if (LinkData1 && LinkData2 &&
-                 (TopicLink.RecordType == TL_DISPLAY30 ||
-                  TopicLink.RecordType == TL_DISPLAY ||
-                  TopicLink.RecordType == TL_TABLE)) {
-        if (ctx->annotation_file)
-          Annotate(TopicPos, rtf);
-        ptr = LinkData1;
-        scanlong(&ptr);
-        if (TopicLink.RecordType == TL_DISPLAY ||
-            TopicLink.RecordType == TL_TABLE) {
-          x1 = scanword(&ptr);
-          ActualTopicOffset = TopicOffset;
-          MaxTopicOffset = ActualTopicOffset + x1;
-          TopicOffset += x1;
-        }
-        if (TopicLink.RecordType == TL_TABLE) {
-          fputs("\\trowd", rtf);
-          cols = (unsigned char)*ptr++;
-          x1 = (unsigned char)*ptr++;
-          switch (x1) {
-          case 0:
-          case 2:
-            l1 = *(int16_t *)ptr; /* min table width */
-            ptr += 2;
-            fputs("\\trqc", rtf);
-            break;
-          case 1:
-          case 3:
-            l1 = 32767;
-            break;
-          }
-          iptr = (int16_t *)ptr;
-          if (cols > 1) {
-            x1 = iptr[0] + iptr[1] + iptr[3] / 2;
-            fprintf(rtf, "\\trgaph%ld\\trleft%ld \\cellx%ld\\cellx%ld",
-                    ((iptr[3] * ctx->scaling - ctx->rounderr) * l1) / 32767,
-                    (((iptr[1] - iptr[3]) * ctx->scaling - ctx->rounderr) * l1 -
-                     32767) /
-                        32767,
-                    ((x1 * ctx->scaling - ctx->rounderr) * l1) / 32767,
-                    (((x1 + iptr[2] + iptr[3]) * ctx->scaling - ctx->rounderr) *
-                     l1) /
-                        32767);
-            x1 += iptr[2] + iptr[3];
-            for (col = 2; col < cols; col++) {
-              x1 += iptr[2 * col] + iptr[2 * col + 1];
-              fprintf(rtf, "\\cellx%ld",
-                      ((x1 * ctx->scaling - ctx->rounderr) * l1) / 32767);
-            }
-          } else {
-            fprintf(rtf, "\\trleft%ld \\cellx%ld ",
-                    ((iptr[1] * ctx->scaling - ctx->rounderr) * l1 - 32767) /
-                        32767,
-                    ((iptr[0] * ctx->scaling - ctx->rounderr) * l1) / 32767);
-          }
-          ptr = (char *)(iptr + 2 * cols);
-        }
-        lastcol = -1;
-        str = LinkData2;
-        for (col = 0; (TopicLink.RecordType == TL_TABLE ? *(int16_t *)ptr != -1
-                                                        : col == 0) &&
-                      ptr < LinkData1 + TopicLink.DataLen1 - sizeof(TOPICLINK);
-             col++) {
-          fputs("\\pard", rtf);
-          if (TopicPos < nonscroll)
-            fputs("\\keepn", rtf);
-          if (TopicLink.RecordType == TL_TABLE) {
-            fputs("\\intbl", rtf);
-            lastcol = *(int16_t *)ptr;
-            ptr += 5;
-          }
-          ptr += 4;
-          x2 = *(uint16_t *)ptr;
-          ptr += 2;
-          if (x2 & 0x1000)
-            fputs("\\keep", rtf);
-          if (x2 & 0x0400)
-            fputs("\\qr", rtf);
-          if (x2 & 0x0800)
-            fputs("\\qc", rtf);
-          if (x2 & 0x0001)
-            scanlong(&ptr);
-          if (x2 & 0x0002)
-            fprintf(rtf, "\\sb%ld",
-                    scanint(&ptr) * ctx->scaling - ctx->rounderr);
-          if (x2 & 0x0004)
-            fprintf(rtf, "\\sa%ld",
-                    scanint(&ptr) * ctx->scaling - ctx->rounderr);
-          if (x2 & 0x0008)
-            fprintf(rtf, "\\sl%ld",
-                    scanint(&ptr) * ctx->scaling - ctx->rounderr);
-          if (x2 & 0x0010)
-            fprintf(rtf, "\\li%ld",
-                    scanint(&ptr) * ctx->scaling - ctx->rounderr);
-          if (x2 & 0x0020)
-            fprintf(rtf, "\\ri%ld",
-                    scanint(&ptr) * ctx->scaling - ctx->rounderr);
-          if (x2 & 0x0040)
-            fprintf(rtf, "\\fi%ld",
-                    scanint(&ptr) * ctx->scaling - ctx->rounderr);
-          if (x2 & 0x0100) {
-            x1 = (unsigned char)*ptr++;
-            if (x1 & 1)
-              fputs("\\box", rtf);
-            if (x1 & 2)
-              fputs("\\brdrt", rtf);
-            if (x1 & 4)
-              fputs("\\brdrl", rtf);
-            if (x1 & 8)
-              fputs("\\brdrb", rtf);
-            if (x1 & 0x10)
-              fputs("\\brdrr", rtf);
-            if (x1 & 0x20)
-              fputs("\\brdrth", rtf);
-            else
-              fputs("\\brdrs", rtf);
-            if (x1 & 0x40)
-              fputs("\\brdrdb", rtf);
-            ptr += 2;
-          }
-          if (x2 & 0x0200) {
-            y1 = scanint(&ptr);
-            while (y1-- > 0) {
-              x1 = scanword(&ptr);
-              if (x1 & 0x4000) {
-                switch (scanword(&ptr)) {
-                case 1:
-                  fputs("\\tqr", rtf);
-                  break;
-                case 2:
-                  fputs("\\tqc", rtf);
-                  break;
-                }
-              }
-              fprintf(rtf, "\\tx%ld",
-                      (x1 & 0x3FFF) * ctx->scaling - ctx->rounderr);
-            }
-          }
-          putc(' ', rtf);
-          while (
-              1) /* ptr<LinkData1+TopicLink.DataLen1-sizeof(TOPICLINK)&&str<end)
-                  */
-          {
-            if (*str && fontset >= 0 && fontset < ctx->font.count &&
-                ctx->font.entry && ctx->font.entry[fontset].SmallCaps)
-              strlwr(str);
-            do {
-              if (!makertf) {
-                while (NextContextRec < ctx->context_rec.count &&
-                       ctx->context_rec.entry[NextContextRec].TopicOffset <=
-                           ActualTopicOffset &&
-                       ctx->context_rec.entry[NextContextRec].TopicOffset <
-                           MaxTopicOffset) {
-                  fputs("{\\up #}{\\footnote\\pard\\plain{\\up #} ", rtf);
-                  putrtf(
-                      rtf,
-                      unhash(ctx->context_rec.entry[NextContextRec].HashValue));
-                  fputs("}\n", rtf);
-                  if (!ctx->mvp)
-                    while (NextContextRec + 1 < ctx->context_rec.count &&
-                           ctx->context_rec.entry[NextContextRec].TopicOffset ==
-                               ctx->context_rec.entry[NextContextRec + 1]
-                                   .TopicOffset) {
-                      NextContextRec++;
-                    }
-                  NextContextRec++;
-                }
-                if (!ctx->before31)
-                  ListKeywords(HelpFile, rtf,
-                               ActualTopicOffset < MaxTopicOffset
-                                   ? ActualTopicOffset
-                                   : MaxTopicOffset - 1);
-              }
-              if (*str) {
-                if (*str != '{' && *str != '}' && *str != '\\' &&
-                    isprint((unsigned char)*str)) {
-                  putc(*str, rtf);
-                } else if (!makertf && *str == '{') {
-                  fputs("\\{\\-", rtf); /* emit invisible dash after { brace */
-                  /* because bmc or another legal command may follow, but this
-                   */
-                  /* command was not parsed the help file was build, so it was
-                   */
-                  /* used just as an example. The dash will be eaten up by the
-                   */
-                  /* help compiler on recompile. */
-                } else {
-                  fprintf(rtf, "\\'%02x", (unsigned char)*str);
-                }
-              }
-              if (ActualTopicOffset < MaxTopicOffset)
-                ActualTopicOffset++;
-            } while (*str++);
-            if ((unsigned char)ptr[0] == 0xFF) {
-              ptr++;
-              break;
-            } else
-              switch ((unsigned char)ptr[0]) {
-              case 0x20: /* vfld MVB */
-                if (*(legacy_long *)(ptr + 1)) {
-                  fprintf(rtf, "\\{vfld%ld\\}", *(legacy_long *)(ptr + 1));
-                } else {
-                  fputs("\\{vfld\\}", rtf);
-                }
-                ptr += 5;
-                break;
-              case 0x21: /* dtype MVB */
-                if (*(int16_t *)(ptr + 1)) {
-                  fprintf(rtf, "\\{dtype%d\\}", *(int16_t *)(ptr + 1));
-                } else {
-                  fputs("\\{dtype\\}", rtf);
-                }
-                ptr += 3;
-                break;
-              case 0x80: /* font change */
-                ChangeFont(rtf, fontset = *(int16_t *)(ptr + 1), ul, uldb);
-                ptr += 3;
-                break;
-              case 0x81:
-                fputs("\\line\n", rtf);
-                ptr++;
-                break;
-              case 0x82:
-                if (TopicLink.RecordType == TL_TABLE) {
-                  if ((unsigned char)ptr[1] != 0xFF) {
-                    fputs("\n\\par\\intbl ", rtf);
-                  } else if (*(int16_t *)(ptr + 2) == -1) {
-                    fputs("\\cell\\intbl\\row\n", rtf);
-                  } else if (*(int16_t *)(ptr + 2) == lastcol) {
-                    fputs("\\par\\pard ", rtf);
-                  } else {
-                    fputs("\\cell\\pard ", rtf);
-                  }
-                } else {
-                  fputs("\n\\par ", rtf);
-                }
-                ptr++;
-                break;
-              case 0x83:
-                fputs("\\tab ", rtf);
-                ptr++;
-                break;
-              case 0x86:
-                x3 = (unsigned char)*ptr++;
-                x1 = *ptr++;
-                if (x1 == 0x05)
-                  cmd = "ewc";
-                else
-                  cmd = "bmc";
-                goto picture;
-              case 0x87:
-                x3 = (unsigned char)*ptr++;
-                x1 = *ptr++;
-                if (x1 == 0x05)
-                  cmd = "ewl";
-                else
-                  cmd = "bml";
-                goto picture;
-              case 0x88:
-                x3 = (unsigned char)*ptr++;
-                x1 = *ptr++;
-                if (x1 == 0x05)
-                  cmd = "ewr";
-                else
-                  cmd = "bmr";
-                goto picture;
-              picture:
-                l1 = scanlong(&ptr);
-                switch (x1) {
-                case 0x22: /* HC31 */
-                  ActualTopicOffset +=
-                      scanword(&ptr); /* number of hotspots in picture */
-                  if (ActualTopicOffset > MaxTopicOffset)
-                    ActualTopicOffset = MaxTopicOffset;
-                  /* fall thru */
-                case 0x03: /* HC30 */
-                  x1 = ((uint16_t *)ptr)[0];
-                  switch (x1) {
-                  case 1:
-                    while (nextbitmap < ctx->extension.count &&
-                           ctx->extension.entry[nextbitmap] < 0x10)
-                      nextbitmap++;
-                    if (nextbitmap >= ctx->extension.count) {
-                      error("Bitmap never saved");
-                      break;
-                    }
-                    x2 = nextbitmap++;
-                    goto other;
-                  case 0:
-                    x2 = ((uint16_t *)ptr)[1];
-                  other:
-                    if (makertf) {
-                      switch (x3) {
-                      case 0x86:
-                        fprintf(rtf, "{\\field {\\*\\fldinst import %s}}",
-                                getbitmapname(x2));
-                        break;
-                      case 0x87:
-                        fprintf(rtf,
-                                "{\\pvpara {\\field {\\*\\fldinst import "
-                                "%s}}\\par}\n",
-                                getbitmapname(x2));
-                        break;
-                      case 0x88:
-                        fprintf(rtf,
-                                "{\\pvpara\\posxr{\\field {\\*\\fldinst import "
-                                "%s}}\\par}\n",
-                                getbitmapname(x2));
-                        break;
-                      }
-                    } else {
-                      if (x2 < ctx->extension.count &&
-                          (ctx->extension.entry[x2] & 0x20)) {
-                        if (strcmp(cmd, "bmc") == 0)
-                          cmd = "bmct";
-                        else if (strcmp(cmd, "bml") == 0)
-                          cmd = "bmlt";
-                        else if (strcmp(cmd, "bmr") == 0)
-                          cmd = "bmrt";
-                      }
-                      fprintf(rtf, "\\{%s %s\\}", cmd, getbitmapname(x2));
-                    }
-                    break;
-                  }
-                  break;
-                case 0x05: /* ewc,ewl,ewr */
-                  if (ptr[6] == '!') {
-                    fprintf(rtf, "\\{button %s\\}", ptr + 7);
-                  } else if (ptr[6] == '*') {
-                    char *plus;
-                    legacy_int n, c1, c2;
-
-                    sscanf(ptr + 7, "%d,%d,%n", &c1, &c2, &n);
-                    plus = strchr(ptr + 7 + n, '+');
-                    if ((c1 & 0xFFF5) != 0x8400)
-                      fprintf(stderr, "mci c1=%04x\n", c1);
-                    fputs("\\{mci", rtf);
-                    if (cmd[2] == 'r')
-                      fputs("_right", rtf);
-                    if (cmd[2] == 'l')
-                      fputs("_left", rtf);
-                    if (c2 == 1)
-                      fputs(" REPEAT", rtf);
-                    if (c2 == 2)
-                      fputs(" PLAY", rtf);
-                    if (!plus)
-                      fputs(" EXTERNAL", rtf);
-                    if (c1 & 8)
-                      fputs(" NOMENU", rtf);
-                    if (c1 & 2)
-                      fputs(" NOPLAYBAR", rtf);
-                    fprintf(rtf, ",%s\\}\n", plus ? plus + 1 : ptr + 7 + n);
-                  } else {
-                    fprintf(rtf, "\\{%s %s\\}", cmd, ptr + 6);
-                  }
-                  break;
-                }
-                ptr += l1;
-                break;
-              case 0x89: /* end of hotspot */
-                if (!makertf) {
-                  if (hotspot[0] == '%' && fontset >= 0 &&
-                      fontset < ctx->font.count &&
-                      ctx->font.entry[fontset].Underline) {
-                    hotspot[0] = '*';
-                  }
-                }
-                ChangeFont(rtf, fontset, ul = FALSE, uldb = FALSE);
-                if (!makertf) {
-                  if (!ctx->after31 && strlen(hotspot) > 255) {
-                    puts("Help compiler will issue Warning 4072: Context "
-                         "string exceeds limit of 255 characters");
-                  }
-                  fputs("{\\v ", rtf);
-                  putrtf(rtf,
-                         ctx->multi && (hotspot[0] == '%' || hotspot[0] == '*')
-                             ? hotspot + 1
-                             : hotspot);
-                  fputc('}', rtf);
-                }
-                ptr++;
-                break;
-              case 0xC8: /* macro */
-                ChangeFont(rtf, fontset, FALSE, uldb = TRUE);
-                if (!makertf) {
-                  hotspot = helpdeco_realloc(hotspot, strlen(ptr + 3) + 2);
-                  sprintf(hotspot, "!%s", ptr + 3);
-                }
-                ptr += *(int16_t *)(ptr + 1) + 3;
-                break;
-              case 0xCC: /* macro without font change */
-                ChangeFont(rtf, fontset, FALSE, uldb = TRUE);
-                if (!makertf) {
-                  hotspot = helpdeco_realloc(hotspot, strlen(ptr + 3) + 3);
-                  sprintf(hotspot, "%%!%s", ptr + 3);
-                }
-                ptr += *(int16_t *)(ptr + 1) + 3;
-                break;
-              case 0xE0: /* popup jump HC30 */
-                ChangeFont(rtf, fontset, ul = TRUE, FALSE);
-                goto label0;
-              case 0xE1: /* topic jump HC30 */
-                ChangeFont(rtf, fontset, FALSE, uldb = TRUE);
-              label0:
-                if (!makertf) {
-                  hotspot = helpdeco_realloc(hotspot, 128);
-                  sprintf(hotspot, "TOPIC%ld", *(legacy_long *)(ptr + 1));
-                }
-                ptr += 5;
-                break;
-              case 0xE2: /* popup jump HC31 */
-                ChangeFont(rtf, fontset, ul = TRUE, FALSE);
-                goto label1;
-              case 0xE3: /* topic jump HC31 */
-                ChangeFont(rtf, fontset, FALSE, uldb = TRUE);
-              label1:
-                if (!makertf) {
-                  arg = ContextId(*(legacy_long *)(ptr + 1));
-                  hotspot = helpdeco_realloc(hotspot, strlen(arg) + 1);
-                  sprintf(hotspot, "%s", arg);
-                }
-                ptr += 5;
-                break;
-              case 0xE6: /* popup jump without font change */
-                ChangeFont(rtf, fontset, ul = TRUE, FALSE);
-                goto label2;
-              case 0xE7: /* topic jump without font change */
-                ChangeFont(rtf, fontset, FALSE, uldb = TRUE);
-              label2:
-                if (!makertf) {
-                  arg = ContextId(*(legacy_long *)(ptr + 1));
-                  hotspot = helpdeco_realloc(hotspot, strlen(arg) + 2);
-                  sprintf(hotspot, "%%%s", arg);
-                }
-                ptr += 5;
-                break;
-              case 0xEA: /* popup jump into external file */
-              case 0xEE:
-                ChangeFont(rtf, fontset, ul = TRUE, FALSE);
-                goto label3;
-              case 0xEB: /* topic jump into external file / secondary window */
-              case 0xEF:
-                ChangeFont(rtf, fontset, FALSE, uldb = TRUE);
-              label3:
-                if (!makertf) {
-                  if ((unsigned char)ptr[0] == 0xEE ||
-                      (unsigned char)ptr[0] == 0xEF) {
-                    cmd = "%";
-                  } else {
-                    cmd = "";
-                  }
-                  arg = unhash(
-                      *(legacy_long *)(ptr + 4)); // no ContextId, it may jump
-                                                  // into external file
-                  switch ((unsigned char)ptr[3]) {
-                  case 0:
-                    hotspot =
-                        helpdeco_realloc(hotspot, strlen(cmd) + strlen(arg) + 1);
-                    sprintf(hotspot, "%s%s", cmd, arg);
-                    break;
-                  case 1:
-                    hotspot = helpdeco_realloc(hotspot,
-                                         strlen(cmd) + strlen(arg) + 1 +
-                                     strlen(GetWindowName(ptr[8])) + 1);
-                    sprintf(hotspot, "%s%s>%s", cmd, arg,
-                            GetWindowName(ptr[8]));
-                    break;
-                  case 4:
-                    hotspot = helpdeco_realloc(hotspot, strlen(cmd) + strlen(arg) +
-                                                      1 + strlen(ptr + 8) + 1);
-                    sprintf(hotspot, "%s%s@%s", cmd, arg, ptr + 8);
-                    break;
-                  case 6:
-                    hotspot = helpdeco_realloc(
-                        hotspot, strlen(cmd) + strlen(arg) + 1 +
-                                     strlen(ptr + 8) + 1 +
-                                     strlen(strchr(ptr + 8, '\0') + 1) + 1);
-                    sprintf(hotspot, "%s%s>%s@%s", cmd, arg, ptr + 8,
-                            strchr(ptr + 8, '\0') + 1);
-                    break;
-                  }
-                }
-                ptr += *(int16_t *)(ptr + 1) + 3;
-                break;
-              case 0x8B:
-                fputs("\\~", rtf);
-                ptr++;
-                break;
-              case 0x8C:
-                fputs("\\-", rtf);
-                ptr++;
-                break;
-              default:
-                ptr++;
-              }
-          }
-        }
-      }
-      if (LinkData1)
-        free(LinkData1);
-      if (LinkData2)
-        free(LinkData2);
-      if (ctx->before31) {
-        TopicPos += TopicLink.NextBlock;
-      } else {
-        TopicOffset =
-            NextTopicOffset(TopicOffset, TopicLink.NextBlock, TopicPos);
-        TopicPos = TopicLink.NextBlock;
-      }
-    }
-  }
-  return rtf;
-}
-
-int ContextRecCmp(const void *a, const void *b) {
-  if (((const CONTEXTREC *)a)->TopicOffset <
-      ((const CONTEXTREC *)b)->TopicOffset)
-    return -1;
-  if (((const CONTEXTREC *)a)->TopicOffset >
-      ((const CONTEXTREC *)b)->TopicOffset)
-    return 1;
-  return 0;
-}
-
-void ContextLoad(FILE *HelpFile) {
-  BUFFER buf;
-  legacy_int n;
-  legacy_long entries;
-
-  if (SearchFile(HelpFile, "|CONTEXT", NULL)) {
-    n = GetFirstPage(HelpFile, &buf, &entries);
-    if (entries) {
-      ctx->context_rec.entry = helpdeco_malloc(entries * sizeof(CONTEXTREC));
-      ctx->context_rec.count = 0;
-      while (n) {
-        if (ctx->context_rec.count + n > entries) {
-          helpdeco_errorf("malformed |CONTEXT file\n");
-        }
-        read_CONTEXTRECs(ctx->context_rec.entry + ctx->context_rec.count, n,
-                         HelpFile);
-        ctx->context_rec.count += n;
-        n = GetNextPage(HelpFile, &buf);
-      }
-      helpdeco_logf("%d topic offsets and hash values loaded\n",
-                    ctx->context_rec.count);
-      qsort(ctx->context_rec.entry, ctx->context_rec.count, sizeof(CONTEXTREC),
-            ContextRecCmp);
-    }
-  } else if (SearchFile(HelpFile, "|TOMAP", &entries)) {
-    ctx->topic.entry = helpdeco_malloc(entries);
-    helpdeco_fread(ctx->topic.entry, entries, HelpFile);
-    ctx->topic.count = (legacy_int)(entries / sizeof(int32_t));
-  }
-}
-
-void GenerateContent(
-    FILE *HelpFile, FILE *ContentFile) /* create a simple Win95 contents file */
-{
-  VIOLAREC *WindowRec = NULL;
-  legacy_long FileLength, offset;
-  legacy_int n, i, j, WindowRecs;
-  BUFFER buf;
-  char *ptr;
-
-  fprintf(ContentFile, ":Base %s%s>main\n", ctx->name, ctx->ext);
-  if (ctx->title[0])
-    fprintf(ContentFile, ":Title %s\n", ctx->title);
-  WindowRecs = 0;
-  if (SearchFile(HelpFile, "|VIOLA", NULL)) {
-    n = GetFirstPage(HelpFile, &buf, &FileLength);
-    if (FileLength) {
-      WindowRec = helpdeco_malloc(FileLength * sizeof(VIOLAREC));
-      while (n) {
-        read_VIOLARECs(WindowRec + WindowRecs, n, HelpFile);
-        WindowRecs += n;
-        n = GetNextPage(HelpFile, &buf);
-      }
-    }
-  }
-  if (SearchFile(HelpFile, "|TTLBTREE", NULL)) {
-    for (n = GetFirstPage(HelpFile, &buf, NULL); n;
-         n = GetNextPage(HelpFile, &buf)) {
-      for (i = 0; i < n; i++) {
-        offset = helpdeco_getdw(HelpFile);
-        if (helpdeco_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile)) {
-          ptr = TopicName(offset);
-          if (ptr) {
-            fprintf(ContentFile, "1 %s=%s", scratch_buffer, ptr);
-            for (j = 0; j < WindowRecs; j++) {
-              if (WindowRec[j].TopicOffset == offset) {
-                fprintf(ContentFile, ">%s",
-                        GetWindowName(WindowRec[j].WindowNumber));
-                break;
-              }
-            }
-            putc('\n', ContentFile);
-          }
-        }
-      }
-    }
-  }
 }
 
 void ListRose(FILE *HelpFile, FILE *hpj) {
@@ -5169,6 +3778,95 @@ void ContextList(FILE *HelpFile) {
   }
 }
 
+int ContextRecCmp(const void *a, const void *b) {
+  if (((const CONTEXTREC *)a)->TopicOffset <
+      ((const CONTEXTREC *)b)->TopicOffset)
+    return -1;
+  if (((const CONTEXTREC *)a)->TopicOffset >
+      ((const CONTEXTREC *)b)->TopicOffset)
+    return 1;
+  return 0;
+}
+
+void ContextLoad(FILE *HelpFile) {
+  BUFFER buf;
+  legacy_int n;
+  legacy_long entries;
+
+  if (SearchFile(HelpFile, "|CONTEXT", NULL)) {
+    n = GetFirstPage(HelpFile, &buf, &entries);
+    if (entries) {
+      ctx->context_rec.entry = helpdeco_malloc(entries * sizeof(CONTEXTREC));
+      ctx->context_rec.count = 0;
+      while (n) {
+        if (ctx->context_rec.count + n > entries) {
+          helpdeco_errorf("malformed |CONTEXT file\n");
+        }
+        read_CONTEXTRECs(ctx->context_rec.entry + ctx->context_rec.count, n,
+                         HelpFile);
+        ctx->context_rec.count += n;
+        n = GetNextPage(HelpFile, &buf);
+      }
+      helpdeco_logf("%d topic offsets and hash values loaded\n",
+                    ctx->context_rec.count);
+      qsort(ctx->context_rec.entry, ctx->context_rec.count, sizeof(CONTEXTREC),
+            ContextRecCmp);
+    }
+  } else if (SearchFile(HelpFile, "|TOMAP", &entries)) {
+    ctx->topic.entry = helpdeco_malloc(entries);
+    helpdeco_fread(ctx->topic.entry, entries, HelpFile);
+    ctx->topic.count = (legacy_int)(entries / sizeof(int32_t));
+  }
+}
+
+void GenerateContent(
+    FILE *HelpFile, FILE *ContentFile) /* create a simple Win95 contents file */
+{
+  VIOLAREC *WindowRec = NULL;
+  legacy_long FileLength, offset;
+  legacy_int n, i, j, WindowRecs;
+  BUFFER buf;
+  char *ptr;
+
+  fprintf(ContentFile, ":Base %s%s>main\n", ctx->name, ctx->ext);
+  if (ctx->title[0])
+    fprintf(ContentFile, ":Title %s\n", ctx->title);
+  WindowRecs = 0;
+  if (SearchFile(HelpFile, "|VIOLA", NULL)) {
+    n = GetFirstPage(HelpFile, &buf, &FileLength);
+    if (FileLength) {
+      WindowRec = helpdeco_malloc(FileLength * sizeof(VIOLAREC));
+      while (n) {
+        read_VIOLARECs(WindowRec + WindowRecs, n, HelpFile);
+        WindowRecs += n;
+        n = GetNextPage(HelpFile, &buf);
+      }
+    }
+  }
+  if (SearchFile(HelpFile, "|TTLBTREE", NULL)) {
+    for (n = GetFirstPage(HelpFile, &buf, NULL); n;
+         n = GetNextPage(HelpFile, &buf)) {
+      for (i = 0; i < n; i++) {
+        offset = helpdeco_getdw(HelpFile);
+        if (helpdeco_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile)) {
+          ptr = TopicName(offset);
+          if (ptr) {
+            fprintf(ContentFile, "1 %s=%s", scratch_buffer, ptr);
+            for (j = 0; j < WindowRecs; j++) {
+              if (WindowRec[j].TopicOffset == offset) {
+                fprintf(ContentFile, ">%s",
+                        GetWindowName(WindowRec[j].WindowNumber));
+                break;
+              }
+            }
+            putc('\n', ContentFile);
+          }
+        }
+      }
+    }
+  }
+}
+
 #pragma mark - Phrases
 BOOL load_phrases_from_index(FILE *HelpFile, legacy_long FileLength) {
   PHRINDEXHDR PhrIndexHdr;
@@ -5489,7 +4187,7 @@ FILE *dev_null = fopen("/dev/null", "w");
                 TopicLink.RecordType == TL_DISPLAY ||
                 TopicLink.RecordType == TL_TABLE)) {
       if (ctx->annotation_file)
-        Annotate(TopicPos, __rtf_output);
+        rtf_annotate(TopicPos, __rtf_output);
       ptr = LinkData1;
       scanlong(&ptr);
       if (TopicLink.RecordType == TL_DISPLAY ||
@@ -6249,6 +4947,1328 @@ BOOL html_define_fonts(FILE *HelpFile, FILE *rtf) {
 
   return TRUE;
 }
+#undef html_puts
+#undef html_putc
+#undef html_printf
+#undef rtf_printf
+#undef rtf_puts
+#undef rtf_putc
+#pragma mark - RTF Output
+/* output str to RTF file, escaping necessary characters */
+void rtf_puts(FILE *rtf, const char *str) {
+  if (rtf)
+    while (*str) {
+      if (*str == '{' || *str == '}' || *str == '\\') {
+        putc('\\', rtf);
+        putc(*str++, rtf);
+      } else if (isprint((unsigned char)*str)) {
+        putc(*str++, rtf);
+      } else {
+        fprintf(rtf, "\\'%02x", (unsigned char)*str++);
+      }
+    }
+}
+
+/* create numbered rtf file names, no numbering if i=0 */
+void rtf_build_filename(char *buffer, legacy_int topic) {
+  char num[7];
+
+  strcpy(buffer, ctx->name);
+  if (topic) {
+    snprintf(num, 7, "%d", topic);
+    if (strlen(buffer) + strlen(num) > 8) {
+      buffer[8 - strlen(num)] = '\0';
+    }
+    strcat(buffer, num);
+  }
+  strcat(buffer, ".rtf");
+}
+
+/* load fonts from help file, filling up internal font structure,
+// writing fonttbl, colortbl, and styletbl to rtf file */
+void rtf_load_font(FILE *HelpFile, FILE *rtf, FILE *hpj) {
+  const static char *const BestFonts[] = {
+      "Arial",  "Times New Roman", "MS Sans Serif", "MS Serif",    "Helv",
+      "TmsRmn", "MS Sans Serif",   "Helvetica",     "Times Roman", "Times"};
+  legacy_int default_font = 0;
+  CHARMAPHEADER CharmapHeader;
+  FONTHEADER FontHdr;
+  FILE *f;
+#define FontName_len 33
+  char FontName[FontName_len];
+#define CharMap_len 33
+  char CharMap[CharMap_len];
+  char *ptr;
+  char *p;
+  legacy_long FontStart;
+  legacy_int i, j, k, l, len;
+  unsigned char *family;
+  BOOL charmap;
+  OLDFONT oldfont;
+  NEWFONT newfont;
+  MVBFONT mvbfont;
+  MVBSTYLE *mvbstyle;
+  NEWSTYLE *newstyle;
+  FONTDESCRIPTOR *fd;
+
+  if (SearchFile(HelpFile, "|FONT", NULL)) {
+    FontStart = ftell(HelpFile);
+    read_FONTHEADER(&FontHdr, HelpFile);
+    ctx->fontname.count = FontHdr.NumFacenames;
+    len = (FontHdr.DescriptorsOffset - FontHdr.FacenamesOffset) /
+          ctx->fontname.count;
+    if (len > FontName_len) {
+      helpdeco_errorf("malformed |FONT file\n");
+    }
+    ctx->fontname.entry = helpdeco_malloc(ctx->fontname.count * sizeof(char *));
+    family = helpdeco_malloc(ctx->fontname.count * sizeof(unsigned char));
+    memset(family, 0, ctx->fontname.count * sizeof(unsigned char));
+    charmap = FALSE;
+    mvbstyle = NULL;
+    newstyle = NULL;
+    for (i = 0; i < ctx->fontname.count; i++) {
+      fseek(HelpFile, FontStart + FontHdr.FacenamesOffset + len * i, SEEK_SET);
+      helpdeco_fread(FontName, len, HelpFile);
+      FontName[len] = '\0';
+      if (FontName[0] == '\000') {
+        strcpy(FontName, BestFonts[default_font]);
+      }
+      ptr = strchr(FontName, ',');
+      if (ptr && FontHdr.FacenamesOffset >= 16) {
+        *ptr++ = '\0';
+        fseek(HelpFile, FontStart + FontHdr.CharmapsOffset, SEEK_SET);
+        for (j = 0; hpj && j < FontHdr.NumCharmaps; j++) {
+          helpdeco_fread(CharMap, 32, HelpFile);
+          CharMap[32] = '\0';
+          p = strchr(CharMap, ',');
+          if (p && strcmp(p + 1, ptr) == 0 &&
+              strcmp(CharMap, "|MVCHARTAB,0") != 0) {
+            if (!charmap) {
+              fputs("[CHARMAP]\n", hpj);
+              charmap = TRUE;
+            }
+            *p++ = '\0';
+            if (strcmp(p, "0") == 0) {
+              fprintf(hpj, "DEFAULT=%s\n", CharMap);
+            } else {
+              fprintf(hpj, "%s=%s\n", FontName, CharMap);
+            }
+            break;
+          }
+        }
+      }
+      ctx->fontname.entry[i] = helpdeco_strdup(FontName);
+    }
+    if (charmap)
+      putc('\n', hpj);
+    if (hpj && FontHdr.FacenamesOffset >= 16)
+      for (j = 0; j < FontHdr.NumCharmaps; j++) {
+        fseek(HelpFile, FontStart + FontHdr.CharmapsOffset + j * 32, SEEK_SET);
+        helpdeco_fread(CharMap, 32, HelpFile);
+        CharMap[32] = '\0';
+        p = strchr(CharMap, ',');
+        if (p && strcmp(CharMap, "|MVCHARTAB,0") != 0) {
+          *p++ = '\0';
+          if (SearchFile(HelpFile, CharMap, NULL)) {
+            read_CHARMAPHEADER(&CharmapHeader, HelpFile);
+            f = helpdeco_fopen(CharMap, "wt");
+            if (f) {
+              fprintf(f, "%d,\n", CharmapHeader.Entries);
+              for (k = 0; k < CharmapHeader.Entries; k++) {
+                fprintf(f, "%5u,", helpdeco_getw(HelpFile));
+                fprintf(f, "%5u,", helpdeco_getw(HelpFile));
+                fprintf(f, "%3u,", getc(HelpFile));
+                fprintf(f, "%3u,", getc(HelpFile));
+                fprintf(f, "%3u,", getc(HelpFile));
+                fprintf(f, "%3u,\n", getc(HelpFile));
+                helpdeco_getw(HelpFile);
+              }
+              fprintf(f, "%d,\n", CharmapHeader.Ligatures);
+              for (k = 0; k < CharmapHeader.Ligatures; k++) {
+                for (l = 0; l < CharmapHeader.LigLen; l++) {
+                  fprintf(f, "%3u,", getc(HelpFile));
+                }
+                putc('\n', f);
+              }
+              helpdeco_fclose(f);
+            }
+          }
+        }
+      }
+    fseek(HelpFile, FontStart + FontHdr.DescriptorsOffset, SEEK_SET);
+    ctx->color.count = 1; /* auto */
+    ctx->color.entry[0].r = 1;
+    ctx->color.entry[0].g = 1;
+    ctx->color.entry[0].b = 0;
+    ctx->font.count = FontHdr.NumDescriptors;
+    if (ctx->font.entry)
+      free(ctx->font.entry);
+    ctx->font.entry = helpdeco_malloc(ctx->font.count * sizeof(FONTDESCRIPTOR));
+    memset(ctx->font.entry, 0, ctx->font.count * sizeof(FONTDESCRIPTOR));
+    if (FontHdr.FacenamesOffset >= 16) {
+      ctx->scaling = 1;
+      ctx->rounderr = 0;
+      for (i = 0; i < FontHdr.NumDescriptors; i++) {
+        read_MVBFONT(&mvbfont, HelpFile);
+        fd = ctx->font.entry + i;
+        fd->FontName = mvbfont.FontName;
+        fd->HalfPoints = -2 * mvbfont.Height;
+        fd->Bold = mvbfont.Weight > 500;
+        fd->Italic = mvbfont.Italic != 0;
+        fd->Underline = mvbfont.Underline != 0;
+        fd->StrikeOut = mvbfont.StrikeOut != 0;
+        fd->DoubleUnderline = mvbfont.DoubleUnderline != 0;
+        fd->SmallCaps = mvbfont.SmallCaps != 0;
+        fd->textcolor =
+            AddColor(mvbfont.FGRGB[0], mvbfont.FGRGB[1], mvbfont.FGRGB[2]);
+        fd->backcolor =
+            AddColor(mvbfont.BGRGB[0], mvbfont.BGRGB[1], mvbfont.BGRGB[2]);
+        fd->FontFamily = mvbfont.PitchAndFamily >> 4;
+        fd->style = mvbfont.style;
+        fd->up = mvbfont.up;
+        fd->expndtw = mvbfont.expndtw;
+      }
+      fseek(HelpFile, FontStart + FontHdr.FormatsOffset, SEEK_SET);
+      mvbstyle = helpdeco_malloc(FontHdr.NumFormats * sizeof(MVBSTYLE));
+      for (i = 0; i < FontHdr.NumFormats; i++) {
+        MVBSTYLE *m = mvbstyle + i;
+        ;
+        read_MVBSTYLE(m, HelpFile);
+        m->font.FGRGB[0] =
+            AddColor(m->font.FGRGB[0], m->font.FGRGB[1], m->font.FGRGB[2]);
+        m->font.BGRGB[0] =
+            AddColor(m->font.BGRGB[0], m->font.BGRGB[1], m->font.BGRGB[2]);
+      }
+    } else if (FontHdr.FacenamesOffset >= 12) {
+      ctx->scaling = 1;
+      ctx->rounderr = 0;
+      for (i = 0; i < FontHdr.NumDescriptors; i++) {
+        read_NEWFONT(&newfont, HelpFile);
+        fd = ctx->font.entry + i;
+        fd->Bold = newfont.Weight > 500;
+        fd->Italic = newfont.Italic != 0;
+        fd->Underline = newfont.Underline != 0;
+        fd->StrikeOut = newfont.StrikeOut != 0;
+        fd->DoubleUnderline = newfont.DoubleUnderline != 0;
+        fd->SmallCaps = newfont.SmallCaps != 0;
+        fd->FontName = newfont.FontName;
+        fd->HalfPoints = -2 * newfont.Height;
+        fd->textcolor =
+            AddColor(newfont.FGRGB[0], newfont.FGRGB[1], newfont.FGRGB[2]);
+        fd->backcolor =
+            AddColor(newfont.BGRGB[0], newfont.BGRGB[1], newfont.BGRGB[2]);
+        fd->FontFamily = newfont.PitchAndFamily >> 4;
+      }
+      fseek(HelpFile, FontStart + FontHdr.FormatsOffset, SEEK_SET);
+      newstyle = helpdeco_malloc(FontHdr.NumFormats * sizeof(NEWSTYLE));
+      for (i = 0; i < FontHdr.NumFormats; i++) {
+        NEWSTYLE *m = newstyle + i;
+        ;
+        read_NEWSTYLE(m, HelpFile);
+        m->font.FGRGB[0] =
+            AddColor(m->font.FGRGB[0], m->font.FGRGB[1], m->font.FGRGB[2]);
+        m->font.BGRGB[0] =
+            AddColor(m->font.BGRGB[0], m->font.BGRGB[1], m->font.BGRGB[2]);
+      }
+    } else {
+      ctx->scaling = 10;
+      ctx->rounderr = 5;
+      for (i = 0; i < FontHdr.NumDescriptors; i++) {
+        read_OLDFONT(&oldfont, HelpFile);
+        fd = ctx->font.entry + i;
+        fd->Bold = (oldfont.Attributes & FONT_BOLD) != 0;
+        fd->Italic = (oldfont.Attributes & FONT_ITAL) != 0;
+        fd->Underline = (oldfont.Attributes & FONT_UNDR) != 0;
+        fd->StrikeOut = (oldfont.Attributes & FONT_STRK) != 0;
+        fd->DoubleUnderline = (oldfont.Attributes & FONT_DBUN) != 0;
+        fd->SmallCaps = (oldfont.Attributes & FONT_SMCP) != 0;
+        fd->FontName = oldfont.FontName;
+        fd->HalfPoints = oldfont.HalfPoints;
+        fd->textcolor =
+            AddColor(oldfont.FGRGB[0], oldfont.FGRGB[1], oldfont.FGRGB[2]);
+        fd->backcolor =
+            AddColor(oldfont.BGRGB[0], oldfont.BGRGB[1], oldfont.BGRGB[2]);
+        if (oldfont.FontFamily < 6) {
+          fd->FontFamily = lookup[oldfont.FontFamily];
+        } else {
+          fd->FontFamily = oldfont.FontFamily;
+        }
+      }
+    }
+    for (i = 0; i < FontHdr.NumDescriptors; i++) {
+      if (ctx->font.entry[i].FontName < ctx->fontname.count) {
+        family[ctx->font.entry[i].FontName] = ctx->font.entry[i].FontFamily;
+      }
+    }
+    ctx->default_font = 0;
+    l = sizeof(BestFonts) / sizeof(BestFonts[0]);
+    if (ctx->fontname.entry) {
+      for (i = 0; i < ctx->fontname.count; i++)
+        if (family[i]) {
+          for (j = 0; j < l; j++) {
+            if (stricmp(ctx->fontname.entry[i], BestFonts[j]) == 0) {
+              ctx->default_font = i;
+              l = j;
+              break;
+            }
+          }
+        }
+    }
+    fprintf(rtf, "{\\rtf1\\ansi\\deff%d\n{\\fonttbl", ctx->default_font);
+    for (i = 0; i < ctx->fontname.count; i++) {
+      fprintf(rtf, "{\\f%d\\f%s %s;}", i, FontFamily(family[i]),
+              ctx->fontname.entry[i]);
+      free(ctx->fontname.entry[i]);
+      ctx->fontname.entry[i] = NULL;
+    }
+    free(ctx->fontname.entry);
+    ctx->fontname.entry = NULL;
+    fputs("}\n", rtf);
+    if (ctx->color.count > 1) {
+      fputs("{\\colortbl;", rtf);
+      for (i = 1; i < ctx->color.count; i++)
+        fprintf(rtf, "\\red%d\\green%d\\blue%d;", ctx->color.entry[i].r,
+                ctx->color.entry[i].g, ctx->color.entry[i].b);
+      fputs("}\n", rtf);
+    }
+    fprintf(rtf, "{\\stylesheet{\\fs%d \\snext0 Normal;}\n",
+            ctx->font.entry[0].HalfPoints);
+    if (mvbstyle) {
+      for (i = 0; i < FontHdr.NumFormats; i++) {
+        MVBSTYLE *m, *n;
+
+        m = mvbstyle + i;
+        fprintf(rtf, "{\\*\\cs%u \\additive", m->StyleNum + 9);
+        if (m->BasedOn) {
+          n = mvbstyle + (m->BasedOn - 1);
+          if (m->font.FontName != n->font.FontName)
+            fprintf(rtf, "\\f%d", m->font.FontName);
+          if (m->font.expndtw != n->font.expndtw)
+            fprintf(rtf, "\\expndtw%d", m->font.expndtw);
+          if (m->font.FGRGB[0] != n->font.FGRGB[0])
+            fprintf(rtf, "\\cf%d", m->font.FGRGB[0]);
+          if (m->font.BGRGB[0] != n->font.BGRGB[0])
+            fprintf(rtf, "\\cb%d", m->font.BGRGB[0]);
+          if (m->font.Height != n->font.Height)
+            fprintf(rtf, "\\fs%ld", -2L * m->font.Height);
+          if ((m->font.Weight > 500) != (n->font.Weight > 500))
+            fprintf(rtf, "\\b%d", m->font.Weight > 500);
+          if (m->font.Italic != n->font.Italic)
+            fprintf(rtf, "\\i%d", m->font.Italic);
+          if (m->font.Underline != n->font.Underline)
+            fprintf(rtf, "\\ul%d", m->font.Underline);
+          if (m->font.StrikeOut != n->font.StrikeOut)
+            fprintf(rtf, "\\strike%d", m->font.StrikeOut);
+          if (m->font.DoubleUnderline != n->font.DoubleUnderline)
+            fprintf(rtf, "\\uldb%d", m->font.DoubleUnderline);
+          if (m->font.SmallCaps != n->font.SmallCaps)
+            fprintf(rtf, "\\scaps%d", m->font.SmallCaps);
+          if (m->font.up != n->font.up)
+            fprintf(rtf, "\\up%d", abs(m->font.up));
+          fprintf(rtf, " \\sbasedon%u", m->BasedOn + 9);
+        } else {
+          fprintf(rtf, "\\f%d", m->font.FontName);
+          if (m->font.Italic)
+            fputs("\\i", rtf);
+          if (m->font.Weight > 500)
+            fputs("\\b", rtf);
+          if (m->font.Underline)
+            fputs("\\ul", rtf);
+          if (m->font.StrikeOut)
+            fputs("\\strike", rtf);
+          if (m->font.DoubleUnderline)
+            fputs("\\uldb", rtf);
+          if (m->font.SmallCaps)
+            fputs("\\scaps", rtf);
+          if (m->font.expndtw)
+            fprintf(rtf, "\\expndtw%d", m->font.expndtw);
+          if (m->font.up > 0)
+            fprintf(rtf, "\\up%d", m->font.up);
+          else if (m->font.up < 0)
+            fprintf(rtf, "\\dn%d", -m->font.up);
+          fprintf(rtf, "\\fs%ld", -2 * m->font.Height);
+          if (m->font.FGRGB[0])
+            fprintf(rtf, "\\cf%d", m->font.FGRGB[0]);
+          if (m->font.BGRGB[0])
+            fprintf(rtf, "\\cb%d", m->font.BGRGB[0]);
+        }
+        fprintf(rtf, " %s;}\n", m->StyleName);
+      }
+      free(mvbstyle);
+      mvbstyle = NULL;
+    } else if (newstyle) {
+      for (i = 0; i < FontHdr.NumFormats; i++) {
+        NEWSTYLE *m, *n;
+
+        m = newstyle + i;
+        fprintf(rtf, "{\\*\\cs%u \\additive", m->StyleNum + 9);
+        if (m->BasedOn) {
+          n = newstyle + (m->BasedOn - 1);
+          if (m->font.FontName != n->font.FontName)
+            fprintf(rtf, "\\f%d", m->font.FontName);
+          if (m->font.FGRGB[0] != n->font.FGRGB[0])
+            fprintf(rtf, "\\cf%d", m->font.FGRGB[0]);
+          if (m->font.BGRGB[0] != n->font.BGRGB[0])
+            fprintf(rtf, "\\cb%d", m->font.BGRGB[0]);
+          if (m->font.Height != n->font.Height)
+            fprintf(rtf, "\\fs%ld", -2L * m->font.Height);
+          if ((m->font.Weight > 500) != (n->font.Weight > 500))
+            fprintf(rtf, "\\b%d", m->font.Weight > 500);
+          if (m->font.Italic != n->font.Italic)
+            fprintf(rtf, "\\i%d", m->font.Italic);
+          if (m->font.Underline != n->font.Underline)
+            fprintf(rtf, "\\ul%d", m->font.Underline);
+          if (m->font.StrikeOut != n->font.StrikeOut)
+            fprintf(rtf, "\\strike%d", m->font.StrikeOut);
+          if (m->font.DoubleUnderline != n->font.DoubleUnderline)
+            fprintf(rtf, "\\uldb%d", m->font.DoubleUnderline);
+          if (m->font.SmallCaps != n->font.SmallCaps)
+            fprintf(rtf, "\\scaps%d", m->font.SmallCaps);
+          fprintf(rtf, " \\sbasedon%u", m->BasedOn + 9);
+        } else {
+          fprintf(rtf, "\\f%d", m->font.FontName);
+          if (m->font.Italic)
+            fputs("\\i", rtf);
+          if (m->font.Weight > 500)
+            fputs("\\b", rtf);
+          if (m->font.Underline)
+            fputs("\\ul", rtf);
+          if (m->font.StrikeOut)
+            fputs("\\strike", rtf);
+          if (m->font.DoubleUnderline)
+            fputs("\\uldb", rtf);
+          if (m->font.SmallCaps)
+            fputs("\\scaps", rtf);
+          fprintf(rtf, "\\fs%ld", -2 * m->font.Height);
+          if (m->font.FGRGB[0])
+            fprintf(rtf, "\\cf%d", m->font.FGRGB[0]);
+          if (m->font.BGRGB[0])
+            fprintf(rtf, "\\cb%d", m->font.BGRGB[0]);
+        }
+        fprintf(rtf, " %s;}\n", m->StyleName);
+      }
+      free(newstyle);
+      newstyle = NULL;
+    }
+    if (family) {
+      free(family);
+      family = NULL;
+    }
+    fputs("}\\pard\\plain\n", rtf);
+    memset(&ctx->current_font, 0, sizeof(ctx->current_font));
+    ctx->current_font.FontName = ctx->default_font;
+    if (hpj) {
+      fprintf(stderr, "%u font names, %u font descriptors", ctx->fontname.count,
+              FontHdr.NumDescriptors);
+      if (FontHdr.FacenamesOffset >= 12)
+        printf(", %u font styles", FontHdr.NumFormats);
+      fputs(" loaded\n", stderr);
+    }
+  }
+}
+
+
+/* emit rtf commands to change to font i.
+// ul forces underline on, uldb forces doubleunderline on */
+void rtf_change_font(FILE *rtf, unsigned_legacy_int i, BOOL ul, BOOL uldb) {
+  FONTDESCRIPTOR *f;
+  legacy_long pos;
+
+  if (i < ctx->font.count) {
+    pos = ftell(rtf);
+    f = ctx->font.entry + i;
+    if (f->style) {
+      fprintf(rtf, "\\plain\\cs%d", f->style + 9);
+      if (uldb)
+        fputs("\\uldb", rtf);
+      else if (ul)
+        fputs("\\ul", rtf);
+    } else {
+      /* HC30 can't reset, so reset using \plain */
+      if ((ctx->current_font.Bold && !f->Bold) ||
+          (ctx->current_font.Italic && !f->Italic) ||
+          (ctx->current_font.Underline && !(!uldb && (ul || f->Underline))) ||
+          (ctx->current_font.StrikeOut && !f->StrikeOut) ||
+          (ctx->current_font.DoubleUnderline && !(uldb || f->DoubleUnderline)) ||
+          (ctx->current_font.SmallCaps && !f->SmallCaps) ||
+          (ctx->current_font.FontName && !f->FontName) ||
+          (ctx->current_font.textcolor && !f->textcolor) ||
+          (ctx->current_font.backcolor && !f->backcolor) ||
+          (ctx->current_font.up && !f->up) ||
+          (ctx->current_font.style && !f->style)) {
+        fputs("\\plain", rtf);
+        memset(&ctx->current_font, 0, sizeof(ctx->current_font));
+        ctx->current_font.FontName = ctx->default_font;
+      }
+      if (f->FontName != ctx->current_font.FontName)
+        fprintf(rtf, "\\f%d", f->FontName);
+      if (f->Italic && !ctx->current_font.Italic)
+        fputs("\\i", rtf);
+      if (f->Bold && !ctx->current_font.Bold)
+        fputs("\\b", rtf);
+      if (!uldb && (ul || f->Underline) && !ctx->current_font.Bold)
+        fputs("\\ul", rtf);
+      if (f->StrikeOut && !ctx->current_font.StrikeOut)
+        fputs("\\strike", rtf);
+      if ((uldb || f->DoubleUnderline) && !ctx->current_font.DoubleUnderline)
+        fputs("\\uldb", rtf);
+      if (f->SmallCaps && !ctx->current_font.SmallCaps)
+        fputs("\\scaps", rtf);
+      if (f->expndtw != ctx->current_font.expndtw)
+        fprintf(rtf, "\\expndtw%d", f->expndtw);
+      if (f->up != ctx->current_font.up) {
+        if (f->up > 0)
+          fprintf(rtf, "\\up%d", f->up);
+        else if (f->up < 0)
+          fprintf(rtf, "\\dn%d", -f->up);
+      }
+      if (f->HalfPoints != ctx->current_font.HalfPoints)
+        fprintf(rtf, "\\fs%d", f->HalfPoints);
+      if (f->textcolor != ctx->current_font.textcolor)
+        fprintf(rtf, "\\cf%d", f->textcolor);
+      if (f->backcolor != ctx->current_font.backcolor)
+        fprintf(rtf, "\\cb%d", f->backcolor);
+    }
+    memcpy(&ctx->current_font, f, sizeof(ctx->current_font));
+    if (ul)
+      ctx->current_font.Underline = 1;
+    if (uldb) {
+      ctx->current_font.Underline = 0;
+      ctx->current_font.DoubleUnderline = 1;
+    }
+    if (ftell(rtf) != pos)
+      putc(' ', rtf);
+  }
+}
+/* writes out all keywords appearing up to position TopicOffset and eats
+// them up so they are not written out again. Merges keywords if possible */
+void rtf_list_keywords(FILE *HelpFile, FILE *rtf, legacy_long TopicOffset) {
+  legacy_int len, footnote, keyindex;
+
+  if (ctx->NextKeywordRec >= ctx->keyword_rec.count) {
+    if (ctx->NextKeywordOffset == 0x7FFFFFFFL)
+      return;
+    CollectKeywords(HelpFile);
+  }
+  footnote = keyindex = len = 0;
+  while (ctx->NextKeywordRec < ctx->keyword_rec.count &&
+         ctx->keyword_rec.entry[ctx->NextKeywordRec].TopicOffset <=
+             TopicOffset) {
+    if (len > 0 &&
+        (ctx->keyword_rec.entry[ctx->NextKeywordRec].Footnote != footnote ||
+         ctx->keyword_rec.entry[ctx->NextKeywordRec].KeyIndex != keyindex ||
+         len + strlen(ctx->keyword_rec.entry[ctx->NextKeywordRec].Keyword) >
+             (ctx->after31 ? 1023 : 254))) {
+      fputs("}\n", rtf);
+      len = 0;
+    }
+    if (len > 0) {
+      putc(';', rtf);
+    } else if (ctx->keyword_rec.entry[ctx->NextKeywordRec].KeyIndex) {
+      fprintf(rtf, "{\\up K}{\\footnote\\pard\\plain{\\up K} %c:",
+              ctx->keyword_rec.entry[ctx->NextKeywordRec].Footnote);
+    } else {
+      fprintf(rtf, "{\\up %c}{\\footnote\\pard\\plain{\\up %c} ",
+              ctx->keyword_rec.entry[ctx->NextKeywordRec].Footnote,
+              ctx->keyword_rec.entry[ctx->NextKeywordRec].Footnote);
+    }
+    len += strlen(ctx->keyword_rec.entry[ctx->NextKeywordRec].Keyword) + 1;
+    rtf_puts(rtf, ctx->keyword_rec.entry[ctx->NextKeywordRec].Keyword);
+    footnote = ctx->keyword_rec.entry[ctx->NextKeywordRec].Footnote;
+    keyindex = ctx->keyword_rec.entry[ctx->NextKeywordRec].KeyIndex;
+    ctx->NextKeywordRec++;
+  }
+  if (len)
+    fputs("}\n", rtf);
+}
+
+void rtf_annotate(legacy_long pos, FILE *rtf) {
+  legacy_long FileLength;
+  char FileName[19];
+  legacy_int i;
+  legacy_long l;
+
+  sprintf(FileName, "%ld!0", pos);
+  if (SearchFile(ctx->annotation_file, FileName, &FileLength)) {
+    fputs("{\\v {\\*\\atnid ANN}\\chatn {\\*\\annotation \\pard\\plain "
+          "{\\chatn }",
+          rtf);
+    for (l = 0; l < FileLength && (i = getc(ctx->annotation_file)) != -1; l++) {
+      if (i == 0x0D) {
+        fputs("\\par\n", rtf);
+      } else if (i != '{' && i != '}' && i != '\\' && isprint(i)) {
+        putc(i, rtf);
+      } else if (i == '{') {
+        fputs("\\{\\-", rtf);
+      } else if (i != '\0' && i != 0x0A) {
+        fprintf(rtf, "\\'%02x", i);
+      }
+    }
+    fputs("}}", rtf);
+  }
+}
+
+/* list all groups the topic TopicNum is assigned to and/or emit footnote
+// for browse sequence of this topic as + footnote into rtf file */
+void rtf_add_footnotes(FILE *rtf, legacy_long TopicNum, uint32_t BrowseNum) {
+  legacy_int i;
+  BOOL grouplisted;
+
+  grouplisted = FALSE;
+  for (i = 0; i < ctx->group.count; i++)
+    if (ctx->group.entry[i].GroupHeader.GroupType == 1 ||
+        ctx->group.entry[i].GroupHeader.GroupType == 2) {
+      if ((TopicNum >= ctx->group.entry[i].GroupHeader.FirstTopic &&
+           TopicNum <= ctx->group.entry[i].GroupHeader.LastTopic) &&
+          ((ctx->group.entry[i].GroupHeader.GroupType == 1 ||
+            ctx->group.entry[i].GroupHeader.GroupType == 2) &&
+           (ctx->group.entry[i].Bitmap[TopicNum >> 3] &
+            (1 << (TopicNum & 7))))) {
+        if (!grouplisted) {
+          fputs("{\\up +}{\\footnote\\pard\\plain{\\up +} ", rtf);
+          if (BrowseNum)
+            fprintf(rtf, "BROWSE%04x:%04x", (uint16_t)BrowseNum,
+                    (uint16_t)(BrowseNum >> 16));
+          grouplisted = TRUE;
+        }
+        fprintf(rtf, ";%s", ctx->group.entry[i].Name);
+      }
+    }
+  if (grouplisted) {
+    fputs("}\n", rtf);
+  } else if (BrowseNum) {
+    fprintf(rtf, "{\\up +}{\\footnote\\pard\\plain{\\up +} BROWSE%04x:%04x}\n",
+            (uint16_t)BrowseNum, (uint16_t)(BrowseNum >> 16));
+  }
+}
+/* TopicDump: converts the internal |TOPIC file to RTF format suitable for
+// recompilation inserting footnotes with information from other internal
+// files as required */
+FILE *rtf_dump(FILE *HelpFile, FILE *rtf, FILE *hpj, BOOL makertf) {
+  TOPICLINK TopicLink;
+  char *LinkData1; /* Data associated with this link */
+  legacy_long nonscroll = -1;
+  char *LinkData2; /* Second set of data */
+  legacy_int fontset, i;
+  legacy_int NextContextRec;
+  uint32_t BrowseNum;
+  char *hotspot;
+  char *arg;
+  BOOL firsttopic = TRUE;
+  BOOL ul, uldb;
+  legacy_int nextbitmap, TopicInRTF, NumberOfRTF;
+  legacy_long TopicNum, TopicOffset, TopicPos;
+  legacy_int col, cols, lastcol;
+  int16_t *iptr;
+  uint16_t x1, x2, x3;
+  int16_t y1;
+  legacy_long l1 = 0;
+  char *ptr;
+  char *cmd;
+  char *str;
+  legacy_long ActualTopicOffset = 0, MaxTopicOffset = 0;
+  TOPICHEADER30 *TopicHdr30;
+  TOPICHEADER *TopicHdr;
+  legacy_long BogusTopicOffset;
+
+  if (SearchFile(HelpFile, "|TOPIC", &ctx->topic_file_length)) {
+    fontset = -1;
+    nextbitmap = 1;
+    if (ctx->browse.entry)
+      free(ctx->browse.entry);
+    ctx->browse.entry = NULL;
+    ctx->browse.count = 0;
+    NextContextRec = 0;
+    ul = uldb = FALSE;
+    hotspot = NULL;
+    TopicOffset = 0;
+    TopicPos = 12;
+    TopicNum = 16;
+    TopicInRTF = 0;
+    NumberOfRTF = 1;
+    while (TopicRead(HelpFile, TopicPos, &TopicLink, sizeof(TopicLink)) ==
+           sizeof(TOPICLINK)) {
+      if (ctx->before31) {
+        if (TopicPos + TopicLink.NextBlock >= ctx->topic_file_length)
+          break;
+      } else {
+        if (TopicLink.NextBlock <= 0)
+          break;
+      }
+      if (TopicLink.DataLen1 > sizeof(TOPICLINK)) {
+        LinkData1 = helpdeco_malloc(TopicLink.DataLen1 - sizeof(TOPICLINK) + 1);
+        if (TopicRead(HelpFile, 0, LinkData1,
+                      TopicLink.DataLen1 - sizeof(TOPICLINK)) !=
+            TopicLink.DataLen1 - sizeof(TOPICLINK))
+          break;
+      } else
+        LinkData1 = NULL;
+      if (TopicLink.DataLen1 <
+          TopicLink.BlockSize) /* read LinkData2 using phrase replacement */
+      {
+        LinkData2 = helpdeco_malloc(TopicLink.DataLen2 + 1);
+        if (topic_read_phrase(HelpFile, 0, LinkData2,
+                              TopicLink.BlockSize - TopicLink.DataLen1,
+                              TopicLink.DataLen2) !=
+            TopicLink.BlockSize - TopicLink.DataLen1)
+          break;
+      } else
+        LinkData2 = NULL;
+      if (LinkData1 && TopicLink.RecordType ==
+                           TL_TOPICHDR) /* display a Topic Header record */
+      {
+        if (ctx->opt_topics_per_rtf &&
+            ++TopicInRTF >= ctx->opt_topics_per_rtf) {
+          putc('}', rtf);
+          helpdeco_fclose(rtf);
+          rtf_build_filename(scratch_buffer, ++NumberOfRTF);
+          if (hpj)
+            fprintf(hpj, "%s\n", scratch_buffer);
+          rtf = helpdeco_fopen(scratch_buffer, "wt");
+          rtf_load_font(HelpFile, rtf, NULL);
+          TopicInRTF = 0;
+        } else if (!firsttopic) {
+          if (makertf && ctx->opt_nopagebreak) {
+            fputs("\\par\n", rtf);
+          } else {
+            fputs("\\page\n", rtf);
+          }
+        }
+        firsttopic = FALSE;
+        helpdeco_logf("\nTopic %ld...", TopicNum - 15);
+        if (!makertf) {
+          BrowseNum = 0;
+          if (ctx->before31) {
+            TopicHdr30 = (TOPICHEADER30 *)LinkData1;
+            fprintf(rtf, "{\\up #}{\\footnote\\pard\\plain{\\up #} TOPIC%ld}\n",
+                    TopicNum);
+            if (ctx->opt_resolvebrowse) {
+              if ((TopicHdr30->NextTopicNum > TopicNum &&
+                   TopicHdr30->PrevTopicNum > TopicNum) ||
+                  (TopicHdr30->NextTopicNum == -1 &&
+                   TopicHdr30->PrevTopicNum > TopicNum) ||
+                  (TopicHdr30->NextTopicNum > TopicNum &&
+                   TopicHdr30->PrevTopicNum == -1)) {
+                BrowseNum = AddLink(TopicNum, TopicHdr30->NextTopicNum,
+                                    TopicHdr30->PrevTopicNum);
+              } else if (TopicHdr30->NextTopicNum != -1 &&
+                         TopicHdr30->NextTopicNum < TopicNum &&
+                         TopicHdr30->PrevTopicNum != -1 &&
+                         TopicHdr30->PrevTopicNum < TopicNum) {
+                BrowseNum =
+                    MergeLink(TopicNum, TopicNum, TopicHdr30->NextTopicNum,
+                              TopicHdr30->PrevTopicNum);
+              } else if (TopicHdr30->NextTopicNum != -1 &&
+                         TopicHdr30->NextTopicNum < TopicNum &&
+                         (TopicHdr30->PrevTopicNum == -1 ||
+                          TopicHdr30->PrevTopicNum > TopicNum)) {
+                BrowseNum =
+                    BackLinkLink(TopicNum, TopicNum, TopicHdr30->NextTopicNum,
+                                 TopicHdr30->PrevTopicNum);
+              } else if (TopicHdr30->PrevTopicNum != -1 &&
+                         TopicHdr30->PrevTopicNum < TopicNum &&
+                         (TopicHdr30->NextTopicNum == -1 ||
+                          TopicHdr30->NextTopicNum > TopicNum)) {
+                BrowseNum =
+                    LinkLink(TopicNum, TopicNum, TopicHdr30->NextTopicNum,
+                             TopicHdr30->PrevTopicNum);
+              }
+            }
+            rtf_list_keywords(HelpFile, rtf, TopicPos);
+          } else {
+            BogusTopicOffset =
+                NextTopicOffset(TopicOffset, TopicLink.NextBlock, TopicPos);
+            TopicHdr = (TOPICHEADER *)LinkData1;
+            if (TopicHdr->Scroll != -1) {
+              nonscroll = TopicHdr->Scroll;
+            } else {
+              nonscroll = TopicHdr->NextTopic;
+            }
+            if (ctx->opt_resolvebrowse) {
+              if ((TopicHdr->BrowseFor > TopicOffset &&
+                   TopicHdr->BrowseBck > TopicOffset) ||
+                  (TopicHdr->BrowseFor == -1 &&
+                   TopicHdr->BrowseBck > TopicOffset) ||
+                  (TopicHdr->BrowseFor > TopicOffset &&
+                   TopicHdr->BrowseBck == -1)) {
+                BrowseNum = AddLink(TopicOffset, TopicHdr->BrowseFor,
+                                    TopicHdr->BrowseBck);
+              } else if (TopicHdr->BrowseFor != -1 &&
+                         TopicHdr->BrowseFor < TopicOffset &&
+                         TopicHdr->BrowseBck != -1 &&
+                         TopicHdr->BrowseBck < TopicOffset) {
+                BrowseNum = MergeLink(TopicOffset, BogusTopicOffset,
+                                      TopicHdr->BrowseFor, TopicHdr->BrowseBck);
+              } else if (TopicHdr->BrowseFor != -1 &&
+                         TopicHdr->BrowseFor < TopicOffset &&
+                         (TopicHdr->BrowseBck == -1 ||
+                          TopicHdr->BrowseBck > TopicOffset)) {
+                BrowseNum =
+                    BackLinkLink(TopicOffset, BogusTopicOffset,
+                                 TopicHdr->BrowseFor, TopicHdr->BrowseBck);
+              } else if (TopicHdr->BrowseBck != -1 &&
+                         TopicHdr->BrowseBck < TopicOffset &&
+                         (TopicHdr->BrowseFor == -1 ||
+                          TopicHdr->BrowseFor > TopicOffset)) {
+                BrowseNum = LinkLink(TopicOffset, BogusTopicOffset,
+                                     TopicHdr->BrowseFor, TopicHdr->BrowseBck);
+              }
+            }
+          }
+          rtf_add_footnotes(rtf, TopicNum - 16, BrowseNum);
+          if (LinkData2 && TopicLink.DataLen2 > 0) {
+            if (*LinkData2) {
+              fputs("{\\up $}{\\footnote\\pard\\plain{\\up $} ", rtf);
+              rtf_puts(rtf, LinkData2);
+              fputs("}\n", rtf);
+            }
+            for (i = strlen(LinkData2) + 1; i < TopicLink.DataLen2;
+                 i += strlen(LinkData2 + i) + 1) {
+              fputs("{\\up !}{\\footnote\\pard\\plain{\\up !} ", rtf);
+              if (!ctx->after31 && strlen(LinkData2 + i) > 254) {
+                printf("Help compiler will issue Warning 3511: Macro '%s' "
+                       "exceeds limit of 254 characters\n",
+                       LinkData2 + i);
+              }
+              rtf_puts(rtf, LinkData2 + i);
+              fputs("}\n", rtf);
+            }
+          }
+          while (NextContextRec < ctx->context_rec.count &&
+                 ctx->context_rec.entry[NextContextRec].TopicOffset <=
+                     TopicOffset) {
+            fputs("{\\up #}{\\footnote\\pard\\plain{\\up #} ", rtf);
+            rtf_puts(rtf,
+                   unhash(ctx->context_rec.entry[NextContextRec].HashValue));
+            fputs("}\n", rtf);
+            if (!ctx->mvp)
+              while (
+                  NextContextRec + 1 < ctx->context_rec.count &&
+                  ctx->context_rec.entry[NextContextRec].TopicOffset ==
+                      ctx->context_rec.entry[NextContextRec + 1].TopicOffset) {
+                NextContextRec++;
+              }
+            NextContextRec++;
+          }
+          i = ListWindows(HelpFile, TopicOffset);
+          if (i != -1)
+            fprintf(rtf, "{\\up >}{\\footnote\\pard\\plain{\\up >} %s}\n",
+                    GetWindowName(i));
+        }
+        TopicNum++;
+      } else if (LinkData1 && LinkData2 &&
+                 (TopicLink.RecordType == TL_DISPLAY30 ||
+                  TopicLink.RecordType == TL_DISPLAY ||
+                  TopicLink.RecordType == TL_TABLE)) {
+        if (ctx->annotation_file)
+          rtf_annotate(TopicPos, rtf);
+        ptr = LinkData1;
+        scanlong(&ptr);
+        if (TopicLink.RecordType == TL_DISPLAY ||
+            TopicLink.RecordType == TL_TABLE) {
+          x1 = scanword(&ptr);
+          ActualTopicOffset = TopicOffset;
+          MaxTopicOffset = ActualTopicOffset + x1;
+          TopicOffset += x1;
+        }
+        if (TopicLink.RecordType == TL_TABLE) {
+          fputs("\\trowd", rtf);
+          cols = (unsigned char)*ptr++;
+          x1 = (unsigned char)*ptr++;
+          switch (x1) {
+          case 0:
+          case 2:
+            l1 = *(int16_t *)ptr; /* min table width */
+            ptr += 2;
+            fputs("\\trqc", rtf);
+            break;
+          case 1:
+          case 3:
+            l1 = 32767;
+            break;
+          }
+          iptr = (int16_t *)ptr;
+          if (cols > 1) {
+            x1 = iptr[0] + iptr[1] + iptr[3] / 2;
+            fprintf(rtf, "\\trgaph%ld\\trleft%ld \\cellx%ld\\cellx%ld",
+                    ((iptr[3] * ctx->scaling - ctx->rounderr) * l1) / 32767,
+                    (((iptr[1] - iptr[3]) * ctx->scaling - ctx->rounderr) * l1 -
+                     32767) /
+                        32767,
+                    ((x1 * ctx->scaling - ctx->rounderr) * l1) / 32767,
+                    (((x1 + iptr[2] + iptr[3]) * ctx->scaling - ctx->rounderr) *
+                     l1) /
+                        32767);
+            x1 += iptr[2] + iptr[3];
+            for (col = 2; col < cols; col++) {
+              x1 += iptr[2 * col] + iptr[2 * col + 1];
+              fprintf(rtf, "\\cellx%ld",
+                      ((x1 * ctx->scaling - ctx->rounderr) * l1) / 32767);
+            }
+          } else {
+            fprintf(rtf, "\\trleft%ld \\cellx%ld ",
+                    ((iptr[1] * ctx->scaling - ctx->rounderr) * l1 - 32767) /
+                        32767,
+                    ((iptr[0] * ctx->scaling - ctx->rounderr) * l1) / 32767);
+          }
+          ptr = (char *)(iptr + 2 * cols);
+        }
+        lastcol = -1;
+        str = LinkData2;
+        for (col = 0; (TopicLink.RecordType == TL_TABLE ? *(int16_t *)ptr != -1
+                                                        : col == 0) &&
+                      ptr < LinkData1 + TopicLink.DataLen1 - sizeof(TOPICLINK);
+             col++) {
+          fputs("\\pard", rtf);
+          if (TopicPos < nonscroll)
+            fputs("\\keepn", rtf);
+          if (TopicLink.RecordType == TL_TABLE) {
+            fputs("\\intbl", rtf);
+            lastcol = *(int16_t *)ptr;
+            ptr += 5;
+          }
+          ptr += 4;
+          x2 = *(uint16_t *)ptr;
+          ptr += 2;
+          if (x2 & 0x1000)
+            fputs("\\keep", rtf);
+          if (x2 & 0x0400)
+            fputs("\\qr", rtf);
+          if (x2 & 0x0800)
+            fputs("\\qc", rtf);
+          if (x2 & 0x0001)
+            scanlong(&ptr);
+          if (x2 & 0x0002)
+            fprintf(rtf, "\\sb%ld",
+                    scanint(&ptr) * ctx->scaling - ctx->rounderr);
+          if (x2 & 0x0004)
+            fprintf(rtf, "\\sa%ld",
+                    scanint(&ptr) * ctx->scaling - ctx->rounderr);
+          if (x2 & 0x0008)
+            fprintf(rtf, "\\sl%ld",
+                    scanint(&ptr) * ctx->scaling - ctx->rounderr);
+          if (x2 & 0x0010)
+            fprintf(rtf, "\\li%ld",
+                    scanint(&ptr) * ctx->scaling - ctx->rounderr);
+          if (x2 & 0x0020)
+            fprintf(rtf, "\\ri%ld",
+                    scanint(&ptr) * ctx->scaling - ctx->rounderr);
+          if (x2 & 0x0040)
+            fprintf(rtf, "\\fi%ld",
+                    scanint(&ptr) * ctx->scaling - ctx->rounderr);
+          if (x2 & 0x0100) {
+            x1 = (unsigned char)*ptr++;
+            if (x1 & 1)
+              fputs("\\box", rtf);
+            if (x1 & 2)
+              fputs("\\brdrt", rtf);
+            if (x1 & 4)
+              fputs("\\brdrl", rtf);
+            if (x1 & 8)
+              fputs("\\brdrb", rtf);
+            if (x1 & 0x10)
+              fputs("\\brdrr", rtf);
+            if (x1 & 0x20)
+              fputs("\\brdrth", rtf);
+            else
+              fputs("\\brdrs", rtf);
+            if (x1 & 0x40)
+              fputs("\\brdrdb", rtf);
+            ptr += 2;
+          }
+          if (x2 & 0x0200) {
+            y1 = scanint(&ptr);
+            while (y1-- > 0) {
+              x1 = scanword(&ptr);
+              if (x1 & 0x4000) {
+                switch (scanword(&ptr)) {
+                case 1:
+                  fputs("\\tqr", rtf);
+                  break;
+                case 2:
+                  fputs("\\tqc", rtf);
+                  break;
+                }
+              }
+              fprintf(rtf, "\\tx%ld",
+                      (x1 & 0x3FFF) * ctx->scaling - ctx->rounderr);
+            }
+          }
+          putc(' ', rtf);
+          while (
+              1) /* ptr<LinkData1+TopicLink.DataLen1-sizeof(TOPICLINK)&&str<end)
+                  */
+          {
+            if (*str && fontset >= 0 && fontset < ctx->font.count &&
+                ctx->font.entry && ctx->font.entry[fontset].SmallCaps)
+              strlwr(str);
+            do {
+              if (!makertf) {
+                while (NextContextRec < ctx->context_rec.count &&
+                       ctx->context_rec.entry[NextContextRec].TopicOffset <=
+                           ActualTopicOffset &&
+                       ctx->context_rec.entry[NextContextRec].TopicOffset <
+                           MaxTopicOffset) {
+                  fputs("{\\up #}{\\footnote\\pard\\plain{\\up #} ", rtf);
+                  rtf_puts(
+                      rtf,
+                      unhash(ctx->context_rec.entry[NextContextRec].HashValue));
+                  fputs("}\n", rtf);
+                  if (!ctx->mvp)
+                    while (NextContextRec + 1 < ctx->context_rec.count &&
+                           ctx->context_rec.entry[NextContextRec].TopicOffset ==
+                               ctx->context_rec.entry[NextContextRec + 1]
+                                   .TopicOffset) {
+                      NextContextRec++;
+                    }
+                  NextContextRec++;
+                }
+                if (!ctx->before31)
+                  rtf_list_keywords(HelpFile, rtf,
+                               ActualTopicOffset < MaxTopicOffset
+                                   ? ActualTopicOffset
+                                   : MaxTopicOffset - 1);
+              }
+              if (*str) {
+                if (*str != '{' && *str != '}' && *str != '\\' &&
+                    isprint((unsigned char)*str)) {
+                  putc(*str, rtf);
+                } else if (!makertf && *str == '{') {
+                  fputs("\\{\\-", rtf); /* emit invisible dash after { brace */
+                  /* because bmc or another legal command may follow, but this
+                   */
+                  /* command was not parsed the help file was build, so it was
+                   */
+                  /* used just as an example. The dash will be eaten up by the
+                   */
+                  /* help compiler on recompile. */
+                } else {
+                  fprintf(rtf, "\\'%02x", (unsigned char)*str);
+                }
+              }
+              if (ActualTopicOffset < MaxTopicOffset)
+                ActualTopicOffset++;
+            } while (*str++);
+            if ((unsigned char)ptr[0] == 0xFF) {
+              ptr++;
+              break;
+            } else
+              switch ((unsigned char)ptr[0]) {
+              case 0x20: /* vfld MVB */
+                if (*(legacy_long *)(ptr + 1)) {
+                  fprintf(rtf, "\\{vfld%ld\\}", *(legacy_long *)(ptr + 1));
+                } else {
+                  fputs("\\{vfld\\}", rtf);
+                }
+                ptr += 5;
+                break;
+              case 0x21: /* dtype MVB */
+                if (*(int16_t *)(ptr + 1)) {
+                  fprintf(rtf, "\\{dtype%d\\}", *(int16_t *)(ptr + 1));
+                } else {
+                  fputs("\\{dtype\\}", rtf);
+                }
+                ptr += 3;
+                break;
+              case 0x80: /* font change */
+                rtf_change_font(rtf, fontset = *(int16_t *)(ptr + 1), ul, uldb);
+                ptr += 3;
+                break;
+              case 0x81:
+                fputs("\\line\n", rtf);
+                ptr++;
+                break;
+              case 0x82:
+                if (TopicLink.RecordType == TL_TABLE) {
+                  if ((unsigned char)ptr[1] != 0xFF) {
+                    fputs("\n\\par\\intbl ", rtf);
+                  } else if (*(int16_t *)(ptr + 2) == -1) {
+                    fputs("\\cell\\intbl\\row\n", rtf);
+                  } else if (*(int16_t *)(ptr + 2) == lastcol) {
+                    fputs("\\par\\pard ", rtf);
+                  } else {
+                    fputs("\\cell\\pard ", rtf);
+                  }
+                } else {
+                  fputs("\n\\par ", rtf);
+                }
+                ptr++;
+                break;
+              case 0x83:
+                fputs("\\tab ", rtf);
+                ptr++;
+                break;
+              case 0x86:
+                x3 = (unsigned char)*ptr++;
+                x1 = *ptr++;
+                if (x1 == 0x05)
+                  cmd = "ewc";
+                else
+                  cmd = "bmc";
+                goto picture;
+              case 0x87:
+                x3 = (unsigned char)*ptr++;
+                x1 = *ptr++;
+                if (x1 == 0x05)
+                  cmd = "ewl";
+                else
+                  cmd = "bml";
+                goto picture;
+              case 0x88:
+                x3 = (unsigned char)*ptr++;
+                x1 = *ptr++;
+                if (x1 == 0x05)
+                  cmd = "ewr";
+                else
+                  cmd = "bmr";
+                goto picture;
+              picture:
+                l1 = scanlong(&ptr);
+                switch (x1) {
+                case 0x22: /* HC31 */
+                  ActualTopicOffset +=
+                      scanword(&ptr); /* number of hotspots in picture */
+                  if (ActualTopicOffset > MaxTopicOffset)
+                    ActualTopicOffset = MaxTopicOffset;
+                  /* fall thru */
+                case 0x03: /* HC30 */
+                  x1 = ((uint16_t *)ptr)[0];
+                  switch (x1) {
+                  case 1:
+                    while (nextbitmap < ctx->extension.count &&
+                           ctx->extension.entry[nextbitmap] < 0x10)
+                      nextbitmap++;
+                    if (nextbitmap >= ctx->extension.count) {
+                      error("Bitmap never saved");
+                      break;
+                    }
+                    x2 = nextbitmap++;
+                    goto other;
+                  case 0:
+                    x2 = ((uint16_t *)ptr)[1];
+                  other:
+                    if (makertf) {
+                      switch (x3) {
+                      case 0x86:
+                        fprintf(rtf, "{\\field {\\*\\fldinst import %s}}",
+                                getbitmapname(x2));
+                        break;
+                      case 0x87:
+                        fprintf(rtf,
+                                "{\\pvpara {\\field {\\*\\fldinst import "
+                                "%s}}\\par}\n",
+                                getbitmapname(x2));
+                        break;
+                      case 0x88:
+                        fprintf(rtf,
+                                "{\\pvpara\\posxr{\\field {\\*\\fldinst import "
+                                "%s}}\\par}\n",
+                                getbitmapname(x2));
+                        break;
+                      }
+                    } else {
+                      if (x2 < ctx->extension.count &&
+                          (ctx->extension.entry[x2] & 0x20)) {
+                        if (strcmp(cmd, "bmc") == 0)
+                          cmd = "bmct";
+                        else if (strcmp(cmd, "bml") == 0)
+                          cmd = "bmlt";
+                        else if (strcmp(cmd, "bmr") == 0)
+                          cmd = "bmrt";
+                      }
+                      fprintf(rtf, "\\{%s %s\\}", cmd, getbitmapname(x2));
+                    }
+                    break;
+                  }
+                  break;
+                case 0x05: /* ewc,ewl,ewr */
+                  if (ptr[6] == '!') {
+                    fprintf(rtf, "\\{button %s\\}", ptr + 7);
+                  } else if (ptr[6] == '*') {
+                    char *plus;
+                    legacy_int n, c1, c2;
+
+                    sscanf(ptr + 7, "%d,%d,%n", &c1, &c2, &n);
+                    plus = strchr(ptr + 7 + n, '+');
+                    if ((c1 & 0xFFF5) != 0x8400)
+                      fprintf(stderr, "mci c1=%04x\n", c1);
+                    fputs("\\{mci", rtf);
+                    if (cmd[2] == 'r')
+                      fputs("_right", rtf);
+                    if (cmd[2] == 'l')
+                      fputs("_left", rtf);
+                    if (c2 == 1)
+                      fputs(" REPEAT", rtf);
+                    if (c2 == 2)
+                      fputs(" PLAY", rtf);
+                    if (!plus)
+                      fputs(" EXTERNAL", rtf);
+                    if (c1 & 8)
+                      fputs(" NOMENU", rtf);
+                    if (c1 & 2)
+                      fputs(" NOPLAYBAR", rtf);
+                    fprintf(rtf, ",%s\\}\n", plus ? plus + 1 : ptr + 7 + n);
+                  } else {
+                    fprintf(rtf, "\\{%s %s\\}", cmd, ptr + 6);
+                  }
+                  break;
+                }
+                ptr += l1;
+                break;
+              case 0x89: /* end of hotspot */
+                if (!makertf) {
+                  if (hotspot[0] == '%' && fontset >= 0 &&
+                      fontset < ctx->font.count &&
+                      ctx->font.entry[fontset].Underline) {
+                    hotspot[0] = '*';
+                  }
+                }
+                rtf_change_font(rtf, fontset, ul = FALSE, uldb = FALSE);
+                if (!makertf) {
+                  if (!ctx->after31 && strlen(hotspot) > 255) {
+                    puts("Help compiler will issue Warning 4072: Context "
+                         "string exceeds limit of 255 characters");
+                  }
+                  fputs("{\\v ", rtf);
+                  rtf_puts(rtf,
+                         ctx->multi && (hotspot[0] == '%' || hotspot[0] == '*')
+                             ? hotspot + 1
+                             : hotspot);
+                  fputc('}', rtf);
+                }
+                ptr++;
+                break;
+              case 0xC8: /* macro */
+                rtf_change_font(rtf, fontset, FALSE, uldb = TRUE);
+                if (!makertf) {
+                  hotspot = helpdeco_realloc(hotspot, strlen(ptr + 3) + 2);
+                  sprintf(hotspot, "!%s", ptr + 3);
+                }
+                ptr += *(int16_t *)(ptr + 1) + 3;
+                break;
+              case 0xCC: /* macro without font change */
+                rtf_change_font(rtf, fontset, FALSE, uldb = TRUE);
+                if (!makertf) {
+                  hotspot = helpdeco_realloc(hotspot, strlen(ptr + 3) + 3);
+                  sprintf(hotspot, "%%!%s", ptr + 3);
+                }
+                ptr += *(int16_t *)(ptr + 1) + 3;
+                break;
+              case 0xE0: /* popup jump HC30 */
+                rtf_change_font(rtf, fontset, ul = TRUE, FALSE);
+                goto label0;
+              case 0xE1: /* topic jump HC30 */
+                rtf_change_font(rtf, fontset, FALSE, uldb = TRUE);
+              label0:
+                if (!makertf) {
+                  hotspot = helpdeco_realloc(hotspot, 128);
+                  sprintf(hotspot, "TOPIC%ld", *(legacy_long *)(ptr + 1));
+                }
+                ptr += 5;
+                break;
+              case 0xE2: /* popup jump HC31 */
+                rtf_change_font(rtf, fontset, ul = TRUE, FALSE);
+                goto label1;
+              case 0xE3: /* topic jump HC31 */
+                rtf_change_font(rtf, fontset, FALSE, uldb = TRUE);
+              label1:
+                if (!makertf) {
+                  arg = ContextId(*(legacy_long *)(ptr + 1));
+                  hotspot = helpdeco_realloc(hotspot, strlen(arg) + 1);
+                  sprintf(hotspot, "%s", arg);
+                }
+                ptr += 5;
+                break;
+              case 0xE6: /* popup jump without font change */
+                rtf_change_font(rtf, fontset, ul = TRUE, FALSE);
+                goto label2;
+              case 0xE7: /* topic jump without font change */
+                rtf_change_font(rtf, fontset, FALSE, uldb = TRUE);
+              label2:
+                if (!makertf) {
+                  arg = ContextId(*(legacy_long *)(ptr + 1));
+                  hotspot = helpdeco_realloc(hotspot, strlen(arg) + 2);
+                  sprintf(hotspot, "%%%s", arg);
+                }
+                ptr += 5;
+                break;
+              case 0xEA: /* popup jump into external file */
+              case 0xEE:
+                rtf_change_font(rtf, fontset, ul = TRUE, FALSE);
+                goto label3;
+              case 0xEB: /* topic jump into external file / secondary window */
+              case 0xEF:
+                rtf_change_font(rtf, fontset, FALSE, uldb = TRUE);
+              label3:
+                if (!makertf) {
+                  if ((unsigned char)ptr[0] == 0xEE ||
+                      (unsigned char)ptr[0] == 0xEF) {
+                    cmd = "%";
+                  } else {
+                    cmd = "";
+                  }
+                  arg = unhash(
+                      *(legacy_long *)(ptr + 4)); // no ContextId, it may jump
+                                                  // into external file
+                  switch ((unsigned char)ptr[3]) {
+                  case 0:
+                    hotspot =
+                        helpdeco_realloc(hotspot, strlen(cmd) + strlen(arg) + 1);
+                    sprintf(hotspot, "%s%s", cmd, arg);
+                    break;
+                  case 1:
+                    hotspot = helpdeco_realloc(hotspot,
+                                         strlen(cmd) + strlen(arg) + 1 +
+                                     strlen(GetWindowName(ptr[8])) + 1);
+                    sprintf(hotspot, "%s%s>%s", cmd, arg,
+                            GetWindowName(ptr[8]));
+                    break;
+                  case 4:
+                    hotspot = helpdeco_realloc(hotspot, strlen(cmd) + strlen(arg) +
+                                                      1 + strlen(ptr + 8) + 1);
+                    sprintf(hotspot, "%s%s@%s", cmd, arg, ptr + 8);
+                    break;
+                  case 6:
+                    hotspot = helpdeco_realloc(
+                        hotspot, strlen(cmd) + strlen(arg) + 1 +
+                                     strlen(ptr + 8) + 1 +
+                                     strlen(strchr(ptr + 8, '\0') + 1) + 1);
+                    sprintf(hotspot, "%s%s>%s@%s", cmd, arg, ptr + 8,
+                            strchr(ptr + 8, '\0') + 1);
+                    break;
+                  }
+                }
+                ptr += *(int16_t *)(ptr + 1) + 3;
+                break;
+              case 0x8B:
+                fputs("\\~", rtf);
+                ptr++;
+                break;
+              case 0x8C:
+                fputs("\\-", rtf);
+                ptr++;
+                break;
+              default:
+                ptr++;
+              }
+          }
+        }
+      }
+      if (LinkData1)
+        free(LinkData1);
+      if (LinkData2)
+        free(LinkData2);
+      if (ctx->before31) {
+        TopicPos += TopicLink.NextBlock;
+      } else {
+        TopicOffset =
+            NextTopicOffset(TopicOffset, TopicLink.NextBlock, TopicPos);
+        TopicPos = TopicLink.NextBlock;
+      }
+    }
+  }
+  return rtf;
+}
 
 #pragma mark -
 void dump_phrases(void) {
@@ -6303,13 +6323,13 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
         strcpy(filename, ctx->name);
         strcat(filename, ".ph");
         phrase_dump(filename); /* after PhraseLoad */
-        BuildRTFName(filename, ctx->opt_topics_per_rtf > 0);
+        rtf_build_filename(filename, ctx->opt_topics_per_rtf > 0);
         rtf = helpdeco_fopen(filename, "wt");
         if (rtf) {
-          FontLoadRTF(HelpFile, rtf, hpj);
+          rtf_load_font(HelpFile, rtf, hpj);
           helpdeco_logf("Pass 2...\n");
           fprintf(hpj, "[FILES]\n%s\n\n", filename);
-          rtf = TopicDumpRTF(HelpFile, rtf, hpj, FALSE);
+          rtf = rtf_dump(HelpFile, rtf, hpj, FALSE);
           putc('}', rtf);
           putc('\n', stderr);
           helpdeco_fclose(rtf);
@@ -6367,11 +6387,11 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
       ctx->exportplain = TRUE;
       ExportBitmaps(HelpFile);
       helpdeco_load_phrases(HelpFile);
-      BuildRTFName(filename, ctx->opt_topics_per_rtf > 0);
+      rtf_build_filename(filename, ctx->opt_topics_per_rtf > 0);
       rtf = helpdeco_fopen(filename, "wt");
       if (rtf) {
-        FontLoadRTF(HelpFile, rtf, NULL);
-        rtf = TopicDumpRTF(HelpFile, rtf, NULL, TRUE);
+        rtf_load_font(HelpFile, rtf, NULL);
+        rtf = rtf_dump(HelpFile, rtf, NULL, TRUE);
         putc('}', rtf);
         putc('\n', stderr);
         helpdeco_fclose(rtf);

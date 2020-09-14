@@ -306,20 +306,6 @@ BOOL GetBit(FILE *f) {
   }
   return (value & mask) != 0;
 }
-/* output str to RTF file, escaping necessary characters */
-void putrtf(FILE *rtf, const char *str) {
-  if (rtf)
-    while (*str) {
-      if (*str == '{' || *str == '}' || *str == '\\') {
-        putc('\\', rtf);
-        putc(*str++, rtf);
-      } else if (isprint((unsigned char)*str)) {
-        putc(*str++, rtf);
-      } else {
-        fprintf(rtf, "\\'%02x", (unsigned char)*str++);
-      }
-    }
-}
 
 /* scan-functions for reading compressed values from LinkData1 */
 int16_t scanint(char **ptr) /* scan a compressed short */

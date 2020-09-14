@@ -24,6 +24,15 @@ http://www.gnu.org
 char *phrase_print(unsigned_legacy_int PhraseNum, char *out, FILE *f);
 char *phrase_expand(unsigned char *str, legacy_long len, char *out);
 
+void rtf_puts(FILE *rtf, const char *str);
+void rtf_load_font(FILE *HelpFile, FILE *rtf, FILE *hpj);
+void rtf_change_font(FILE *rtf, unsigned_legacy_int i, BOOL ul, BOOL uldb);
+void rtf_build_filename(char *buffer, legacy_int topic);
+void rtf_annotate(legacy_long pos, FILE *rtf);
+void rtf_list_keywords(FILE *HelpFile, FILE *rtf, legacy_long TopicOffset);
+void rtf_add_footnotes(FILE *rtf, legacy_long TopicNum, uint32_t BrowseNum);
+FILE *rtf_dump(FILE *HelpFile, FILE *rtf, FILE *hpj, BOOL makertf);
+
 BOOL html_dump(FILE *HelpFile, FILE *__html_output);
 void html_change_font(FILE *rtf, unsigned_legacy_int i, BOOL ul, BOOL uldb);
 const char *html_font_name(HELPDECO_CTX *ctx, legacy_int id);
