@@ -4013,12 +4013,10 @@ void hpj_dump_system(FILE* HelpFile, FILE* hpj, char* IconFileName)
 
 #pragma mark -
 #pragma mark HTML Output
-BOOL html_dump(FILE* HelpFile, FILE* __html_output)
-{
-#if 0
+#if !DEBUG
 #include <stdio.h>
 char debug_buffer[4096];
-FILE *dev_null = fopen("/dev/null", "w");
+FILE* dev_null = fopen("/dev/null", "w");
 #define __rtf_output dev_null
 #else
 #define __rtf_output __html_output
@@ -4034,13 +4032,39 @@ FILE *dev_null = fopen("/dev/null", "w");
 #define rtf_puts(str) rtf_printf("%s", str)
 #define rtf_putc(c) rtf_printf("%c", c)
 
+BOOL html_dump_begin_topic(FILE* HelpFile, FILE* __html_output, int topic)
+{
+    if (topic) {
+        html_puts("</helpdeco-topic>");
+    }
+
+    html_printf("<helpdeco-topic id=\"topic-%d\">", topic);
+    return TRUE;
+}
+
+BOOL html_dump_display_30(FILE* HelpFile, FILE* __html_output)
+{
+    return TRUE;
+}
+
+BOOL html_dump_display(FILE* HelpFile, FILE* __html_output)
+{
+    return TRUE;
+}
+
+BOOL html_dump_table(FILE* HelpFile, FILE* __html_output)
+{
+    return TRUE;
+}
+
+BOOL html_dump(FILE* HelpFile, FILE* __html_output)
+{
     TOPICLINK TopicLink;
-    char* LinkData1; /* Data associated with this link */
-    char* LinkData2; /* Second set of data */
+    char* LinkData1 = NULL; /* Data associated with this link */
+    char* LinkData2 = NULL; /* Second set of data */
     legacy_int fontset;
     legacy_int NextContextRec;
     char* hotspot;
-    BOOL firsttopic = TRUE;
     BOOL ul, uldb;
     legacy_int nextbitmap, TopicInRTF, NumberOfRTF;
     legacy_long TopicNum, TopicOffset, TopicPos;
@@ -4061,8 +4085,9 @@ FILE *dev_null = fopen("/dev/null", "w");
 
     fontset = -1;
     nextbitmap = 1;
-    if (ctx->browse.entry)
+    if (ctx->browse.entry) {
         free(ctx->browse.entry);
+    }
     ctx->browse.entry = NULL;
     ctx->browse.count = 0;
     NextContextRec = 0;
@@ -4073,6 +4098,8 @@ FILE *dev_null = fopen("/dev/null", "w");
     TopicNum = 16;
     TopicInRTF = 0;
     NumberOfRTF = 1;
+    BOOL in_topic = FALSE;
+
     while (TopicRead(HelpFile, TopicPos, &TopicLink, sizeof(TopicLink)) == sizeof(TOPICLINK)) {
         if (ctx->before31) {
             if (TopicPos + TopicLink.NextBlock >= ctx->topic_file_length)
@@ -4081,50 +4108,66 @@ FILE *dev_null = fopen("/dev/null", "w");
             if (TopicLink.NextBlock <= 0)
                 break;
         }
+
         if (TopicLink.DataLen1 > sizeof(TOPICLINK)) {
             LinkData1 = helpdeco_malloc(TopicLink.DataLen1 - sizeof(TOPICLINK) + 1);
             if (TopicRead(HelpFile, 0, LinkData1,
                     TopicLink.DataLen1 - sizeof(TOPICLINK))
-                != TopicLink.DataLen1 - sizeof(TOPICLINK))
+                != TopicLink.DataLen1 - sizeof(TOPICLINK)) {
                 break;
-        } else
-            LinkData1 = NULL;
+            }
+        }
+
         if (TopicLink.DataLen1 < TopicLink.BlockSize) /* read LinkData2 using phrase replacement */
         {
             LinkData2 = helpdeco_malloc(TopicLink.DataLen2 + 1);
             if (topic_read_phrase(
                     HelpFile, 0, LinkData2, TopicLink.BlockSize - TopicLink.DataLen1,
                     TopicLink.DataLen2)
-                != TopicLink.BlockSize - TopicLink.DataLen1)
+                != TopicLink.BlockSize - TopicLink.DataLen1) {
                 break;
-        } else
-            LinkData2 = NULL;
+            }
+        }
+
+        if (LinkData1) {
+        }
 
         if (LinkData1 && TopicLink.RecordType == TL_TOPICHDR) /* display a Topic Header record */
         {
-            if (!firsttopic) {
-                // fputs("\\page\n",rtf); /* RTF: Required page break. */
-                html_puts("</span></p>");
-                html_puts("</helpdeco-topic>\n");
-            }
-            if (TopicLink.NextBlock != -1) {
-                html_puts("\n\n<helpdeco-topic><p><span>\n");
-            } else
-                firsttopic = FALSE;
-            firsttopic = FALSE;
             helpdeco_logf("\nTopic %ld...\n", TopicNum - 15);
+            if (TopicLink.NextBlock != -1) {
+                html_dump_begin_topic(HelpFile, __html_output, TopicNum - 15);
+                in_topic = TRUE;
+            }
+
             TopicNum++;
-        } else if (LinkData1 && LinkData2 && (TopicLink.RecordType == TL_DISPLAY30 || TopicLink.RecordType == TL_DISPLAY || TopicLink.RecordType == TL_TABLE)) {
+        }
+
+        if (LinkData1 && LinkData2 && TopicLink.RecordType == TL_DISPLAY30) {
+            html_dump_display_30(HelpFile, __html_output);
+        }
+
+        if (LinkData1 && LinkData2 && TopicLink.RecordType == TL_DISPLAY) {
+            html_dump_display(HelpFile, __html_output);
+        }
+
+        if (LinkData1 && LinkData2 && TopicLink.RecordType == TL_TABLE) {
+            html_dump_table(HelpFile, __html_output);
+        }
+
+        if (LinkData1 && LinkData2 && (TopicLink.RecordType == TL_DISPLAY30 || TopicLink.RecordType == TL_DISPLAY || TopicLink.RecordType == TL_TABLE)) {
             if (ctx->annotation_file)
                 rtf_annotate(TopicPos, __rtf_output);
             ptr = LinkData1;
             scanlong(&ptr);
+
             if (TopicLink.RecordType == TL_DISPLAY || TopicLink.RecordType == TL_TABLE) {
                 x1 = scanword(&ptr);
                 ActualTopicOffset = TopicOffset;
                 MaxTopicOffset = ActualTopicOffset + x1;
                 TopicOffset += x1;
             }
+
             if (TopicLink.RecordType == TL_TABLE) {
                 rtf_puts("\\trowd"); /* RTF: Sets table row defaults. */
                 cols = (unsigned char)*ptr++;
@@ -4135,7 +4178,7 @@ FILE *dev_null = fopen("/dev/null", "w");
                     l1 = *(int16_t*)ptr; /* min table width */
                     ptr += 2;
                     rtf_puts("\\trqc"); /* RTF: Centers a table row with respect to its
-                                 containing column. */
+                                             containing column. */
                     break;
                 case 1:
                 case 3:
@@ -4164,6 +4207,7 @@ FILE *dev_null = fopen("/dev/null", "w");
                 }
                 ptr = (char*)(iptr + 2 * cols);
             }
+
             lastcol = -1;
             str = LinkData2;
             for (col = 0; (TopicLink.RecordType == TL_TABLE ? *(int16_t*)ptr != -1
@@ -4181,37 +4225,68 @@ FILE *dev_null = fopen("/dev/null", "w");
                 ptr += 4;
                 x2 = *(uint16_t*)ptr;
                 ptr += 2;
-                if (x2 & 0x1000)
+
+                if (TopicLink.RecordType == TL_DISPLAY || TopicLink.RecordType == TL_DISPLAY30) {
+                    html_puts("<p style=\"display: block; ");
+                }
+
+                if (x2 & 0x1000) {
                     rtf_puts("\\keep"); /* RTF: Keep paragraph intact. */
-                if (x2 & 0x0400)
-                    rtf_puts("\\qr"); /* RTF: Right-aligned. */
-                if (x2 & 0x0800)
-                    rtf_puts("\\qc"); /* RTF: Centered. */
+                }
+
+                if (x2 & 0x0400) {
+                    html_puts("text-align: right;");
+                    // rtf_puts("\\qr"); /* RTF: Right-aligned. */
+                }
+
+                if (x2 & 0x0800) {
+                    html_puts("text-align: center;");
+                    // rtf_puts("\\qc"); /* RTF: Centered. */
+                }
+
                 if (x2 & 0x0001)
                     scanlong(&ptr);
-                if (x2 & 0x0002)
-                    rtf_printf("\\sb%ld",
-                        scanint(&ptr)); /* RTF: Space before (the default is 0). */
-                if (x2 & 0x0004)
-                    rtf_printf("\\sa%ld",
-                        scanint(&ptr)); /* RTF: Space after (the default is 0). */
-                if (x2 & 0x0008)
-                    rtf_printf("\\sl%ld", scanint(&ptr)); /* RTF: Space between lines. */
-                if (x2 & 0x0010)
-                    rtf_printf("\\li%ld",
-                        scanint(&ptr)); /* RTF: Left indent (the default is 0). */
-                if (x2 & 0x0020)
-                    rtf_printf("\\ri%ld",
-                        scanint(&ptr)); /* RTF: Right indent (the default is 0). */
-                if (x2 & 0x0040)
-                    rtf_printf(
-                        "\\fi%ld",
-                        scanint(&ptr)); /* RTF: First-line indent (the default is 0). */
+                if (x2 & 0x0002) {
+                    int16_t margin = scanint(&ptr);
+                    html_printf("margin-top: %dpx;", margin);
+                    // rtf_printf("\\sb%ld", margin); /* RTF: Space before (the default is 0). */
+                }
+                if (x2 & 0x0004) {
+                    int16_t margin = scanint(&ptr);
+                    html_printf("margin-bottom: %dpx;", margin);
+                    // rtf_printf("\\sa%ld", margin); /* RTF: Space after (the default is 0). */
+                }
+
+                if (x2 & 0x0008) {
+                    int16_t line_spacing = scanint(&ptr);
+                    html_printf("line-height: %dpx;", line_spacing);
+                    // rtf_printf("\\sl%ld", line_spacing); /* RTF: Space between lines. */
+                }
+
+                if (x2 & 0x0010) {
+                    int16_t margin = scanint(&ptr);
+                    html_printf("margin-left: %dpx;", margin);
+                    // rtf_printf("\\li%ld", margin); /* RTF: Left indent (the default is 0). */
+                }
+
+                if (x2 & 0x0020) {
+                    int16_t margin = scanint(&ptr);
+                    html_printf("margin-right: %dpx;", margin);
+                    // rtf_printf("\\ri%ld", margin); /* RTF: Right indent (the default is 0). */
+                }
+
+                if (x2 & 0x0040) {
+                    int16_t margin = scanint(&ptr);
+                    html_printf("text-indent: %dpx;", margin);
+                    // rtf_printf("\\fi%ld", scanint(&ptr)); /* RTF: First-line indent (the default is 0). */
+                }
+                html_puts("\">");
+
                 if (x2 & 0x0100) {
                     x1 = (unsigned char)*ptr++;
                     if (x1 & 1)
                         rtf_puts("\\box"); /* RTF: Border around the paragraph (box
-                                  paragraph). */
+                                            paragraph). */
                     if (x1 & 2)
                         rtf_puts("\\brdrt"); /* RTF: Border top. */
                     if (x1 & 4)
@@ -4224,11 +4299,12 @@ FILE *dev_null = fopen("/dev/null", "w");
                         rtf_puts("\\brdrth");
                     else
                         rtf_puts("\\brdrs"); /* RTF: Double-thickness border. else RTF:
-                                    Single-thickness border. */
+                                              Single-thickness border. */
                     if (x1 & 0x40)
                         rtf_puts("\\brdrdb"); /* RTF: Double border. */
                     ptr += 2;
                 }
+
                 if (x2 & 0x0200) {
                     y1 = scanint(&ptr);
                     while (y1-- > 0) {
@@ -4245,19 +4321,24 @@ FILE *dev_null = fopen("/dev/null", "w");
                         }
                         rtf_printf("\\tx%ld",
                             (x1 & 0x3FFF) * ctx->scaling - ctx->rounderr); /* RTF: Tab position in twips from
-                                              the left margin. */
+                                                                                   the left margin. */
                     }
                 }
 
-                while (
-                    1) /* ptr<LinkData1+TopicLink.DataLen1-sizeof(TOPICLINK)&&str<end)
-                */
+                while (1) /* ptr<LinkData1+TopicLink.DataLen1-sizeof(TOPICLINK)&&str<end)
+                           */
                 {
                     if (*str && fontset >= 0 && fontset < ctx->font.count && ctx->font.entry && ctx->font.entry[fontset].SmallCaps)
                         strlwr(str);
                     do {
                         if (*str) {
-                            if (*str == '<') {
+                            if (*str == '\r') {
+                                html_puts("<br>");
+                            } else if (*str == '\n') {
+                                html_puts("<br>");
+                            } else if (*str == '&') {
+                                html_puts("&amp;");
+                            } else if (*str == '<') {
                                 html_puts("&lt;");
                             } else if (*str == '>') {
                                 html_puts("&gt;");
@@ -4273,6 +4354,7 @@ FILE *dev_null = fopen("/dev/null", "w");
                         if (ActualTopicOffset < MaxTopicOffset)
                             ActualTopicOffset++;
                     } while (*str++);
+
                     if ((unsigned char)ptr[0] == 0xFF) {
                         ptr++;
                         break;
@@ -4301,7 +4383,7 @@ FILE *dev_null = fopen("/dev/null", "w");
                             break;
                         case 0x81:
                             html_puts("<br>"); // rtf_puts("\\line\n"); /* RTF: Required line
-                                // break (no paragraph break). */
+                            // break (no paragraph break). */
                             ptr++;
                             break;
                         case 0x82:
@@ -4316,13 +4398,13 @@ FILE *dev_null = fopen("/dev/null", "w");
                                     rtf_puts("\\cell\\pard ");
                                 }
                             } else {
-                                // rtf_puts("\n\\par "); /* RTF: End of paragraph. */
+                                html_puts("<br>"); // rtf_puts("\n\\par "); /* RTF: End of paragraph. */
                             }
                             ptr++;
                             break;
                         case 0x83:
                             fputs("&#9;", __html_output); // rtf_puts("\\tab "); /* RTF: Tab
-                                // character. */
+                            // character. */
                             ptr++;
                             break;
                         case 0x86:
@@ -4374,14 +4456,14 @@ FILE *dev_null = fopen("/dev/null", "w");
                                 other:
                                     switch (x3) {
                                     case 0x86:
-                                        rtf_puts("{\\field {\\*\\fldinst");
-                                        html_printf("<img src=\"%s\">", getbitmapname(x2));
-                                        rtf_puts("}}");
+                                        // rtf_puts("{\\field {\\*\\fldinst");
+                                        html_printf("<img src=\"%s\" style=\"margin: 5px;\">", getbitmapname(x2));
+                                        // rtf_puts("}}");
                                         break;
                                     case 0x87:
-                                        rtf_printf("{\\pvpara {\\field {\\*\\fldinst\n");
-                                        html_printf("<img src=\"%s\">", getbitmapname(x2));
-                                        rtf_puts("}}\\par}");
+                                        // rtf_printf("{\\pvpara {\\field {\\*\\fldinst\n");
+                                        html_printf("<img style=\"margin: 5px;float: left;\" src=\"%s\">", getbitmapname(x2));
+                                        // rtf_puts("}}\\par}");
                                         break;
                                     case 0x88:
                                         rtf_printf("{\\pvpara\\posxr{\\field {\\*\\fldinst");
@@ -4473,23 +4555,34 @@ FILE *dev_null = fopen("/dev/null", "w");
                             ptr += *(int16_t*)(ptr + 1) + 3;
                             break;
                         case 0x8B:
-                            rtf_puts("\\~");
+                            // rtf_puts("\\~"); /* RTF: Nonbreaking space. */
+                            html_puts("&nbsp;");
                             ptr++;
                             break;
                         case 0x8C:
-                            rtf_puts("\\-");
+                            // rtf_puts("\\-"); /* RTF: Optional hyphen. */
+                            html_puts("&shy;");
                             ptr++;
                             break;
                         default:
+                            helpdeco_warnf("Unhandled 0x%02x\n", ptr[0]);
                             ptr++;
                         }
                 }
             }
+
+            html_puts("</p>");
         }
-        if (LinkData1)
+
+        if (LinkData1) {
             free(LinkData1);
-        if (LinkData2)
+            LinkData1 = NULL;
+        }
+
+        if (LinkData2) {
             free(LinkData2);
+            LinkData2 = NULL;
+        }
 
         if (ctx->before31) {
             TopicPos += TopicLink.NextBlock;
@@ -4497,6 +4590,10 @@ FILE *dev_null = fopen("/dev/null", "w");
             TopicOffset = NextTopicOffset(TopicOffset, TopicLink.NextBlock, TopicPos);
             TopicPos = TopicLink.NextBlock;
         }
+    }
+
+    if (in_topic) {
+        html_puts("</span></p></helpdeco-topic>\n");
     }
 
 #ifdef dev_null
@@ -4509,29 +4606,25 @@ FILE *dev_null = fopen("/dev/null", "w");
 void html_change_font(FILE* rtf, unsigned_legacy_int i, BOOL ul, BOOL uldb)
 {
     FONTDESCRIPTOR* f;
-    legacy_long pos;
     FILE* __html_output = rtf;
 
-    fprintf(__html_output, "</span>");
-    fprintf(__html_output, "<span");
+    html_puts("</span>");
+    html_puts("<span");
     if (i < ctx->font.count) {
-        pos = ftell(rtf);
         f = ctx->font.entry + i;
+        html_printf(" class=\"font-%d\"", i);
         if (f->style) {
-            // fprintf(rtf,"\\plain\\cs%d",f->style+9);
-            fprintf(__html_output, " style=\"");
-            if (uldb)
-                fprintf(__html_output, "text-decoration: underline;border-bottom: 1px "
-                                       "solid #000;"); // fputs("\\uldb",rtf);
-            else if (ul)
-                fprintf(__html_output,
-                    "text-decoration: underline;"); // fputs("\\ul",rtf);
-            fprintf(__html_output, "\"");
-        } else {
-            fprintf(__html_output, " class=\"font-%d\"", i);
+            html_puts(" style=\"");
+            if (uldb) {
+                html_puts("text-decoration: underline;");
+                html_puts("border-bottom: 1px solid #000;");
+            } else if (ul) {
+                html_puts("text-decoration: underline;");
+            }
+            html_puts("\"");
         }
     }
-    fprintf(__html_output, ">");
+    html_puts(">");
 }
 
 const char* html_font_name(HELPDECO_CTX* ctx, legacy_int id)
@@ -6031,7 +6124,7 @@ FILE* rtf_dump(FILE* HelpFile, FILE* rtf, FILE* hpj, BOOL makertf)
                                     }
                                     arg = unhash(
                                         *(legacy_long*)(ptr + 4)); // no ContextId, it may jump
-                                        // into external file
+                                    // into external file
                                     switch ((unsigned char)ptr[3]) {
                                     case 0:
                                         hotspot = helpdeco_realloc(hotspot, strlen(cmd) + strlen(arg) + 1);
