@@ -28,6 +28,7 @@ http://www.gnu.org
 static char topic_title[256];
 static char scratch_buffer[4096];
 static char keyword[512];
+static unsigned char bas64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 /* necessary compiler options for 16 bit version using Borland C/C++:
 //   bcc -ml -K -Os -p helpdeco.c helpdec1.c
@@ -581,7 +582,7 @@ void SysLoad(FILE* HelpFile) /* gets global values from SYSTEM file */
 
   GRAPHICS STUFF
   ==============
-  ExtractBitmap(..) extracts the graphics stored as |bmXXX in the Windows
+  Bitmap_extract(..) extracts the graphics stored as |bmXXX in the Windows
   HelpFile to separate files. In this version multiple resolution pictures
   (with and without hotspots) are saved as MRB's, pictures with hotspots are
   converted to the SHG-format, single resolution Bitmaps without hotspots
@@ -1042,368 +1043,6 @@ void CheckMacro(char* ptr)
         if (!CheckMacroX(temp))
             fprintf(stderr, "Bad macro: %s\n", ptr);
         free(temp);
-    }
-}
-
-/* check hotspot info of bitmap for topic names and external references and
-// extract (write to file) if checkexternal not set, write out first bitmap
-// or metafile only (no SHG/MRB) if exportplain (create lookalike rtf) set */
-legacy_int ExtractBitmap(char* szFilename, MFILE* f)
-{
-    FILE* fTarget;
-    char* filename;
-    legacy_int type;
-    unsigned_legacy_int i, n, j;
-    unsigned char byType, byPacked;
-    legacy_long l, pos = 0, offset = 0, nextpict, FileStart;
-    BITMAPFILEHEADER bmfh;
-    BITMAPINFOHEADER bmih;
-    APMFILEHEADER afh;
-    uint16_t* wp;
-    uint16_t wMagic, mapmode = 0, colors = 0;
-    uint32_t dwRawSize = 0, dwDataSize, dwHotspotOffset, dwOffsBitmap,
-             dwHotspotSize, dwPictureOffset, xPels = 0, yPels = 0;
-
-    FileStart = f->tell(f);
-    wMagic = mfile_get_word(f);
-    if (wMagic != 0x506C /* SHG */ && wMagic != 0x706C /* MRB */) {
-        error("Unknown magic 0x%04X (%c%c)", wMagic, wMagic & 0x00FF, wMagic >> 8);
-        return 0;
-    }
-    fTarget = NULL;
-    n = mfile_get_word(f);
-    type = !ctx->exportplain && n > 1; /* contains multiple resolutions */
-    /* do not depend on wMagic, because it is sometimes incorrect */
-    nextpict = 4 + 4 * n;
-    for (j = 0; j < n; j++) {
-        f->seek(f, FileStart + 4 + 4 * j);
-        dwOffsBitmap = mfile_get_dword(f);
-        f->seek(f, FileStart + dwOffsBitmap);
-        byType = f->get(f); /* type of picture: 5=DDB, 6=DIB, 8=METAFILE */
-        byPacked = f->get(f); /* packing method: 0=unpacked, 1=RunLen, 2=LZ77, 3=both */
-        if ((byType == 6 && byPacked < 4) || (byType == 5 && byPacked < 2)) {
-            type |= 2; /* contains bitmap */
-            memset(&bmfh, 0, sizeof(bmfh));
-            memset(&bmih, 0, sizeof(bmih));
-            bmfh.bfType = 0x4D42; /* bitmap magic ("BM") */
-            bmih.biSize = sizeof(bmih);
-            xPels = mfile_get_cdword(f);
-            /* HC30 doesn't like certain PelsPerMeter */
-            if (!ctx->before31)
-                bmih.biXPelsPerMeter = (xPels * 79 + 1) / 2;
-            yPels = mfile_get_cdword(f);
-            if (!ctx->before31)
-                bmih.biYPelsPerMeter = (yPels * 79 + 1) / 2;
-            bmih.biPlanes = mfile_get_cword(f);
-            bmih.biBitCount = mfile_get_cword(f);
-            bmih.biWidth = mfile_get_cdword(f);
-            bmih.biHeight = mfile_get_cdword(f);
-            colors = (legacy_int)(bmih.biClrUsed = mfile_get_cdword(f));
-            if (!colors)
-                colors = (uint16_t)1 << bmih.biBitCount;
-            bmih.biClrImportant = mfile_get_cdword(f);
-            if (ctx->after31 && bmih.biClrImportant == 1)
-                type |= 0x20; /* contains transparent bitmap */
-            dwDataSize = mfile_get_cdword(f);
-            dwHotspotSize = mfile_get_cdword(f);
-            dwPictureOffset = mfile_get_dword(f);
-            dwHotspotOffset = mfile_get_dword(f);
-            if ((ctx->exportplain || n == 1) && (dwHotspotOffset == 0 || dwHotspotSize == 0)) {
-                if (ctx->checkexternal)
-                    break;
-                strcat(szFilename, ".bmp");
-                fTarget = helpdeco_fopen(szFilename, "wb");
-                if (fTarget) {
-                    fwrite(&bmfh, 1, sizeof(bmfh), fTarget);
-                    fwrite(&bmih, 1, sizeof(bmih), fTarget);
-                    if (byType == 6) {
-                        mfile_copy_bytes(f, colors * 4, fTarget);
-                    } else {
-                        helpdeco_putdw(0x000000, fTarget);
-                        helpdeco_putdw(0xFFFFFF, fTarget);
-                    }
-                    bmfh.bfOffBits = sizeof(bmfh) + sizeof(bmih) + colors * 4;
-                    bmih.biSizeImage = (((bmih.biWidth * bmih.biBitCount + 31) / 32) * 4) * bmih.biHeight;
-                    if (byType == 5) /* convert DDB to DIB */
-                    {
-                        legacy_long width, length;
-                        unsigned char count, value;
-                        legacy_int pad;
-
-                        width = ((bmih.biWidth * bmih.biBitCount + 15) / 16) * 2;
-                        pad = (legacy_int)(((width + 3) / 4) * 4 - width);
-                        count = value = 0;
-                        for (l = 0; l < bmih.biHeight; l++) {
-                            if (byPacked == 1) {
-                                for (length = 0; length < width; length++) {
-                                    if ((count & 0x7F) == 0) {
-                                        count = f->get(f);
-                                        value = f->get(f);
-                                    } else if (count & 0x80) {
-                                        value = f->get(f);
-                                    }
-                                    putc(value, fTarget);
-                                    count--;
-                                }
-                            } else {
-                                mfile_copy_bytes(f, width, fTarget);
-                            }
-                            if (pad)
-                                fwrite(scratch_buffer, pad, 1, fTarget);
-                        }
-                    } else {
-                        mfile_decompress_into_file(byPacked, f, dwDataSize, fTarget);
-                    }
-                    /* update bitmap headers */
-                    bmfh.bfSize = ftell(fTarget);
-                    fseek(fTarget, 0, SEEK_SET);
-                    fwrite(&bmfh, 1, sizeof(bmfh), fTarget);
-                    fwrite(&bmih, 1, sizeof(bmih), fTarget);
-                }
-                break;
-            }
-        } else if (byType == 8 && byPacked < 4) /* Windows MetaFile */
-        {
-            type |= 4; /* contains metafile */
-            memset(&afh, 0, sizeof(afh));
-            mapmode = mfile_get_cword(f); /* mapping mode */
-            afh.rcBBox.right = mfile_get_word(f); /* width of metafile-picture */
-            afh.rcBBox.bottom = mfile_get_word(f); /* height of metafile-picture */
-            dwRawSize = mfile_get_cdword(f);
-            dwDataSize = mfile_get_cdword(f);
-            dwHotspotSize = mfile_get_cdword(f);
-            dwPictureOffset = mfile_get_dword(f);
-            dwHotspotOffset = mfile_get_dword(f);
-            if ((ctx->exportplain || n == 1) && (dwHotspotOffset == 0 || dwHotspotSize == 0)) {
-                if (ctx->checkexternal)
-                    break;
-                afh.dwKey = 0x9AC6CDD7;
-                afh.wInch = 2540;
-                wp = (uint16_t*)&afh;
-                for (i = 0; i < 10; i++)
-                    afh.wChecksum ^= *wp++;
-                strcat(szFilename, ".wmf");
-                fTarget = helpdeco_fopen(szFilename, "wb");
-                if (fTarget) {
-                    fwrite(&afh, 1, sizeof(afh), fTarget);
-                    mfile_decompress_into_file(byPacked, f, dwDataSize, fTarget);
-                }
-                break;
-            }
-        } else {
-            error("Unknown format (%d) or packing method (%d)", byType, byPacked);
-            break;
-        }
-        type |= 8; /* contains hotspot info (set before accessing bmpext) */
-        if (!ctx->checkexternal) {
-            if (!fTarget) {
-                strcat(szFilename, ".");
-                strcat(szFilename, bmpext[type & 0x0F]);
-                fTarget = helpdeco_fopen(szFilename, "wb");
-                if (!fTarget)
-                    break;
-                helpdeco_putw(wMagic, fTarget);
-                helpdeco_putw(n, fTarget);
-            }
-            fseek(fTarget, 4 + 4 * j, SEEK_SET);
-            helpdeco_putdw(nextpict, fTarget);
-            fseek(fTarget, nextpict, SEEK_SET);
-            putc(byType, fTarget);
-            if (ctx->opt_exportLZ77) {
-                putc(byPacked, fTarget);
-            } else {
-                putc(byPacked & 1, fTarget);
-            }
-            if (byType == 8) {
-                helpdeco_putcw(mapmode, fTarget); /* mapping mode */
-                helpdeco_putw(afh.rcBBox.right, fTarget); /* width of metafile-picture */
-                helpdeco_putw(afh.rcBBox.bottom, fTarget); /* height of metafile-picture */
-                helpdeco_putcdw(dwRawSize, fTarget);
-            } else {
-                helpdeco_putcdw(xPels, fTarget);
-                helpdeco_putcdw(yPels, fTarget);
-                helpdeco_putcw(bmih.biPlanes, fTarget);
-                helpdeco_putcw(bmih.biBitCount, fTarget);
-                helpdeco_putcdw(bmih.biWidth, fTarget);
-                helpdeco_putcdw(bmih.biHeight, fTarget);
-                helpdeco_putcdw(bmih.biClrUsed, fTarget);
-                helpdeco_putcdw(bmih.biClrImportant, fTarget);
-            }
-            pos = ftell(fTarget);
-            helpdeco_putdw(0, fTarget); /* changed later ! */
-            helpdeco_putdw(0, fTarget); /* changed later ! */
-            helpdeco_putdw(0, fTarget); /* changed later ! */
-            helpdeco_putdw(0, fTarget); /* changed later ! */
-            if (byType == 6)
-                mfile_copy_bytes(f, colors * 4, fTarget);
-            offset = ftell(fTarget);
-            f->seek(f, FileStart + dwOffsBitmap + dwPictureOffset);
-            if (ctx->opt_exportLZ77) {
-                dwDataSize = mfile_copy_bytes(f, dwDataSize, fTarget);
-            } else {
-                dwDataSize = mfile_decompress_into_file(byPacked & 2, f, dwDataSize, fTarget);
-            }
-        }
-        if (dwHotspotSize) {
-            f->seek(f, FileStart + dwOffsBitmap + dwHotspotOffset);
-            if (f->get(f) != 1) {
-                fputs("No hotspots\n", stderr);
-                dwHotspotSize = 0;
-            } else {
-                unsigned_legacy_int hotspots, n, j, l;
-                uint32_t MacroDataSize;
-                char* ptr;
-                HOTSPOT* hotspot;
-
-                hotspots = mfile_get_word(f);
-                MacroDataSize = mfile_get_dword(f);
-                hotspot = helpdeco_malloc(hotspots * sizeof(HOTSPOT));
-                f->read(f, hotspot, sizeof(HOTSPOT) * hotspots);
-                if (ctx->checkexternal) {
-                    while (MacroDataSize-- > 0)
-                        f->get(f);
-                } else {
-                    putc(1, fTarget);
-                    helpdeco_putw(hotspots, fTarget);
-                    helpdeco_putdw(MacroDataSize, fTarget);
-                    fwrite(hotspot, sizeof(HOTSPOT), hotspots, fTarget);
-                    if (MacroDataSize)
-                        mfile_copy_bytes(f, MacroDataSize, fTarget);
-                }
-                for (n = 0; n < hotspots; n++) {
-                    j = mfile_read_string(scratch_buffer, sizeof(scratch_buffer), f) + 1;
-                    l = j + mfile_read_string(scratch_buffer + j, sizeof(scratch_buffer) - j, f) + 1;
-                    if (fTarget)
-                        fwrite(scratch_buffer, l, 1, fTarget);
-                    if (ctx->opt_extractmacros)
-                        switch (hotspot[n].id0) {
-                        case 0xC8: /* macro (never seen) */
-                        case 0xCC: /* macro without font change */
-                            CheckMacro(scratch_buffer + j);
-                            break;
-                        case 0xE0: /* popup jump HC30 */
-                        case 0xE1: /* topic jump HC30 */
-                        case 0xE2: /* popup jump HC31 */
-                        case 0xE3: /* topic jump HC31 */
-                        case 0xE6: /* popup jump without font change */
-                        case 0xE7: /* topic jump without font change */
-                            if (hash(scratch_buffer + j) != hotspot[n].hash) {
-                                fprintf(stderr, "Wrong hash %08lx instead %08lx for '%s'\n",
-                                    hotspot[n].hash, hash(scratch_buffer + j),
-                                    scratch_buffer + j);
-                            }
-                            AddTopic(scratch_buffer + j, FALSE);
-                            break;
-                        case 0xEA: /* popup jump into external file */
-                        case 0xEB: /* topic jump into external file / secondary window */
-                        case 0xEE: /* popup jump into external file without font change */
-                        case 0xEF: /* topic jump into external file / secondary window
-                          without font change */
-                            if ((hotspot[n].id1 != 0 && hotspot[n].id1 != 1 && hotspot[n].id1 != 4 && hotspot[n].id1 != 6) || (hotspot[n].id2 != 0)) {
-                            } else {
-                                filename = strchr(scratch_buffer + j, '@');
-                                if (filename)
-                                    *filename++ = '\0';
-                                ptr = strchr(scratch_buffer + j, '>');
-                                if (ptr)
-                                    *ptr = '\0';
-                                if (filename) {
-                                    StoreReference(filename, TOPIC, scratch_buffer + j,
-                                        hash(scratch_buffer + j));
-                                } else {
-                                    AddTopic(scratch_buffer + j, FALSE);
-                                }
-                                break;
-                            }
-                        default:
-                            error("Unknown hotspot %02x %02x %02x X=%u Y=%u W=%u H=%u "
-                                  "%08lx,%s,%s",
-                                hotspot[n].id0, hotspot[n].id1, hotspot[n].id2,
-                                hotspot[n].x, hotspot[n].y, hotspot[n].w, hotspot[n].h,
-                                hotspot[n].hash, scratch_buffer, scratch_buffer + j);
-                        }
-                }
-                free(hotspot);
-                hotspot = NULL;
-            }
-        }
-        if (!ctx->checkexternal) {
-            dwPictureOffset = offset - nextpict;
-            nextpict = ftell(fTarget);
-            /* fix up some locations */
-            fseek(fTarget, pos, SEEK_SET);
-            helpdeco_putdw((dwDataSize << 1) + 1, fTarget);
-            helpdeco_putdw((dwHotspotSize << 1) + 1, fTarget);
-            helpdeco_putdw(dwPictureOffset, fTarget);
-            if (dwHotspotSize)
-                helpdeco_putdw(dwPictureOffset + dwDataSize, fTarget);
-        }
-    }
-    if (fTarget)
-        helpdeco_fclose(fTarget);
-    return type;
-}
-/****************************************************************************
-END OF GRAPHICS STUFF
-**************************************************************************/
-
-char* getbitmapname(
-    unsigned_legacy_int n) /* retrieve extension of exported bitmap n */
-{
-    static char name[12];
-
-    if (n < ctx->extension.count && ctx->extension.entry[n]) {
-        sprintf(name, "bm%u.%s", n, bmpext[ctx->extension.entry[n] & 0x0F]);
-    } else if (n == 65535U) {
-        ctx->missing = TRUE;
-        fputs("There was a picture file rejected on creation of helpfile.\n",
-            stderr);
-        strcpy(name, "missing.bmp");
-    } else /* should never happen */
-    {
-        ctx->warnings = TRUE;
-        fprintf(stderr, "Bitmap bm%u not exported\n", n);
-        sprintf(name, "bm%u.bmp", n);
-    }
-    return name;
-}
-
-void ExportBitmaps(FILE* HelpFile) /* export all bitmaps */
-{
-    BUFFER buf;
-    MFILE* mf;
-    char* leader;
-    char FileName[255];
-    legacy_long FileLength;
-    legacy_int i, num, n, type;
-    legacy_long savepos;
-
-    leader = &"|bm"[ctx->before31];
-    SearchFile(HelpFile, NULL, NULL);
-    for (n = GetFirstPage(HelpFile, &buf, NULL); n;
-         n = GetNextPage(HelpFile, &buf)) {
-        for (i = 0; i < n; i++) {
-            helpdeco_gets(FileName, sizeof(FileName), HelpFile);
-            helpdeco_getdw(HelpFile);
-            if (memcmp(FileName, leader, strlen(leader)) == 0) {
-                savepos = ftell(HelpFile);
-                if (SearchFile(HelpFile, FileName, &FileLength)) {
-                    mf = mfile_create_virtual(HelpFile);
-                    type = ExtractBitmap(FileName + (FileName[0] == '|'), mf);
-                    mfile_close(mf);
-                    if (type) {
-                        num = atoi(FileName + (FileName[0] == '|') + 2);
-                        if (num >= ctx->extension.count) {
-                            ctx->extension.entry = helpdeco_realloc(ctx->extension.entry, (num + 1) * sizeof(char));
-                            while (ctx->extension.count <= num)
-                                ctx->extension.entry[ctx->extension.count++] = 0;
-                        }
-                        ctx->extension.entry[num] = type;
-                    }
-                }
-                fseek(HelpFile, savepos, SEEK_SET);
-            }
-        }
     }
 }
 
@@ -3007,7 +2646,7 @@ void FirstPass(FILE* HelpFile)
                                     }
                                     sprintf(filename, "bm%u", x2);
                                     f = mfile_create_map(ptr + 2, l1 - 2);
-                                    x1 = ExtractBitmap(filename, f);
+                                    x1 = bitmap_extract(filename, f);
                                     mfile_close(f);
                                     ctx->extension.entry[x2] = x1 | 0x10;
                                     break;
@@ -3320,6 +2959,366 @@ void GenerateContent(
             }
         }
     }
+}
+
+void ExportBitmaps(FILE* HelpFile) /* export all bitmaps */
+{
+    BUFFER buf;
+    MFILE* mf;
+    char* prefix;
+    char FileName[255];
+    legacy_long FileLength;
+    legacy_int i, num, n, type;
+    legacy_long savepos;
+
+    prefix = &"|bm"[ctx->before31];
+    SearchFile(HelpFile, NULL, NULL);
+    for (n = GetFirstPage(HelpFile, &buf, NULL); n;
+         n = GetNextPage(HelpFile, &buf)) {
+        for (i = 0; i < n; i++) {
+            helpdeco_gets(FileName, sizeof(FileName), HelpFile);
+            helpdeco_getdw(HelpFile);
+            if (memcmp(FileName, prefix, strlen(prefix)) == 0) {
+                savepos = ftell(HelpFile);
+                if (SearchFile(HelpFile, FileName, &FileLength)) {
+                    mf = mfile_create_virtual(HelpFile);
+                    type = bitmap_extract(FileName + (FileName[0] == '|'), mf);
+                    mfile_close(mf);
+                    if (type) {
+                        num = atoi(FileName + (FileName[0] == '|') + 2);
+                        if (num >= ctx->extension.count) {
+                            ctx->extension.entry = helpdeco_realloc(ctx->extension.entry, (num + 1) * sizeof(char));
+                            while (ctx->extension.count <= num)
+                                ctx->extension.entry[ctx->extension.count++] = 0;
+                        }
+                        ctx->extension.entry[num] = type;
+                    }
+                }
+                fseek(HelpFile, savepos, SEEK_SET);
+            }
+        }
+    }
+}
+
+#pragma mark - Bitmaps
+
+/* check hotspot info of bitmap for topic names and external references and
+// extract (write to file) if checkexternal not set, write out first bitmap
+// or metafile only (no SHG/MRB) if exportplain (create lookalike rtf) set */
+legacy_int bitmap_extract(char* szFilename, MFILE* f)
+{
+    FILE* fTarget;
+    char* filename;
+    legacy_int type;
+    unsigned_legacy_int i, n, j;
+    unsigned char byType, byPacked;
+    legacy_long l, pos = 0, offset = 0, nextpict, FileStart;
+    BITMAPFILEHEADER bmfh;
+    BITMAPINFOHEADER bmih;
+    APMFILEHEADER afh;
+    uint16_t* wp;
+    uint16_t wMagic, mapmode = 0, colors = 0;
+    uint32_t dwRawSize = 0, dwDataSize, dwHotspotOffset, dwOffsBitmap,
+             dwHotspotSize, dwPictureOffset, xPels = 0, yPels = 0;
+
+    FileStart = f->tell(f);
+    wMagic = mfile_get_word(f);
+    if (wMagic != 0x506C /* SHG */ && wMagic != 0x706C /* MRB */) {
+        error("Unknown magic 0x%04X (%c%c)", wMagic, wMagic & 0x00FF, wMagic >> 8);
+        return 0;
+    }
+    fTarget = NULL;
+    n = mfile_get_word(f);
+    type = !ctx->exportplain && n > 1; /* contains multiple resolutions */
+    /* do not depend on wMagic, because it is sometimes incorrect */
+    nextpict = 4 + 4 * n;
+    for (j = 0; j < n; j++) {
+        f->seek(f, FileStart + 4 + 4 * j);
+        dwOffsBitmap = mfile_get_dword(f);
+        f->seek(f, FileStart + dwOffsBitmap);
+        byType = f->get(f); /* type of picture: 5=DDB, 6=DIB, 8=METAFILE */
+        byPacked = f->get(f); /* packing method: 0=unpacked, 1=RunLen, 2=LZ77, 3=both */
+        if ((byType == 6 && byPacked < 4) || (byType == 5 && byPacked < 2)) {
+            type |= 2; /* contains bitmap */
+            memset(&bmfh, 0, sizeof(bmfh));
+            memset(&bmih, 0, sizeof(bmih));
+            bmfh.bfType = 0x4D42; /* bitmap magic ("BM") */
+            bmih.biSize = sizeof(bmih);
+            xPels = mfile_get_cdword(f);
+            /* HC30 doesn't like certain PelsPerMeter */
+            if (!ctx->before31)
+                bmih.biXPelsPerMeter = (xPels * 79 + 1) / 2;
+            yPels = mfile_get_cdword(f);
+            if (!ctx->before31)
+                bmih.biYPelsPerMeter = (yPels * 79 + 1) / 2;
+            bmih.biPlanes = mfile_get_cword(f);
+            bmih.biBitCount = mfile_get_cword(f);
+            bmih.biWidth = mfile_get_cdword(f);
+            bmih.biHeight = mfile_get_cdword(f);
+            colors = (legacy_int)(bmih.biClrUsed = mfile_get_cdword(f));
+            if (!colors)
+                colors = (uint16_t)1 << bmih.biBitCount;
+            bmih.biClrImportant = mfile_get_cdword(f);
+            if (ctx->after31 && bmih.biClrImportant == 1)
+                type |= 0x20; /* contains transparent bitmap */
+            dwDataSize = mfile_get_cdword(f);
+            dwHotspotSize = mfile_get_cdword(f);
+            dwPictureOffset = mfile_get_dword(f);
+            dwHotspotOffset = mfile_get_dword(f);
+            if ((ctx->exportplain || n == 1) && (dwHotspotOffset == 0 || dwHotspotSize == 0)) {
+                if (ctx->checkexternal)
+                    break;
+                strcat(szFilename, ".bmp");
+                fTarget = helpdeco_fopen(szFilename, "wb");
+                if (fTarget) {
+                    fwrite(&bmfh, 1, sizeof(bmfh), fTarget);
+                    fwrite(&bmih, 1, sizeof(bmih), fTarget);
+                    if (byType == 6) {
+                        mfile_copy_bytes(f, colors * 4, fTarget);
+                    } else {
+                        helpdeco_putdw(0x000000, fTarget);
+                        helpdeco_putdw(0xFFFFFF, fTarget);
+                    }
+                    bmfh.bfOffBits = sizeof(bmfh) + sizeof(bmih) + colors * 4;
+                    bmih.biSizeImage = (((bmih.biWidth * bmih.biBitCount + 31) / 32) * 4) * bmih.biHeight;
+                    if (byType == 5) /* convert DDB to DIB */
+                    {
+                        legacy_long width, length;
+                        unsigned char count, value;
+                        legacy_int pad;
+
+                        width = ((bmih.biWidth * bmih.biBitCount + 15) / 16) * 2;
+                        pad = (legacy_int)(((width + 3) / 4) * 4 - width);
+                        count = value = 0;
+                        for (l = 0; l < bmih.biHeight; l++) {
+                            if (byPacked == 1) {
+                                for (length = 0; length < width; length++) {
+                                    if ((count & 0x7F) == 0) {
+                                        count = f->get(f);
+                                        value = f->get(f);
+                                    } else if (count & 0x80) {
+                                        value = f->get(f);
+                                    }
+                                    putc(value, fTarget);
+                                    count--;
+                                }
+                            } else {
+                                mfile_copy_bytes(f, width, fTarget);
+                            }
+                            if (pad)
+                                fwrite(scratch_buffer, pad, 1, fTarget);
+                        }
+                    } else {
+                        mfile_decompress_into_file(byPacked, f, dwDataSize, fTarget);
+                    }
+                    /* update bitmap headers */
+                    bmfh.bfSize = ftell(fTarget);
+                    fseek(fTarget, 0, SEEK_SET);
+                    fwrite(&bmfh, 1, sizeof(bmfh), fTarget);
+                    fwrite(&bmih, 1, sizeof(bmih), fTarget);
+                }
+                break;
+            }
+        } else if (byType == 8 && byPacked < 4) /* Windows MetaFile */
+        {
+            type |= 4; /* contains metafile */
+            memset(&afh, 0, sizeof(afh));
+            mapmode = mfile_get_cword(f); /* mapping mode */
+            afh.rcBBox.right = mfile_get_word(f); /* width of metafile-picture */
+            afh.rcBBox.bottom = mfile_get_word(f); /* height of metafile-picture */
+            dwRawSize = mfile_get_cdword(f);
+            dwDataSize = mfile_get_cdword(f);
+            dwHotspotSize = mfile_get_cdword(f);
+            dwPictureOffset = mfile_get_dword(f);
+            dwHotspotOffset = mfile_get_dword(f);
+            if ((ctx->exportplain || n == 1) && (dwHotspotOffset == 0 || dwHotspotSize == 0)) {
+                if (ctx->checkexternal)
+                    break;
+                afh.dwKey = 0x9AC6CDD7;
+                afh.wInch = 2540;
+                wp = (uint16_t*)&afh;
+                for (i = 0; i < 10; i++)
+                    afh.wChecksum ^= *wp++;
+                strcat(szFilename, ".wmf");
+                fTarget = helpdeco_fopen(szFilename, "wb");
+                if (fTarget) {
+                    fwrite(&afh, 1, sizeof(afh), fTarget);
+                    mfile_decompress_into_file(byPacked, f, dwDataSize, fTarget);
+                }
+                break;
+            }
+        } else {
+            error("Unknown format (%d) or packing method (%d)", byType, byPacked);
+            break;
+        }
+        type |= 8; /* contains hotspot info (set before accessing bmpext) */
+        if (!ctx->checkexternal) {
+            if (!fTarget) {
+                strcat(szFilename, ".");
+                strcat(szFilename, bmpext[type & 0x0F]);
+                fTarget = helpdeco_fopen(szFilename, "wb");
+                if (!fTarget)
+                    break;
+                helpdeco_putw(wMagic, fTarget);
+                helpdeco_putw(n, fTarget);
+            }
+            fseek(fTarget, 4 + 4 * j, SEEK_SET);
+            helpdeco_putdw(nextpict, fTarget);
+            fseek(fTarget, nextpict, SEEK_SET);
+            putc(byType, fTarget);
+            if (ctx->opt_exportLZ77) {
+                putc(byPacked, fTarget);
+            } else {
+                putc(byPacked & 1, fTarget);
+            }
+            if (byType == 8) {
+                helpdeco_putcw(mapmode, fTarget); /* mapping mode */
+                helpdeco_putw(afh.rcBBox.right, fTarget); /* width of metafile-picture */
+                helpdeco_putw(afh.rcBBox.bottom, fTarget); /* height of metafile-picture */
+                helpdeco_putcdw(dwRawSize, fTarget);
+            } else {
+                helpdeco_putcdw(xPels, fTarget);
+                helpdeco_putcdw(yPels, fTarget);
+                helpdeco_putcw(bmih.biPlanes, fTarget);
+                helpdeco_putcw(bmih.biBitCount, fTarget);
+                helpdeco_putcdw(bmih.biWidth, fTarget);
+                helpdeco_putcdw(bmih.biHeight, fTarget);
+                helpdeco_putcdw(bmih.biClrUsed, fTarget);
+                helpdeco_putcdw(bmih.biClrImportant, fTarget);
+            }
+            pos = ftell(fTarget);
+            helpdeco_putdw(0, fTarget); /* changed later ! */
+            helpdeco_putdw(0, fTarget); /* changed later ! */
+            helpdeco_putdw(0, fTarget); /* changed later ! */
+            helpdeco_putdw(0, fTarget); /* changed later ! */
+            if (byType == 6)
+                mfile_copy_bytes(f, colors * 4, fTarget);
+            offset = ftell(fTarget);
+            f->seek(f, FileStart + dwOffsBitmap + dwPictureOffset);
+            if (ctx->opt_exportLZ77) {
+                dwDataSize = mfile_copy_bytes(f, dwDataSize, fTarget);
+            } else {
+                dwDataSize = mfile_decompress_into_file(byPacked & 2, f, dwDataSize, fTarget);
+            }
+        }
+        if (dwHotspotSize) {
+            f->seek(f, FileStart + dwOffsBitmap + dwHotspotOffset);
+            if (f->get(f) != 1) {
+                fputs("No hotspots\n", stderr);
+                dwHotspotSize = 0;
+            } else {
+                unsigned_legacy_int hotspots, n, j, l;
+                uint32_t MacroDataSize;
+                char* ptr;
+                HOTSPOT* hotspot;
+
+                hotspots = mfile_get_word(f);
+                MacroDataSize = mfile_get_dword(f);
+                hotspot = helpdeco_malloc(hotspots * sizeof(HOTSPOT));
+                f->read(f, hotspot, sizeof(HOTSPOT) * hotspots);
+                if (ctx->checkexternal) {
+                    while (MacroDataSize-- > 0)
+                        f->get(f);
+                } else {
+                    putc(1, fTarget);
+                    helpdeco_putw(hotspots, fTarget);
+                    helpdeco_putdw(MacroDataSize, fTarget);
+                    fwrite(hotspot, sizeof(HOTSPOT), hotspots, fTarget);
+                    if (MacroDataSize)
+                        mfile_copy_bytes(f, MacroDataSize, fTarget);
+                }
+                for (n = 0; n < hotspots; n++) {
+                    j = mfile_read_string(scratch_buffer, sizeof(scratch_buffer), f) + 1;
+                    l = j + mfile_read_string(scratch_buffer + j, sizeof(scratch_buffer) - j, f) + 1;
+                    if (fTarget)
+                        fwrite(scratch_buffer, l, 1, fTarget);
+                    if (ctx->opt_extractmacros)
+                        switch (hotspot[n].id0) {
+                        case 0xC8: /* macro (never seen) */
+                        case 0xCC: /* macro without font change */
+                            CheckMacro(scratch_buffer + j);
+                            break;
+                        case 0xE0: /* popup jump HC30 */
+                        case 0xE1: /* topic jump HC30 */
+                        case 0xE2: /* popup jump HC31 */
+                        case 0xE3: /* topic jump HC31 */
+                        case 0xE6: /* popup jump without font change */
+                        case 0xE7: /* topic jump without font change */
+                            if (hash(scratch_buffer + j) != hotspot[n].hash) {
+                                fprintf(stderr, "Wrong hash %08lx instead %08lx for '%s'\n",
+                                    hotspot[n].hash, hash(scratch_buffer + j),
+                                    scratch_buffer + j);
+                            }
+                            AddTopic(scratch_buffer + j, FALSE);
+                            break;
+                        case 0xEA: /* popup jump into external file */
+                        case 0xEB: /* topic jump into external file / secondary window */
+                        case 0xEE: /* popup jump into external file without font change */
+                        case 0xEF: /* topic jump into external file / secondary window
+                          without font change */
+                            if ((hotspot[n].id1 != 0 && hotspot[n].id1 != 1 && hotspot[n].id1 != 4 && hotspot[n].id1 != 6) || (hotspot[n].id2 != 0)) {
+                            } else {
+                                filename = strchr(scratch_buffer + j, '@');
+                                if (filename)
+                                    *filename++ = '\0';
+                                ptr = strchr(scratch_buffer + j, '>');
+                                if (ptr)
+                                    *ptr = '\0';
+                                if (filename) {
+                                    StoreReference(filename, TOPIC, scratch_buffer + j,
+                                        hash(scratch_buffer + j));
+                                } else {
+                                    AddTopic(scratch_buffer + j, FALSE);
+                                }
+                                break;
+                            }
+                        default:
+                            error("Unknown hotspot %02x %02x %02x X=%u Y=%u W=%u H=%u "
+                                  "%08lx,%s,%s",
+                                hotspot[n].id0, hotspot[n].id1, hotspot[n].id2,
+                                hotspot[n].x, hotspot[n].y, hotspot[n].w, hotspot[n].h,
+                                hotspot[n].hash, scratch_buffer, scratch_buffer + j);
+                        }
+                }
+                free(hotspot);
+                hotspot = NULL;
+            }
+        }
+        if (!ctx->checkexternal) {
+            dwPictureOffset = offset - nextpict;
+            nextpict = ftell(fTarget);
+            /* fix up some locations */
+            fseek(fTarget, pos, SEEK_SET);
+            helpdeco_putdw((dwDataSize << 1) + 1, fTarget);
+            helpdeco_putdw((dwHotspotSize << 1) + 1, fTarget);
+            helpdeco_putdw(dwPictureOffset, fTarget);
+            if (dwHotspotSize)
+                helpdeco_putdw(dwPictureOffset + dwDataSize, fTarget);
+        }
+    }
+    if (fTarget)
+        helpdeco_fclose(fTarget);
+    return type;
+}
+
+/* retrieve extension of exported bitmap n */
+char* bitmap_export_name(unsigned_legacy_int n)
+{
+    static char name[12];
+
+    if (n < ctx->extension.count && ctx->extension.entry[n]) {
+        sprintf(name, "bm%u.%s", n, bmpext[ctx->extension.entry[n] & 0x0F]);
+    } else if (n == 65535U) {
+        ctx->missing = TRUE;
+        helpdeco_warnf("There was a picture file rejected on creation of helpfile.\n");
+        strcpy(name, "missing.bmp");
+    } else /* should never happen */
+    {
+        ctx->warnings = TRUE;
+        helpdeco_warnf("Bitmap bm%u not exported\n", n);
+        sprintf(name, "bm%u.bmp", n);
+    }
+    return name;
 }
 
 #pragma mark - Phrases
@@ -4013,7 +4012,7 @@ void hpj_dump_system(FILE* HelpFile, FILE* hpj, char* IconFileName)
 
 #pragma mark -
 #pragma mark HTML Output
-#if !DEBUG
+#if 0
 #include <stdio.h>
 char debug_buffer[4096];
 FILE* dev_null = fopen("/dev/null", "w");
@@ -4057,7 +4056,7 @@ BOOL html_dump_table(FILE* HelpFile, FILE* __html_output)
     return TRUE;
 }
 
-BOOL html_dump(FILE* HelpFile, FILE* __html_output)
+BOOL html_dump(FILE* HelpFile, FILE* __html_output, BOOL inline_bitmaps)
 {
     TOPICLINK TopicLink;
     char* LinkData1 = NULL; /* Data associated with this link */
@@ -4457,17 +4456,34 @@ BOOL html_dump(FILE* HelpFile, FILE* __html_output)
                                     switch (x3) {
                                     case 0x86:
                                         // rtf_puts("{\\field {\\*\\fldinst");
-                                        html_printf("<img src=\"%s\" style=\"margin: 5px;\">", getbitmapname(x2));
+                                        html_printf("<img style=\"margin: 5px;\" src=\"");
+                                        if (inline_bitmaps) {
+                                            html_dump_bitmap(HelpFile, __html_output, x2);
+                                        } else {
+                                            html_puts(bitmap_export_name(x2));
+                                        }
+                                        html_puts("\">");
                                         // rtf_puts("}}");
                                         break;
                                     case 0x87:
                                         // rtf_printf("{\\pvpara {\\field {\\*\\fldinst\n");
-                                        html_printf("<img style=\"margin: 5px;float: left;\" src=\"%s\">", getbitmapname(x2));
+                                        html_printf("<img style=\"margin: 5px;float: left;\" src=\"");
+                                        if (inline_bitmaps) {
+                                            html_dump_bitmap(HelpFile, __html_output, x2);
+                                        } else {
+                                            html_puts(bitmap_export_name(x2));
+                                        }
+                                        html_puts("\">");
                                         // rtf_puts("}}\\par}");
                                         break;
                                     case 0x88:
                                         rtf_printf("{\\pvpara\\posxr{\\field {\\*\\fldinst");
-                                        html_printf("<img src=\"%s\">", getbitmapname(x2));
+                                        html_printf("<img src=\"%s\">", bitmap_export_name(x2));
+                                        if (inline_bitmaps) {
+                                            html_dump_bitmap(HelpFile, __html_output, x2);
+                                        } else {
+                                            html_puts(bitmap_export_name(x2));
+                                        }
                                         rtf_puts("}}\\par}");
                                         break;
                                     }
@@ -4953,6 +4969,67 @@ BOOL html_define_fonts(FILE* HelpFile, FILE* rtf)
 
     return TRUE;
 }
+
+void base64(const unsigned char* in, unsigned int in_len, FILE* file) {
+
+    unsigned int i=0, j=0, k=0, s[3];
+    
+    for (i=0;i<in_len;i++) {
+        s[j++]=*(in+i);
+        if (j==3) {
+            fputc(bas64[ (s[0]&255)>>2 ], file);
+            fputc(bas64[ ((s[0]&0x03)<<4)+((s[1]&0xF0)>>4) ], file);
+            fputc(bas64[ ((s[1]&0x0F)<<2)+((s[2]&0xC0)>>6) ], file);
+            fputc(bas64[ s[2]&0x3F ], file);
+            j=0; k+=4;
+        }
+    }
+    
+    if (j) {
+        if (j==1)
+            s[1] = 0;
+        fputc(bas64[ (s[0]&255)>>2 ], file);
+        fputc(bas64[ ((s[0]&0x03)<<4)+((s[1]&0xF0)>>4) ], file);
+        if (j==2)
+            fputc(bas64[ ((s[1]&0x0F)<<2) ], file);
+        else
+            fputc('=', file);
+        fputc('=', file);
+        k+=4;
+    }
+}
+
+
+void html_dump_bitmap(FILE *HelpFile, FILE *__html_output, uint16_t bitmap) {
+    static char name[12];
+    size_t pos = ftell(HelpFile);
+    
+    html_puts("data:image/");
+    if (bitmap < ctx->extension.count && ctx->extension.entry[bitmap]) {
+        html_puts(bmpext[ctx->extension.entry[bitmap] & 0x0F]);
+    } else {
+        html_puts("png,");
+        return;
+    }
+    sprintf(name, "bm%u", bitmap);
+
+    html_puts(";base64,");
+
+    sprintf(name, "bm%u.%s", bitmap, bmpext[ctx->extension.entry[bitmap] & 0x0F]);
+    FILE *bmp = fopen(name, "r");
+    fseek(bmp, 0, SEEK_END);
+    size_t length = ftell(bmp);
+    fseek(bmp, 0, SEEK_SET);
+    
+    char * buffer = malloc(length);
+    fread(buffer, length, 1, bmp);
+    base64(buffer, length, __html_output);
+    fclose(bmp);
+    
+    fseek(HelpFile, pos, SEEK_SET);
+}
+
+
 #undef html_puts
 #undef html_putc
 #undef html_printf
@@ -5970,19 +6047,19 @@ FILE* rtf_dump(FILE* HelpFile, FILE* rtf, FILE* hpj, BOOL makertf)
                                             switch (x3) {
                                             case 0x86:
                                                 fprintf(rtf, "{\\field {\\*\\fldinst import %s}}",
-                                                    getbitmapname(x2));
+                                                    bitmap_export_name(x2));
                                                 break;
                                             case 0x87:
                                                 fprintf(rtf,
                                                     "{\\pvpara {\\field {\\*\\fldinst import "
                                                     "%s}}\\par}\n",
-                                                    getbitmapname(x2));
+                                                    bitmap_export_name(x2));
                                                 break;
                                             case 0x88:
                                                 fprintf(rtf,
                                                     "{\\pvpara\\posxr{\\field {\\*\\fldinst import "
                                                     "%s}}\\par}\n",
-                                                    getbitmapname(x2));
+                                                    bitmap_export_name(x2));
                                                 break;
                                             }
                                         } else {
@@ -5994,7 +6071,7 @@ FILE* rtf_dump(FILE* HelpFile, FILE* rtf, FILE* hpj, BOOL makertf)
                                                 else if (strcmp(cmd, "bmr") == 0)
                                                     cmd = "bmrt";
                                             }
-                                            fprintf(rtf, "\\{%s %s\\}", cmd, getbitmapname(x2));
+                                            fprintf(rtf, "\\{%s %s\\}", cmd, bitmap_export_name(x2));
                                         }
                                         break;
                                     }
@@ -6389,7 +6466,7 @@ BOOL HelpDeCompile(FILE* HelpFile, char* dumpfile, legacy_int mode,
                 fprintf(__html_output, "<body>\n");
                 fprintf(__html_output, "<helpdeco-document>");
                 helpdeco_logf("Dumpic topics\n");
-                html_dump(HelpFile, rtf);
+                html_dump(HelpFile, rtf, TRUE);
                 fprintf(__html_output, "</helpdeco-document>");
                 fprintf(__html_output, "</body>\n");
                 fprintf(__html_output, "</html>\n");
@@ -6400,6 +6477,7 @@ BOOL HelpDeCompile(FILE* HelpFile, char* dumpfile, legacy_int mode,
             } else {
                 helpdeco_warnf("Could not open output file %s!", filename);
             }
+                                
             break;
         }
     } else {

@@ -21,6 +21,10 @@ http://www.gnu.org
 #ifndef helpdeco_internal_h
 #define helpdeco_internal_h
 
+legacy_int bitmap_extract_all(char* szFilename, MFILE* f);
+char* bitmap_export_name(unsigned_legacy_int n);
+legacy_int bitmap_extract(char* szFilename, MFILE* f);
+
 void hpj_list_bitmaps(FILE* hpj);
 void hpj_list_macros(FILE* HelpFile, FILE* hpj);
 void hpj_list_map(FILE* HelpFile, FILE* hpj);
@@ -39,8 +43,9 @@ void rtf_list_keywords(FILE* HelpFile, FILE* rtf, legacy_long TopicOffset);
 void rtf_add_footnotes(FILE* rtf, legacy_long TopicNum, uint32_t BrowseNum);
 FILE* rtf_dump(FILE* HelpFile, FILE* rtf, FILE* hpj, BOOL makertf);
 
-BOOL html_dump(FILE* HelpFile, FILE* __html_output);
+BOOL html_dump(FILE* HelpFile, FILE* __html_output, BOOL inline_bitmaps);
 void html_change_font(FILE* rtf, unsigned_legacy_int i, BOOL ul, BOOL uldb);
 const char* html_font_name(HELPDECO_CTX* ctx, legacy_int id);
 BOOL html_define_fonts(FILE* HelpFile, FILE* rtf);
+void html_dump_bitmap(FILE *HelpFile, FILE *html, uint16_t bitmap);
 #endif /* helpdeco_internal_h */
