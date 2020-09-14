@@ -21,6 +21,12 @@ http://www.gnu.org
 #ifndef helpdeco_internal_h
 #define helpdeco_internal_h
 
+void hpj_list_bitmaps(FILE *hpj);
+void hpj_list_macros(FILE *HelpFile, FILE *hpj);
+void hpj_list_map(FILE *HelpFile, FILE *hpj);
+void hpj_list_aliases(FILE *hpj);
+void hpj_dump_system(FILE *HelpFile, FILE *hpj, char *IconFileName);
+
 char *phrase_print(unsigned_legacy_int PhraseNum, char *out, FILE *f);
 char *phrase_expand(unsigned char *str, legacy_long len, char *out);
 

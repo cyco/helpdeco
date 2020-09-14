@@ -1369,19 +1369,6 @@ char *getbitmapname(
   return name;
 }
 
-void ListBitmaps(FILE *hpj) /* writes out [BITMAPS] section */
-{
-  legacy_int i;
-
-  if (hpj && ctx->extension.count) {
-    fputs("[BITMAPS]\n", hpj);
-    for (i = 0; i < ctx->extension.count; i++)
-      if (ctx->extension.entry[i]) {
-        fprintf(hpj, "bm%u.%s\n", i, bmpext[ctx->extension.entry[i] & 0x0F]);
-      }
-    putc('\n', hpj);
-  }
-}
 
 void ExportBitmaps(FILE *HelpFile) /* export all bitmaps */
 {
@@ -1458,365 +1445,6 @@ GetWindowName(legacy_long n) /* secondary window name from window number */
       ctx->windowname.entry[n] == NULL)
     return "main";
   return ctx->windowname.entry[n];
-}
-
-/* create HPJ file from contents of |SYSTEM internal file */
-void SysList(FILE *HelpFile, FILE *hpj, char *IconFileName) {
-  legacy_long FileLength;
-  SYSTEMHEADER SysHdr;
-  SYSTEMRECORD *SysRec;
-  STOPHEADER StopHdr;
-  char name[51];
-  char *ptr;
-  legacy_long color;
-  FILE *f;
-  legacy_int fbreak, macro, windows, i, keywords, dllmaps, n;
-
-  if (hpj && SearchFile(HelpFile, "|SYSTEM", NULL)) {
-    read_SYSTEMHEADER(&SysHdr, HelpFile);
-    if (SysHdr.Minor == 15) {
-      strcpy(ctx->suggested_compiler, "HC30");
-    } else if (SysHdr.Minor == 21) {
-      strcpy(ctx->suggested_compiler, "HC31/HCP");
-    } else if (SysHdr.Minor == 27) {
-      strcpy(ctx->suggested_compiler, "WMVC/MVCC");
-    } else if (SysHdr.Minor == 33) {
-      if (ctx->mvp) {
-        strcpy(ctx->suggested_compiler, "MVC");
-      } else {
-        strcpy(ctx->suggested_compiler, "HCRTF");
-      }
-    }
-    fputs("[OPTIONS]\n", hpj);
-    if (ctx->before31) /* If 3.0 get title */
-    {
-      helpdeco_gets(ctx->title, 33, HelpFile);
-      if (ctx->title[0] != '\0' && ctx->title[0] != '\n') {
-        fprintf(hpj, "TITLE=%s\n", ctx->title);
-      }
-      fprintf(hpj, "INDEX=%s\n", TopicName(0));
-      if (ctx->phrase.count) {
-        fputs("COMPRESS=TRUE\n", hpj);
-      } else {
-        fputs("COMPRESS=FALSE\n", hpj);
-      }
-      for (i = 'A'; i <= 'z'; i++)
-        if (ctx->lists[i - '0'] && i != 'K') {
-          fprintf(hpj, "MULTIKEY=%c\n", i);
-        }
-      putc('\n', hpj);
-    } else /* else get 3.1 System records */
-    {
-      macro = 0;
-      fbreak = 0;
-      windows = 0;
-      keywords = 0;
-      dllmaps = 0;
-      for (SysRec = GetFirstSystemRecord(HelpFile); SysRec;
-           SysRec = GetNextSystemRecord(SysRec)) {
-        switch (SysRec->RecordType) {
-        case 0x0001:
-          if (SysRec->Data[0])
-            fprintf(hpj, "TITLE=%s\n", SysRec->Data);
-          break;
-        case 0x0002:
-          ptr = strchr(SysRec->Data, '\r');
-          if (ptr)
-            strcpy(ptr, "%date");
-          if (SysRec->Data[0])
-            fprintf(hpj, "COPYRIGHT=%s\n", SysRec->Data);
-          break;
-        case 0x0003:
-          ptr = TopicName(*(int32_t *)SysRec->Data);
-          if (ptr)
-            fprintf(hpj, "CONTENTS=%s\n", ptr);
-          break;
-        case 0x0004:
-          macro = 1;
-          break;
-        case 0x0005:
-          fprintf(hpj, "ICON=%s\n", IconFileName);
-          f = helpdeco_fopen(IconFileName, "wb");
-          if (f) {
-            fwrite(SysRec->Data, SysRec->DataSize, 1, f);
-            helpdeco_fclose(f);
-          }
-          break;
-        case 0x0006:
-          windows++;
-          break;
-        case 0x0008:
-          if (SysRec->Data[0])
-            fprintf(hpj, "CITATION=%s\n", SysRec->Data);
-          break;
-        case 0x0009:
-          if (!ctx->mvp)
-            fprintf(hpj, "LCID=0x%X 0x%X 0x%X\n",
-                    *(int16_t *)(SysRec->Data + 8), *(int16_t *)SysRec->Data,
-                    *(int16_t *)(SysRec->Data + 2));
-          break;
-        case 0x000A:
-          if (!ctx->mvp && SysRec->Data[0])
-            fprintf(hpj, "CNT=%s\n", SysRec->Data);
-          break;
-        case 0x000B:
-          //		    if(!mvp) fprintf(hpj,"CHARSET=%d\n",*(unsigned char
-          //*)(SysRec->Data+1));
-          break;
-        case 0x000C:
-          if (ctx->mvp) {
-            fbreak = 1;
-          } else {
-            fprintf(hpj, "DEFFONT=%s,%d,%d\n", SysRec->Data + 2,
-                    *(unsigned char *)SysRec->Data,
-                    *(unsigned char *)(SysRec->Data + 1));
-          }
-          break;
-        case 0x000D:
-          if (ctx->mvp)
-            ctx->group.count++;
-          break;
-        case 0x000E:
-          if (ctx->mvp) {
-            keywords = 1;
-          } else {
-            fprintf(hpj, "INDEX_SEPARATORS=\"%s\"\n", SysRec->Data);
-            strlcpy(ctx->index_separators, SysRec->Data,
-                    sizeof(ctx->index_separators));
-          }
-          break;
-        case 0x0012:
-          if (SysRec->Data[0])
-            fprintf(hpj, "LANGUAGE=%s\n", SysRec->Data);
-          break;
-        case 0x0013:
-          dllmaps = 1;
-          break;
-        }
-      }
-      if (ctx->win95) {
-        i = 0;
-        if (ctx->lzcompressed)
-          i |= 8;
-        if (ctx->phrase_style == Hall)
-          i |= 4;
-        else if (ctx->phrase.count)
-          i |= 2;
-        fprintf(hpj, "COMPRESS=%d\n", i);
-      } else if (!ctx->lzcompressed) {
-        fputs("COMPRESS=OFF\n", hpj);
-      } else if (ctx->phrase.count) {
-        fputs("COMPRESS=HIGH\n", hpj);
-      } else {
-        fputs("COMPRESS=MEDIUM\n", hpj);
-      }
-      if (SysHdr.Flags == 8)
-        fputs("CDROMOPT=TRUE\n", hpj);
-      for (i = 'A'; i <= 'z'; i++)
-        if (ctx->lists[i - '0'] && i != 'K' && (i != 'A' || !ctx->win95)) {
-          fprintf(hpj, "MULTIKEY=%c\n", i);
-        }
-      putc('\n', hpj);
-      if (windows) {
-        fputs("[WINDOWS]\n", hpj);
-        for (SysRec = GetFirstSystemRecord(HelpFile); SysRec;
-             SysRec = GetNextSystemRecord(SysRec)) {
-          if (SysRec->RecordType == 0x0006) {
-            if (SysRec->DataSize == sizeof(SECWINDOW)) {
-              PrintWindow(hpj, (SECWINDOW *)SysRec->Data);
-            } else {
-              PrintMVBWindow(hpj, (MVBWINDOW *)SysRec->Data);
-            }
-          }
-        }
-        putc('\n', hpj);
-      }
-      if (macro) {
-        fputs("[CONFIG]\n", hpj);
-        for (SysRec = GetFirstSystemRecord(HelpFile); SysRec;
-             SysRec = GetNextSystemRecord(SysRec)) {
-          if (SysRec->RecordType == 0x0004) {
-            if (sscanf(SysRec->Data, "SPC(%ld)%n", &color, &n) > 0) {
-              fprintf(hpj, "SPC(%u,%u,%u)%s\n", (unsigned char)(color),
-                      (unsigned char)(color >> 8), (unsigned char)(color >> 16),
-                      SysRec->Data + n);
-            } else {
-              fprintf(hpj, "%s\n", SysRec->Data);
-            }
-          }
-        }
-        putc('\n', hpj);
-      }
-      if (fbreak) {
-        fputs("[FTINDEX]\n", hpj);
-        for (SysRec = GetFirstSystemRecord(HelpFile); SysRec;
-             SysRec = GetNextSystemRecord(SysRec)) {
-          if (SysRec->RecordType == 0x000C) {
-            ptr = strtok(SysRec->Data, " ");
-            if (ptr) {
-              fprintf(hpj, "dtype%s", ptr);
-              ptr = strtok(NULL, " ");
-              if (ptr) {
-                fprintf(hpj, "=%s", ptr);
-                ptr = strtok(NULL, " ");
-                if (ptr) {
-                  fprintf(hpj, "!%s", ptr);
-                  ptr = strtok(NULL, " ");
-                  if (ptr) {
-                    fprintf(hpj, ",%s", ptr + 1);
-                    if (SearchFile(HelpFile, ptr, NULL)) {
-                      for (n = 0; n < ctx->stopword_filename.count; n++) {
-                        if (strcmp(ctx->stopword_filename.entry[n], ptr) == 0)
-                          break;
-                      }
-                      if (n == ctx->stopword_filename.count) {
-                        ctx->stopword_filename.entry =
-                            helpdeco_realloc(ctx->stopword_filename.entry,
-                            (ctx->stopword_filename.count + 1) *
-                                sizeof(char *));
-                        ctx->stopword_filename
-                            .entry[ctx->stopword_filename.count++] =
-                            helpdeco_strdup(ptr);
-                        f = helpdeco_fopen(ptr + 1, "wt");
-                        if (f) {
-                          read_STOPHEADER(&StopHdr, HelpFile);
-                          for (n = 0; n < StopHdr.BytesUsed;
-                               n += 1 + strlen(scratch_buffer)) {
-                            i = getc(HelpFile);
-                            helpdeco_fread(scratch_buffer, i, HelpFile);
-                            scratch_buffer[i] = '\0';
-                            fprintf(f, "%s\n", scratch_buffer);
-                          }
-                          helpdeco_fclose(f);
-                        }
-                      }
-                    }
-                    ptr = strtok(NULL, " ");
-                    if (ptr)
-                      fprintf(hpj, ",%s", ptr);
-                  }
-                }
-              }
-              putc('\n', hpj);
-            }
-          }
-        }
-        putc('\n', hpj);
-      }
-      if ((ctx->group.count || ctx->multi) && (ctx->browsenums > 1)) {
-        ctx->group.entry = helpdeco_malloc(ctx->group.count * sizeof(GROUP));
-        fputs("[GROUPS]\n", hpj);
-        i = 0;
-        for (SysRec = GetFirstSystemRecord(HelpFile); SysRec;
-             SysRec = GetNextSystemRecord(SysRec)) {
-          if (SysRec->RecordType == 0x000D) {
-            ptr = strchr(SysRec->Data, ' ');
-            if (ptr)
-              *ptr++ = '\0';
-            ctx->group.count = SearchFile(HelpFile, SysRec->Data, NULL);
-            n = strcspn(SysRec->Data, ".");
-            SysRec->Data[n] = '\0';
-            if (ptr && strcmp(ptr, "\"\" ") == 0) {
-              fprintf(hpj, "group=%s\n", SysRec->Data);
-            } else {
-              fprintf(hpj, "group=%s,%s\n", SysRec->Data, ptr);
-            }
-            ctx->group.entry[i].Name = helpdeco_strdup(SysRec->Data);
-            if (ctx->group.count) {
-              read_GROUPHEADER(&ctx->group.entry[i].GroupHeader, HelpFile);
-              if (ctx->group.entry[i].GroupHeader.GroupType == 2) {
-                ctx->group.entry[i].Bitmap =
-                    helpdeco_malloc(ctx->group.entry[i].GroupHeader.BitmapSize);
-                helpdeco_fread(ctx->group.entry[i].Bitmap,
-                         ctx->group.entry[i].GroupHeader.BitmapSize, HelpFile);
-              }
-            } else {
-              ctx->group.entry[i].GroupHeader.GroupType = 0;
-            }
-            i++;
-          }
-        }
-        if (ctx->multi)
-          for (i = 1; i < ctx->browsenums; i++)
-            fprintf(hpj, "group=BROWSE%04x\n", i);
-        if (SearchFile(HelpFile, "|GMACROS", &FileLength)) {
-          legacy_long len;
-          legacy_long pos;
-          legacy_long off;
-
-          helpdeco_getdw(HelpFile); /* possible count or group number */
-          for (pos = 4; pos < FileLength; pos += len) {
-            len = helpdeco_getdw(HelpFile); /* length of record containing two longs and
-                                      two strings */
-            off = helpdeco_getdw(HelpFile); /* offset of second string in record (first
-                                      is at pos 8) */
-            if (off <= 0)
-              off = len;
-            if (len < 8)
-              break;
-            if (len < off)
-              break;
-            if (off > 8) {
-              helpdeco_fread(scratch_buffer, off - 8, HelpFile);
-              scratch_buffer[off - 8] = '\0';
-              fprintf(hpj, "entry=%s\n", scratch_buffer);
-            }
-            if (len > off) {
-              helpdeco_fread(scratch_buffer, len - off, HelpFile);
-              scratch_buffer[len - off] = '\0';
-              fprintf(hpj, "exit=%s\n", scratch_buffer);
-            }
-          }
-        }
-        putc('\n', hpj);
-      }
-      if (dllmaps) {
-        fputs("[DLLMAPS]\n", hpj);
-        for (SysRec = GetFirstSystemRecord(HelpFile); SysRec;
-             SysRec = GetNextSystemRecord(SysRec)) {
-          if (SysRec->RecordType == 0x0013) {
-            if (strcmp(SysRec->Data, "MVMCI") != 0 &&
-                strcmp(SysRec->Data, "MVIMAGE") != 0 &&
-                strcmp(SysRec->Data, "MVBRKR") != 0) {
-              ptr = SysRec->Data + strlen(SysRec->Data) + 1;
-              fprintf(hpj, "%s=%s,", SysRec->Data, ptr);
-              ptr = ptr + strlen(ptr) + 1;
-              fprintf(hpj, "%s,", ptr);
-              ptr = ptr + strlen(ptr) + 1;
-              fprintf(hpj, "%s,", ptr);
-              ptr = ptr + strlen(ptr) + 1;
-              fprintf(hpj, "%s\n", ptr);
-            }
-          }
-        }
-        putc('\n', hpj);
-      }
-      if (keywords) {
-        fputs("[KEYINDEX]\n", hpj);
-        for (SysRec = GetFirstSystemRecord(HelpFile); SysRec;
-             SysRec = GetNextSystemRecord(SysRec)) {
-          if (SysRec->RecordType == 0x000E) {
-            fprintf(hpj, "keyword=%c,\"%s\"\n", SysRec->Data[1],
-                    SysRec->Data + 30);
-          }
-        }
-        putc('\n', hpj);
-      }
-      for (i = 0; i < windows; i++) {
-        sprintf(name, "|CF%d", i);
-        if (SearchFile(HelpFile, name, &FileLength)) {
-          fprintf(hpj, "[CONFIG:%d]\n", i);
-          /* may use [CONFIG-GetWindowName] instead, but WindowName need not be
-           * defined */
-          for (n = 0; n < FileLength; n += strlen(scratch_buffer) + 1) {
-            helpdeco_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile);
-            fprintf(hpj, "%s\n", scratch_buffer);
-          }
-          putc('\n', hpj);
-        }
-      }
-    }
-  }
 }
 
 const char *FontFamily(unsigned_legacy_int i) {
@@ -2394,61 +2022,6 @@ TOPICOFFSET NextTopicOffset(TOPICOFFSET TopicOffset, TOPICPOS NextBlock,
   return TopicOffset;
 }
 
-void ListRose(FILE *HelpFile, FILE *hpj) {
-  legacy_long FileLength, offset, hash, h, pos, savepos;
-  unsigned char *ptr;
-  legacy_long *keytopic;
-  legacy_int n, i, l, e;
-  uint16_t j, count;
-  BUFFER buf, buf2;
-
-  if (SearchFile(HelpFile, "|Rose", NULL)) {
-    savepos = ftell(HelpFile);
-    if (SearchFile(HelpFile, "|KWDATA", &FileLength)) {
-      keytopic = helpdeco_malloc(FileLength);
-      helpdeco_fread(keytopic, FileLength, HelpFile);
-      if (SearchFile(HelpFile, "|KWBTREE", NULL)) {
-        fputs("[MACROS]\n", hpj);
-        for (n = GetFirstPage(HelpFile, &buf, NULL); n;
-             n = GetNextPage(HelpFile, &buf)) {
-          for (i = 0; i < n; i++) {
-            helpdeco_gets(keyword, sizeof(keyword), HelpFile);
-            for (hash = 0, ptr = (unsigned char *)keyword; *ptr; ptr++) {
-              hash = hash * 43 + table[*ptr];
-            }
-            count = helpdeco_getw(HelpFile);
-            offset = helpdeco_getdw(HelpFile);
-            for (j = 0; j < count; j++) {
-              if (keytopic[offset / 4 + j] == -1) {
-                pos = ftell(HelpFile);
-                fseek(HelpFile, savepos, SEEK_SET);
-                for (l = GetFirstPage(HelpFile, &buf2, NULL); l;
-                     l = GetNextPage(HelpFile, &buf2)) {
-                  for (e = 0; e < l; e++) {
-                    h = helpdeco_getdw(HelpFile);
-                    helpdeco_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile);
-                    if (h == hash) {
-                      fprintf(hpj, "%s\n%s\n", keyword, scratch_buffer);
-                      helpdeco_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile);
-                      fprintf(hpj, "%s\n", scratch_buffer);
-                    } else {
-                      helpdeco_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile);
-                    }
-                  }
-                }
-                fseek(HelpFile, pos, SEEK_SET);
-                break;
-              }
-            }
-          }
-        }
-        putc('\n', hpj);
-      }
-      free(keytopic);
-      keytopic = NULL;
-    }
-  }
-}
 
 /* dump section: all the dump-routines are used to display internal files
 // of the help file with known format of contents for debugging reasons */
@@ -3162,56 +2735,6 @@ void DumpTopic(FILE *HelpFile, legacy_long TopicPos) {
         break;
       TopicOffset = NextTopicOffset(TopicOffset, TopicLink.NextBlock, TopicPos);
       TopicPos = TopicLink.NextBlock;
-    }
-  }
-}
-
-void AliasList(FILE *hpj) /* write [ALIAS] section to HPJ file */
-{
-  legacy_int i, n;
-  BOOL headerwritten;
-
-  headerwritten = FALSE;
-  for (i = 0; i < ctx->context_rec.count; i = n) {
-    for (n = i + 1; n < ctx->context_rec.count &&
-                    ctx->context_rec.entry[i].TopicOffset ==
-                        ctx->context_rec.entry[n].TopicOffset;
-         n++) {
-      if (!headerwritten) {
-        fputs("Creating [ALIAS] section...\n", stderr);
-        fputs("[ALIAS]\n", hpj);
-        headerwritten = TRUE;
-      }
-      fprintf(hpj, "%s=", unhash(ctx->context_rec.entry[n].HashValue));
-      fprintf(hpj, "%s\n", unhash(ctx->context_rec.entry[i].HashValue));
-    }
-  }
-  if (headerwritten)
-    putc('\n', hpj);
-}
-
-void CTXOMAPList(FILE *HelpFile,
-                 FILE *hpj) /* write [MAP] section to HPJ file */
-{
-  CTXOMAPREC CTXORec;
-  uint16_t n, i;
-  char *ptr;
-
-  if (SearchFile(HelpFile, "|CTXOMAP", NULL)) {
-    n = helpdeco_getw(HelpFile);
-    if (n) {
-      fputs("Creating [MAP] section...\n", stderr);
-      fputs("[MAP]\n", hpj);
-      for (i = 0; i < n; i++) {
-        read_CTXOMAPREC(&CTXORec, HelpFile);
-        ptr = TopicName(CTXORec.TopicOffset);
-        if (ptr) {
-          fprintf(hpj, "%s %ld\n", ptr, CTXORec.MapID);
-        } else {
-          fprintf(hpj, "TOPIC%08lx %ld\n", CTXORec.TopicOffset, CTXORec.MapID);
-        }
-      }
-      putc('\n', hpj);
     }
   }
 }
@@ -4077,6 +3600,487 @@ char *phrase_expand(unsigned char *str, legacy_long len, char *out) {
   }
   return out;
 }
+#pragma mark -
+#pragma mark .hpj Output
+void hpj_list_bitmaps(FILE *hpj) /* writes out [BITMAPS] section */
+{
+  legacy_int i;
+
+  if (hpj && ctx->extension.count) {
+    fputs("[BITMAPS]\n", hpj);
+    for (i = 0; i < ctx->extension.count; i++)
+      if (ctx->extension.entry[i]) {
+        fprintf(hpj, "bm%u.%s\n", i, bmpext[ctx->extension.entry[i] & 0x0F]);
+      }
+    putc('\n', hpj);
+  }
+}
+
+void hpj_list_macros(FILE *HelpFile, FILE *hpj) {
+  legacy_long FileLength, offset, hash, h, pos, savepos;
+  unsigned char *ptr;
+  legacy_long *keytopic;
+  legacy_int n, i, l, e;
+  uint16_t j, count;
+  BUFFER buf, buf2;
+
+  if (SearchFile(HelpFile, "|Rose", NULL)) {
+    savepos = ftell(HelpFile);
+    if (SearchFile(HelpFile, "|KWDATA", &FileLength)) {
+      keytopic = helpdeco_malloc(FileLength);
+      helpdeco_fread(keytopic, FileLength, HelpFile);
+      if (SearchFile(HelpFile, "|KWBTREE", NULL)) {
+        fputs("[MACROS]\n", hpj);
+        for (n = GetFirstPage(HelpFile, &buf, NULL); n;
+             n = GetNextPage(HelpFile, &buf)) {
+          for (i = 0; i < n; i++) {
+            helpdeco_gets(keyword, sizeof(keyword), HelpFile);
+            for (hash = 0, ptr = (unsigned char *)keyword; *ptr; ptr++) {
+              hash = hash * 43 + table[*ptr];
+            }
+            count = helpdeco_getw(HelpFile);
+            offset = helpdeco_getdw(HelpFile);
+            for (j = 0; j < count; j++) {
+              if (keytopic[offset / 4 + j] == -1) {
+                pos = ftell(HelpFile);
+                fseek(HelpFile, savepos, SEEK_SET);
+                for (l = GetFirstPage(HelpFile, &buf2, NULL); l;
+                     l = GetNextPage(HelpFile, &buf2)) {
+                  for (e = 0; e < l; e++) {
+                    h = helpdeco_getdw(HelpFile);
+                    helpdeco_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile);
+                    if (h == hash) {
+                      fprintf(hpj, "%s\n%s\n", keyword, scratch_buffer);
+                      helpdeco_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile);
+                      fprintf(hpj, "%s\n", scratch_buffer);
+                    } else {
+                      helpdeco_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile);
+                    }
+                  }
+                }
+                fseek(HelpFile, pos, SEEK_SET);
+                break;
+              }
+            }
+          }
+        }
+        putc('\n', hpj);
+      }
+      free(keytopic);
+      keytopic = NULL;
+    }
+  }
+}
+
+void hpj_list_aliases(FILE *hpj) /* write [ALIAS] section to HPJ file */
+{
+  legacy_int i, n;
+  BOOL headerwritten;
+
+  headerwritten = FALSE;
+  for (i = 0; i < ctx->context_rec.count; i = n) {
+    for (n = i + 1; n < ctx->context_rec.count &&
+                    ctx->context_rec.entry[i].TopicOffset ==
+                        ctx->context_rec.entry[n].TopicOffset;
+         n++) {
+      if (!headerwritten) {
+        fputs("Creating [ALIAS] section...\n", stderr);
+        fputs("[ALIAS]\n", hpj);
+        headerwritten = TRUE;
+      }
+      fprintf(hpj, "%s=", unhash(ctx->context_rec.entry[n].HashValue));
+      fprintf(hpj, "%s\n", unhash(ctx->context_rec.entry[i].HashValue));
+    }
+  }
+  if (headerwritten)
+    putc('\n', hpj);
+}
+
+void hpj_list_map(FILE *HelpFile,
+                 FILE *hpj) /* write [MAP] section to HPJ file */
+{
+  CTXOMAPREC CTXORec;
+  uint16_t n, i;
+  char *ptr;
+
+  if (SearchFile(HelpFile, "|CTXOMAP", NULL)) {
+    n = helpdeco_getw(HelpFile);
+    if (n) {
+      fputs("Creating [MAP] section...\n", stderr);
+      fputs("[MAP]\n", hpj);
+      for (i = 0; i < n; i++) {
+        read_CTXOMAPREC(&CTXORec, HelpFile);
+        ptr = TopicName(CTXORec.TopicOffset);
+        if (ptr) {
+          fprintf(hpj, "%s %ld\n", ptr, CTXORec.MapID);
+        } else {
+          fprintf(hpj, "TOPIC%08lx %ld\n", CTXORec.TopicOffset, CTXORec.MapID);
+        }
+      }
+      putc('\n', hpj);
+    }
+  }
+}
+
+/* create HPJ file from contents of |SYSTEM internal file */
+void hpj_dump_system(FILE *HelpFile, FILE *hpj, char *IconFileName) {
+  legacy_long FileLength;
+  SYSTEMHEADER SysHdr;
+  SYSTEMRECORD *SysRec;
+  STOPHEADER StopHdr;
+  char name[51];
+  char *ptr;
+  legacy_long color;
+  FILE *f;
+  legacy_int fbreak, macro, windows, i, keywords, dllmaps, n;
+
+  if (hpj && SearchFile(HelpFile, "|SYSTEM", NULL)) {
+    read_SYSTEMHEADER(&SysHdr, HelpFile);
+    if (SysHdr.Minor == 15) {
+      strcpy(ctx->suggested_compiler, "HC30");
+    } else if (SysHdr.Minor == 21) {
+      strcpy(ctx->suggested_compiler, "HC31/HCP");
+    } else if (SysHdr.Minor == 27) {
+      strcpy(ctx->suggested_compiler, "WMVC/MVCC");
+    } else if (SysHdr.Minor == 33) {
+      if (ctx->mvp) {
+        strcpy(ctx->suggested_compiler, "MVC");
+      } else {
+        strcpy(ctx->suggested_compiler, "HCRTF");
+      }
+    }
+    fputs("[OPTIONS]\n", hpj);
+    if (ctx->before31) /* If 3.0 get title */
+    {
+      helpdeco_gets(ctx->title, 33, HelpFile);
+      if (ctx->title[0] != '\0' && ctx->title[0] != '\n') {
+        fprintf(hpj, "TITLE=%s\n", ctx->title);
+      }
+      fprintf(hpj, "INDEX=%s\n", TopicName(0));
+      if (ctx->phrase.count) {
+        fputs("COMPRESS=TRUE\n", hpj);
+      } else {
+        fputs("COMPRESS=FALSE\n", hpj);
+      }
+      for (i = 'A'; i <= 'z'; i++)
+        if (ctx->lists[i - '0'] && i != 'K') {
+          fprintf(hpj, "MULTIKEY=%c\n", i);
+        }
+      putc('\n', hpj);
+    } else /* else get 3.1 System records */
+    {
+      macro = 0;
+      fbreak = 0;
+      windows = 0;
+      keywords = 0;
+      dllmaps = 0;
+      for (SysRec = GetFirstSystemRecord(HelpFile); SysRec;
+           SysRec = GetNextSystemRecord(SysRec)) {
+        switch (SysRec->RecordType) {
+        case 0x0001:
+          if (SysRec->Data[0])
+            fprintf(hpj, "TITLE=%s\n", SysRec->Data);
+          break;
+        case 0x0002:
+          ptr = strchr(SysRec->Data, '\r');
+          if (ptr)
+            strcpy(ptr, "%date");
+          if (SysRec->Data[0])
+            fprintf(hpj, "COPYRIGHT=%s\n", SysRec->Data);
+          break;
+        case 0x0003:
+          ptr = TopicName(*(int32_t *)SysRec->Data);
+          if (ptr)
+            fprintf(hpj, "CONTENTS=%s\n", ptr);
+          break;
+        case 0x0004:
+          macro = 1;
+          break;
+        case 0x0005:
+          fprintf(hpj, "ICON=%s\n", IconFileName);
+          f = helpdeco_fopen(IconFileName, "wb");
+          if (f) {
+            fwrite(SysRec->Data, SysRec->DataSize, 1, f);
+            helpdeco_fclose(f);
+          }
+          break;
+        case 0x0006:
+          windows++;
+          break;
+        case 0x0008:
+          if (SysRec->Data[0])
+            fprintf(hpj, "CITATION=%s\n", SysRec->Data);
+          break;
+        case 0x0009:
+          if (!ctx->mvp)
+            fprintf(hpj, "LCID=0x%X 0x%X 0x%X\n",
+                    *(int16_t *)(SysRec->Data + 8), *(int16_t *)SysRec->Data,
+                    *(int16_t *)(SysRec->Data + 2));
+          break;
+        case 0x000A:
+          if (!ctx->mvp && SysRec->Data[0])
+            fprintf(hpj, "CNT=%s\n", SysRec->Data);
+          break;
+        case 0x000B:
+          //            if(!mvp) fprintf(hpj,"CHARSET=%d\n",*(unsigned char
+          //*)(SysRec->Data+1));
+          break;
+        case 0x000C:
+          if (ctx->mvp) {
+            fbreak = 1;
+          } else {
+            fprintf(hpj, "DEFFONT=%s,%d,%d\n", SysRec->Data + 2,
+                    *(unsigned char *)SysRec->Data,
+                    *(unsigned char *)(SysRec->Data + 1));
+          }
+          break;
+        case 0x000D:
+          if (ctx->mvp)
+            ctx->group.count++;
+          break;
+        case 0x000E:
+          if (ctx->mvp) {
+            keywords = 1;
+          } else {
+            fprintf(hpj, "INDEX_SEPARATORS=\"%s\"\n", SysRec->Data);
+            strlcpy(ctx->index_separators, SysRec->Data,
+                    sizeof(ctx->index_separators));
+          }
+          break;
+        case 0x0012:
+          if (SysRec->Data[0])
+            fprintf(hpj, "LANGUAGE=%s\n", SysRec->Data);
+          break;
+        case 0x0013:
+          dllmaps = 1;
+          break;
+        }
+      }
+      if (ctx->win95) {
+        i = 0;
+        if (ctx->lzcompressed)
+          i |= 8;
+        if (ctx->phrase_style == Hall)
+          i |= 4;
+        else if (ctx->phrase.count)
+          i |= 2;
+        fprintf(hpj, "COMPRESS=%d\n", i);
+      } else if (!ctx->lzcompressed) {
+        fputs("COMPRESS=OFF\n", hpj);
+      } else if (ctx->phrase.count) {
+        fputs("COMPRESS=HIGH\n", hpj);
+      } else {
+        fputs("COMPRESS=MEDIUM\n", hpj);
+      }
+      if (SysHdr.Flags == 8)
+        fputs("CDROMOPT=TRUE\n", hpj);
+      for (i = 'A'; i <= 'z'; i++)
+        if (ctx->lists[i - '0'] && i != 'K' && (i != 'A' || !ctx->win95)) {
+          fprintf(hpj, "MULTIKEY=%c\n", i);
+        }
+      putc('\n', hpj);
+      if (windows) {
+        fputs("[WINDOWS]\n", hpj);
+        for (SysRec = GetFirstSystemRecord(HelpFile); SysRec;
+             SysRec = GetNextSystemRecord(SysRec)) {
+          if (SysRec->RecordType == 0x0006) {
+            if (SysRec->DataSize == sizeof(SECWINDOW)) {
+              PrintWindow(hpj, (SECWINDOW *)SysRec->Data);
+            } else {
+              PrintMVBWindow(hpj, (MVBWINDOW *)SysRec->Data);
+            }
+          }
+        }
+        putc('\n', hpj);
+      }
+      if (macro) {
+        fputs("[CONFIG]\n", hpj);
+        for (SysRec = GetFirstSystemRecord(HelpFile); SysRec;
+             SysRec = GetNextSystemRecord(SysRec)) {
+          if (SysRec->RecordType == 0x0004) {
+            if (sscanf(SysRec->Data, "SPC(%ld)%n", &color, &n) > 0) {
+              fprintf(hpj, "SPC(%u,%u,%u)%s\n", (unsigned char)(color),
+                      (unsigned char)(color >> 8), (unsigned char)(color >> 16),
+                      SysRec->Data + n);
+            } else {
+              fprintf(hpj, "%s\n", SysRec->Data);
+            }
+          }
+        }
+        putc('\n', hpj);
+      }
+      if (fbreak) {
+        fputs("[FTINDEX]\n", hpj);
+        for (SysRec = GetFirstSystemRecord(HelpFile); SysRec;
+             SysRec = GetNextSystemRecord(SysRec)) {
+          if (SysRec->RecordType == 0x000C) {
+            ptr = strtok(SysRec->Data, " ");
+            if (ptr) {
+              fprintf(hpj, "dtype%s", ptr);
+              ptr = strtok(NULL, " ");
+              if (ptr) {
+                fprintf(hpj, "=%s", ptr);
+                ptr = strtok(NULL, " ");
+                if (ptr) {
+                  fprintf(hpj, "!%s", ptr);
+                  ptr = strtok(NULL, " ");
+                  if (ptr) {
+                    fprintf(hpj, ",%s", ptr + 1);
+                    if (SearchFile(HelpFile, ptr, NULL)) {
+                      for (n = 0; n < ctx->stopword_filename.count; n++) {
+                        if (strcmp(ctx->stopword_filename.entry[n], ptr) == 0)
+                          break;
+                      }
+                      if (n == ctx->stopword_filename.count) {
+                        ctx->stopword_filename.entry =
+                            helpdeco_realloc(ctx->stopword_filename.entry,
+                            (ctx->stopword_filename.count + 1) *
+                                sizeof(char *));
+                        ctx->stopword_filename
+                            .entry[ctx->stopword_filename.count++] =
+                            helpdeco_strdup(ptr);
+                        f = helpdeco_fopen(ptr + 1, "wt");
+                        if (f) {
+                          read_STOPHEADER(&StopHdr, HelpFile);
+                          for (n = 0; n < StopHdr.BytesUsed;
+                               n += 1 + strlen(scratch_buffer)) {
+                            i = getc(HelpFile);
+                            helpdeco_fread(scratch_buffer, i, HelpFile);
+                            scratch_buffer[i] = '\0';
+                            fprintf(f, "%s\n", scratch_buffer);
+                          }
+                          helpdeco_fclose(f);
+                        }
+                      }
+                    }
+                    ptr = strtok(NULL, " ");
+                    if (ptr)
+                      fprintf(hpj, ",%s", ptr);
+                  }
+                }
+              }
+              putc('\n', hpj);
+            }
+          }
+        }
+        putc('\n', hpj);
+      }
+      if ((ctx->group.count || ctx->multi) && (ctx->browsenums > 1)) {
+        ctx->group.entry = helpdeco_malloc(ctx->group.count * sizeof(GROUP));
+        fputs("[GROUPS]\n", hpj);
+        i = 0;
+        for (SysRec = GetFirstSystemRecord(HelpFile); SysRec;
+             SysRec = GetNextSystemRecord(SysRec)) {
+          if (SysRec->RecordType == 0x000D) {
+            ptr = strchr(SysRec->Data, ' ');
+            if (ptr)
+              *ptr++ = '\0';
+            ctx->group.count = SearchFile(HelpFile, SysRec->Data, NULL);
+            n = strcspn(SysRec->Data, ".");
+            SysRec->Data[n] = '\0';
+            if (ptr && strcmp(ptr, "\"\" ") == 0) {
+              fprintf(hpj, "group=%s\n", SysRec->Data);
+            } else {
+              fprintf(hpj, "group=%s,%s\n", SysRec->Data, ptr);
+            }
+            ctx->group.entry[i].Name = helpdeco_strdup(SysRec->Data);
+            if (ctx->group.count) {
+              read_GROUPHEADER(&ctx->group.entry[i].GroupHeader, HelpFile);
+              if (ctx->group.entry[i].GroupHeader.GroupType == 2) {
+                ctx->group.entry[i].Bitmap =
+                    helpdeco_malloc(ctx->group.entry[i].GroupHeader.BitmapSize);
+                helpdeco_fread(ctx->group.entry[i].Bitmap,
+                         ctx->group.entry[i].GroupHeader.BitmapSize, HelpFile);
+              }
+            } else {
+              ctx->group.entry[i].GroupHeader.GroupType = 0;
+            }
+            i++;
+          }
+        }
+        if (ctx->multi)
+          for (i = 1; i < ctx->browsenums; i++)
+            fprintf(hpj, "group=BROWSE%04x\n", i);
+        if (SearchFile(HelpFile, "|GMACROS", &FileLength)) {
+          legacy_long len;
+          legacy_long pos;
+          legacy_long off;
+
+          helpdeco_getdw(HelpFile); /* possible count or group number */
+          for (pos = 4; pos < FileLength; pos += len) {
+            len = helpdeco_getdw(HelpFile); /* length of record containing two longs and
+                                      two strings */
+            off = helpdeco_getdw(HelpFile); /* offset of second string in record (first
+                                      is at pos 8) */
+            if (off <= 0)
+              off = len;
+            if (len < 8)
+              break;
+            if (len < off)
+              break;
+            if (off > 8) {
+              helpdeco_fread(scratch_buffer, off - 8, HelpFile);
+              scratch_buffer[off - 8] = '\0';
+              fprintf(hpj, "entry=%s\n", scratch_buffer);
+            }
+            if (len > off) {
+              helpdeco_fread(scratch_buffer, len - off, HelpFile);
+              scratch_buffer[len - off] = '\0';
+              fprintf(hpj, "exit=%s\n", scratch_buffer);
+            }
+          }
+        }
+        putc('\n', hpj);
+      }
+      if (dllmaps) {
+        fputs("[DLLMAPS]\n", hpj);
+        for (SysRec = GetFirstSystemRecord(HelpFile); SysRec;
+             SysRec = GetNextSystemRecord(SysRec)) {
+          if (SysRec->RecordType == 0x0013) {
+            if (strcmp(SysRec->Data, "MVMCI") != 0 &&
+                strcmp(SysRec->Data, "MVIMAGE") != 0 &&
+                strcmp(SysRec->Data, "MVBRKR") != 0) {
+              ptr = SysRec->Data + strlen(SysRec->Data) + 1;
+              fprintf(hpj, "%s=%s,", SysRec->Data, ptr);
+              ptr = ptr + strlen(ptr) + 1;
+              fprintf(hpj, "%s,", ptr);
+              ptr = ptr + strlen(ptr) + 1;
+              fprintf(hpj, "%s,", ptr);
+              ptr = ptr + strlen(ptr) + 1;
+              fprintf(hpj, "%s\n", ptr);
+            }
+          }
+        }
+        putc('\n', hpj);
+      }
+      if (keywords) {
+        fputs("[KEYINDEX]\n", hpj);
+        for (SysRec = GetFirstSystemRecord(HelpFile); SysRec;
+             SysRec = GetNextSystemRecord(SysRec)) {
+          if (SysRec->RecordType == 0x000E) {
+            fprintf(hpj, "keyword=%c,\"%s\"\n", SysRec->Data[1],
+                    SysRec->Data + 30);
+          }
+        }
+        putc('\n', hpj);
+      }
+      for (i = 0; i < windows; i++) {
+        sprintf(name, "|CF%d", i);
+        if (SearchFile(HelpFile, name, &FileLength)) {
+          fprintf(hpj, "[CONFIG:%d]\n", i);
+          /* may use [CONFIG-GetWindowName] instead, but WindowName need not be
+           * defined */
+          for (n = 0; n < FileLength; n += strlen(scratch_buffer) + 1) {
+            helpdeco_gets(scratch_buffer, sizeof(scratch_buffer), HelpFile);
+            fprintf(hpj, "%s\n", scratch_buffer);
+          }
+          putc('\n', hpj);
+        }
+      }
+    }
+  }
+}
+
 
 #pragma mark -
 #pragma mark HTML Output
@@ -6316,10 +6320,10 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
       if (hpj) {
         strcpy(filename, ctx->name);
         strcat(filename, ".ico");
-        SysList(HelpFile, hpj, filename); /* after ContextLoad */
+        hpj_dump_system(HelpFile, hpj, filename); /* after ContextLoad */
         ListBaggage(HelpFile, hpj, ctx->before31);
         if (!ctx->mvp)
-          AliasList(hpj); /* after ContextLoad, before TopicDump */
+          hpj_list_aliases(hpj); /* after ContextLoad, before TopicDump */
         strcpy(filename, ctx->name);
         strcat(filename, ".ph");
         phrase_dump(filename); /* after PhraseLoad */
@@ -6335,11 +6339,11 @@ BOOL HelpDeCompile(FILE *HelpFile, char *dumpfile, legacy_int mode,
           helpdeco_fclose(rtf);
         }
         ctx->NotInAnyTopic = FALSE;
-        CTXOMAPList(HelpFile, hpj);
+        hpj_list_map(HelpFile, hpj);
         if (ctx->extension.count && ctx->before31)
-          ListBitmaps(hpj);
+          hpj_list_bitmaps(hpj);
         if (ctx->win95)
-          ListRose(HelpFile, hpj);
+          hpj_list_macros(HelpFile, hpj);
         helpdeco_fclose(hpj);
       }
       if (ctx->phrase.offset) {
