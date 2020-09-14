@@ -23,49 +23,57 @@ http://www.gnu.org
 #endif
 
 #ifndef DEBUG
-#define helpdeco_logf(format, ...) do { } while(0);
-#define helpdeco_warnf(format, ...) do { } while(0);
-#define helpdeco_errorf(format, ...) do { exit(1); } while(0);
+#define helpdeco_logf(format, ...) \
+    do {                           \
+    } while (0);
+#define helpdeco_warnf(format, ...) \
+    do {                            \
+    } while (0);
+#define helpdeco_errorf(format, ...) \
+    do {                             \
+        exit(1);                     \
+    } while (0);
 #endif
 
 #include "helpdeco.h"
 
-const char *get_version() { return "2.1.4"; }
+const char* get_version() { return "2.1.4"; }
 
-const char *render(char *data, size_t len, const char *path) {
-  char drive[_MAX_DRIVE];
-  char dir[PATH_MAX];
+const char* render(char* data, size_t len, const char* path)
+{
+    char drive[_MAX_DRIVE];
+    char dir[PATH_MAX];
 
-  ctx = helpdeco_make_ctx();
-  ctx->opt_overwrite = TRUE;
-  ctx->opt_interactive = TRUE;
+    ctx = helpdeco_make_ctx();
+    ctx->opt_overwrite = TRUE;
+    ctx->opt_interactive = TRUE;
 
-  FILE *f = fopen(path, "w+");
-  if (!f) {
-    helpdeco_warnf("Could not open %s to write out buffer!\n", path);
-    return NULL;
-  }
-  helpdeco_warnf("Writing %ld bytes to %s!\n", len, path);
-  fwrite(data, len, 1, f);
-  fflush(f);
-  fseek(f, 0, SEEK_SET);
+    FILE* f = fopen(path, "w+");
+    if (!f) {
+        helpdeco_warnf("Could not open %s to write out buffer!\n", path);
+        return NULL;
+    }
+    helpdeco_warnf("Writing %ld bytes to %s!\n", len, path);
+    fwrite(data, len, 1, f);
+    fflush(f);
+    fseek(f, 0, SEEK_SET);
 
-  _splitpath(path, drive, dir, ctx->name, ctx->ext);
-  if (ctx->ext[0] == '\0')
-    strcpy(ctx->ext, ".hlp");
-  ctx->mvp = ctx->ext[1] == 'M' || ctx->ext[1] == 'm';
-  _makepath(ctx->filename, drive, dir, ctx->name, ctx->ext);
+    _splitpath(path, drive, dir, ctx->name, ctx->ext);
+    if (ctx->ext[0] == '\0')
+        strcpy(ctx->ext, ".hlp");
+    ctx->mvp = ctx->ext[1] == 'M' || ctx->ext[1] == 'm';
+    _makepath(ctx->filename, drive, dir, ctx->name, ctx->ext);
 
-  if (!HelpDeCompile(f, NULL, 8, NULL, 0)) {
-    helpdeco_warnf("%s isn't a valid WinHelp file ! (render)\n",
+    if (!HelpDeCompile(f, NULL, 8, NULL, 0)) {
+        helpdeco_warnf("%s isn't a valid WinHelp file ! (render)\n",
             ctx->filename);
-  } else {
-    helpdeco_warnf("Done, cleaning up!\n");
-  }
+    } else {
+        helpdeco_warnf("Done, cleaning up!\n");
+    }
 
-  helpdeco_fclose(f);
-  helpdeco_free_ctx(ctx);
-  ctx = NULL;
+    helpdeco_fclose(f);
+    helpdeco_free_ctx(ctx);
+    ctx = NULL;
 
-  return 0;
+    return 0;
 }

@@ -21,26 +21,26 @@ http://www.gnu.org
 #ifndef helpdeco_internal_h
 #define helpdeco_internal_h
 
-void hpj_list_bitmaps(FILE *hpj);
-void hpj_list_macros(FILE *HelpFile, FILE *hpj);
-void hpj_list_map(FILE *HelpFile, FILE *hpj);
-void hpj_list_aliases(FILE *hpj);
-void hpj_dump_system(FILE *HelpFile, FILE *hpj, char *IconFileName);
+void hpj_list_bitmaps(FILE* hpj);
+void hpj_list_macros(FILE* HelpFile, FILE* hpj);
+void hpj_list_map(FILE* HelpFile, FILE* hpj);
+void hpj_list_aliases(FILE* hpj);
+void hpj_dump_system(FILE* HelpFile, FILE* hpj, char* IconFileName);
 
-char *phrase_print(unsigned_legacy_int PhraseNum, char *out, FILE *f);
-char *phrase_expand(unsigned char *str, legacy_long len, char *out);
+char* phrase_print(unsigned_legacy_int PhraseNum, char* out, FILE* f);
+char* phrase_expand(unsigned char* str, legacy_long len, char* out);
 
-void rtf_puts(FILE *rtf, const char *str);
-void rtf_load_font(FILE *HelpFile, FILE *rtf, FILE *hpj);
-void rtf_change_font(FILE *rtf, unsigned_legacy_int i, BOOL ul, BOOL uldb);
-void rtf_build_filename(char *buffer, legacy_int topic);
-void rtf_annotate(legacy_long pos, FILE *rtf);
-void rtf_list_keywords(FILE *HelpFile, FILE *rtf, legacy_long TopicOffset);
-void rtf_add_footnotes(FILE *rtf, legacy_long TopicNum, uint32_t BrowseNum);
-FILE *rtf_dump(FILE *HelpFile, FILE *rtf, FILE *hpj, BOOL makertf);
+void rtf_puts(FILE* rtf, const char* str);
+void rtf_load_font(FILE* HelpFile, FILE* rtf, FILE* hpj);
+void rtf_change_font(FILE* rtf, unsigned_legacy_int i, BOOL ul, BOOL uldb);
+void rtf_build_filename(char* buffer, legacy_int topic);
+void rtf_annotate(legacy_long pos, FILE* rtf);
+void rtf_list_keywords(FILE* HelpFile, FILE* rtf, legacy_long TopicOffset);
+void rtf_add_footnotes(FILE* rtf, legacy_long TopicNum, uint32_t BrowseNum);
+FILE* rtf_dump(FILE* HelpFile, FILE* rtf, FILE* hpj, BOOL makertf);
 
-BOOL html_dump(FILE *HelpFile, FILE *__html_output);
-void html_change_font(FILE *rtf, unsigned_legacy_int i, BOOL ul, BOOL uldb);
-const char *html_font_name(HELPDECO_CTX *ctx, legacy_int id);
-BOOL html_define_fonts(FILE *HelpFile, FILE *rtf);
+BOOL html_dump(FILE* HelpFile, FILE* __html_output);
+void html_change_font(FILE* rtf, unsigned_legacy_int i, BOOL ul, BOOL uldb);
+const char* html_font_name(HELPDECO_CTX* ctx, legacy_int id);
+BOOL html_define_fonts(FILE* HelpFile, FILE* rtf);
 #endif /* helpdeco_internal_h */

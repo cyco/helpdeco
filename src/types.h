@@ -37,7 +37,7 @@ typedef unsigned short unsigned_legacy_int;
 #error Unknown platform
 #endif
 
-
-typedef enum { FALSE, TRUE } BOOL;
+typedef enum { FALSE,
+    TRUE } BOOL;
 
 #endif /* helpdeco_types_h */
