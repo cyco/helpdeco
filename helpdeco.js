@@ -1312,11 +1312,11 @@ function updateGlobalBufferAndViews(buf) {
 }
 
 var STATIC_BASE = 1024,
-    STACK_BASE = 46304,
+    STACK_BASE = 46432,
     STACKTOP = STACK_BASE,
-    STACK_MAX = 5289184,
-    DYNAMIC_BASE = 5289184,
-    DYNAMICTOP_PTR = 46096;
+    STACK_MAX = 5289312,
+    DYNAMIC_BASE = 5289312,
+    DYNAMICTOP_PTR = 46224;
 
 assert(STACK_BASE % 16 === 0, 'stack must start aligned');
 assert(DYNAMIC_BASE % 16 === 0, 'heap must start aligned');
@@ -1893,7 +1893,7 @@ var ASM_CONSTS = [];
 
 
 
-// STATICTOP = STATIC_BASE + 45280;
+// STATICTOP = STATIC_BASE + 45408;
 /* global initializers */ /*__ATINIT__.push();*/
 
 
@@ -1904,7 +1904,7 @@ var ASM_CONSTS = [];
 
 
 /* no memory initializer */
-var tempDoublePtr = 46288;
+var tempDoublePtr = 46416;
 
 function copyTempFloat(ptr) { // functions, because inlining this code increases code size too much
   HEAP8[tempDoublePtr] = HEAP8[ptr];
@@ -4594,7 +4594,7 @@ function copyTempDouble(ptr) {
   }
 
   
-  var ___tm_formatted=46208;
+  var ___tm_formatted=46336;
   
   
   
@@ -4768,10 +4768,10 @@ function copyTempDouble(ptr) {
     }
 
   
-  var ___tm_current=46144;
+  var ___tm_current=46272;
   
   
-  var ___tm_timezone=(stringToUTF8("GMT", 46192, 4), 46192);function _localtime_r(time, tmPtr) {
+  var ___tm_timezone=(stringToUTF8("GMT", 46320, 4), 46320);function _localtime_r(time, tmPtr) {
       _tzset();
       var date = new Date(HEAP32[((time)>>2)]*1000);
       HEAP32[((tmPtr)>>2)]=date.getSeconds();
