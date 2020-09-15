@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en-us">
+	<head>
+		<title>
+			Helpdeco WASM Example
+		</title>
+		<meta charset="utf-8">
+		<style>
+		body {
+		margin:  50px auto 50px auto;
+		max-width: 750px;
+		padding: 0px;
+		}
+		.drop-target {
+		border: 3px dashed gray;
+		align-items: center;
+		display: flex;
+		height: 80px;
+		justify-content: center;
+		padding: 30px;
+		max-width: 100%;
+		}
+		.dropping {
+		border-color: blue;
+		}
+		.output {
+		overflow-y: auto;
+		margin-top: 30px;
+		height: auto;
+		max-width: 100%;
+		}
+		</style>
+	</head>
+	<body>
+		<div class="drop-target" ondragenter="dragEnterHandler(event);" ondragover="dragOverHandler(event);" ondragleave="dragLeaveHandler(event);" ondrop="dropHandler(event);" onclick="clickHandler(event);">
+			Drop a *.hlp file here to inspect its contents!
+		</div>
+		<div class="output"></div>
+		<script src="helpdeco.js"> </script>
+		<script>
+		function clickHandler() {
+			const input = document.createElement("input");
+			input.type = "file";
+			input.style.opacity = "0.0";
+
+			const handler = () => {
+				setTimeout(() => displayFile(input.files[0]), 0);
+
+				input.remove();
+				document.body.onfocus = null;
+			};
+			input.onchange = handler;
+			document.body.onfocus = handler;
+
+			document.body.appendChild(input);
+			input.click();
+		}
+		
+		function dragEnterHandler(ev){
+		ev.dataTransfer.dropEffect = 'copy';
+		ev.target.classList.add('dropping');
+		ev.preventDefault();
+		}
+
+		function dragLeaveHandler(ev){
+		ev.target.classList.remove('dropping');
+		ev.preventDefault();
+		}
+
+		function dragOverHandler(ev){
+		ev.dataTransfer.dropEffect = 'copy';
+		ev.preventDefault();
+		}
+
+		function dropHandler(ev) {
+		ev.target.classList.remove('dropping');
+		ev.dataTransfer.dropEffect = 'copy';
+		ev.preventDefault();
+
+		for (var i = 0; i < ev.dataTransfer.files.length; i++) {
+		displayFile(ev.dataTransfer.files[i]);
+		break;
+		}
+		}
+        
+        function readFileAsBuffer(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(new Uint8Array(e.target.result));
+                reader.onerror = (e) => reject(e.target.error);
+                reader.readAsArrayBuffer(file);
+            });
+        }
+        
+        function readFileAsString(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = (e) => reject(e.target.error);
+                reader.readAsText(file);
+            });
+        }
+
+		async function displayFile(file) {
+		try {
+			console.log('file', file);
+			const dropZone = document.querySelector('.drop-target');
+			dropZone.textContent = file.name;
+			
+            Module.FS.chdir('/tmp');
+            
+			const version =	Module.ccall('get_version', 'string', [], []);
+			console.log(`Using heldeco version ${version}`);
+        
+            const data = await readFileAsBuffer(file);
+            Module.ccall('render', 'string', ['array', 'number', 'string'], [data, data.byteLength, file.name]);
+            
+            
+            const ouputFilePath ='/tmp/' + file.name.split('.hlp')[0]+".html";
+            const outputData = Module.FS.readFile(ouputFilePath);
+            const decoder = new TextDecoder();
+            const outputHTML = decoder.decode(outputData);
+            
+			document.querySelector('.output').innerHTML = outputHTML;
+		} catch(error) {
+			console.error(error);
+        } finally {
+            for(const f of Module.FS.readdir('/tmp')) {
+                if(f === '.' || f === '..') continue;
+                Module.FS.unlink(f);
+            }
+        }
+        }
+		</script>
+	</body>
+</html>
