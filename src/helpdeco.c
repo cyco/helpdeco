@@ -6742,8 +6742,7 @@ BOOL HelpDeCompile(FILE* HelpFile, char* dumpfile, legacy_int mode,
                 fprintf(__html_output, "<title>%s</title>\n",
                     strlen(ctx->title) ? ctx->title : "untitled");
                 fprintf(__html_output, "<style>"
-                                       "body { margin: auto; max-width: 600px; }"
-                                       "helpdeco-document { display: block; }"
+                                       "helpdeco-document { margin: auto; max-width: 600px; display: block; }"
                                        "helpdeco-topic { display: block; border: 1px "
                                        "solid black; padding: 10px; margin: 10px;}"
                                        "</style>"
