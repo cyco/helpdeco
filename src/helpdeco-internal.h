@@ -44,8 +44,8 @@ void rtf_add_footnotes(FILE* rtf, legacy_long TopicNum, uint32_t BrowseNum);
 FILE* rtf_dump(FILE* HelpFile, FILE* rtf, FILE* hpj, BOOL makertf);
 
 BOOL html_dump(FILE* HelpFile, FILE* __html_output, BOOL inline_bitmaps);
-void html_change_font(FILE* rtf, unsigned_legacy_int i, BOOL ul, BOOL uldb);
+void html_change_font(FILE* rtf, unsigned_legacy_int i, BOOL ul, BOOL uldb, BOOL in_span);
 const char* html_font_name(HELPDECO_CTX* ctx, legacy_int id);
 BOOL html_define_fonts(FILE* HelpFile, FILE* rtf);
-void html_dump_bitmap(FILE *HelpFile, FILE *html, uint16_t bitmap);
+void html_dump_bitmap(FILE* HelpFile, FILE* html, uint16_t bitmap);
 #endif /* helpdeco_internal_h */
