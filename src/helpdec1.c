@@ -787,79 +787,235 @@ extern QWORD get_QWORD(BYTE* b)
     return b[0] | b[1] << 8 | b[2] << 16 | b[3] << 24 | (QWORD)b[4] << 32 | (QWORD)b[5] << 40 | (QWORD)b[6] << 48 | (QWORD)b[7] << 56;
 }
 
-#define s(a)                                         \
-    BOOL read_##a(a* obj, FILE* file)                \
-    {                                                \
-        BYTE buf[sizeof_##a];                        \
-        if (helpdeco_fread(buf, sizeof_##a, file)) { \
-            uint32_t i = 0;
-#define s2(a, b)                                     \
-    BOOL read_##a##_to_##b(b* obj, FILE* file)       \
-    {                                                \
-        BYTE buf[sizeof_##a];                        \
-        if (helpdeco_fread(buf, sizeof_##a, file)) { \
-            uint32_t i = 0;
-#define g(a)                        \
-    BOOL get_##a(a* obj, BYTE* buf) \
-    {                               \
-        if (1) {                    \
-            uint32_t i = 0;
-#define a(a, b)                     \
-    memcpy(&obj->a[0], buf + i, b); \
-    i += b;
-#define b(a)             \
-    obj->a = *(buf + i); \
-    i++;
-#define w(a)                    \
-    obj->a = get_WORD(buf + i); \
-    i += 2;
-#define d(a)                     \
-    obj->a = get_DWORD(buf + i); \
-    i += 4;
-#define q(a)                     \
-    obj->a = get_QWORD(buf + i); \
-    i += 8;
-#define e              \
-    return TRUE;       \
-    }                  \
-    else return FALSE; \
-    }
+BOOL read_HELPHEADER(HELPHEADER* obj, FILE* file)
+{
+    BYTE buf[sizeof_HELPHEADER];
+    if (helpdeco_fread(buf, sizeof_HELPHEADER, file)) {
+        uint32_t i = 0;
+        obj->Magic = get_DWORD(buf + i);
+        i += 4;
+        obj->DirectoryStart = get_DWORD(buf + i);
+        i += 4;
+        obj->FreeChainStart = get_DWORD(buf + i);
+        i += 4;
+        obj->EntireFileSize = get_DWORD(buf + i);
 
-s(HELPHEADER) d(Magic) d(DirectoryStart) d(FreeChainStart) d(EntireFileSize) e
+        return TRUE;
+    } else
+        return FALSE;
+}
 
-    s(FILEHEADER) d(ReservedSpace) d(UsedSpace) b(FileFlags) e
+BOOL read_FILEHEADER(FILEHEADER* obj, FILE* file)
+{
+    BYTE buf[sizeof_FILEHEADER];
+    if (helpdeco_fread(buf, sizeof_FILEHEADER, file)) {
+        uint32_t i = 0;
+        obj->ReservedSpace = get_DWORD(buf + i);
+        i += 4;
+        obj->UsedSpace = get_DWORD(buf + i);
+        i += 4;
+        obj->FileFlags = *(buf + i);
+        i++;
+        return TRUE;
+    } else
+        return FALSE;
+}
 
-    s(BTREEHEADER) w(Magic) w(Flags) w(PageSize) a(Structure, 0x10)
-        w(MustBeZero) w(PageSplits) w(RootPage) w(MustBeNegOne) w(TotalPages)
-            w(NLevels) d(TotalBtreeEntries) e
+BOOL read_BTREEHEADER(BTREEHEADER* obj, FILE* file)
+{
+    BYTE buf[sizeof_BTREEHEADER];
+    if (helpdeco_fread(buf, sizeof_BTREEHEADER, file)) {
+        uint32_t i = 0;
+        obj->Magic = get_WORD(buf + i);
+        i += 2;
+        obj->Flags = get_WORD(buf + i);
+        i += 2;
+        obj->PageSize = get_WORD(buf + i);
+        i += 2;
+        memcpy(&obj->Structure[0], buf + i, 0x10);
+        i += 0x10;
+        obj->MustBeZero = get_WORD(buf + i);
+        i += 2;
+        obj->PageSplits = get_WORD(buf + i);
+        i += 2;
+        obj->RootPage = get_WORD(buf + i);
+        i += 2;
+        obj->MustBeNegOne = get_WORD(buf + i);
+        i += 2;
+        obj->TotalPages = get_WORD(buf + i);
+        i += 2;
+        obj->NLevels = get_WORD(buf + i);
+        i += 2;
+        obj->TotalBtreeEntries = get_DWORD(buf + i);
 
-    s(BTREEINDEXHEADER) w(Unknown) w(NEntries) w(PreviousPage) e
+        return TRUE;
+    } else
+        return FALSE;
+}
 
-    /* for reading index nodes into regular nodes, boink */
-    s2(BTREEINDEXHEADER, BTREENODEHEADER) w(Unknown) w(NEntries)
-        w(PreviousPage) obj->NextPage = 0;
-e
+BOOL read_BTREEINDEXHEADER(BTREEINDEXHEADER* obj, FILE* file)
+{
+    BYTE buf[sizeof_BTREEINDEXHEADER];
+    if (helpdeco_fread(buf, sizeof_BTREEINDEXHEADER, file)) {
+        uint32_t i = 0;
+        obj->Unknown = get_WORD(buf + i);
+        i += 2;
+        obj->NEntries = get_WORD(buf + i);
+        i += 2;
+        obj->PreviousPage = get_WORD(buf + i);
 
-    s(BTREENODEHEADER) w(Unknown) w(NEntries) w(PreviousPage) w(NextPage) e
+        return TRUE;
+    } else
+        return FALSE;
+}
 
-    s(SYSTEMHEADER) w(Magic) w(Minor) w(Major) d(GenDate) w(Flags) e
+/* for reading index nodes into regular nodes, boink */
+BOOL read_BTREEINDEXHEADER_to_BTREENODEHEADER(BTREENODEHEADER* obj,
+    FILE* file)
+{
+    BYTE buf[sizeof_BTREEINDEXHEADER];
+    if (helpdeco_fread(buf, sizeof_BTREEINDEXHEADER, file)) {
+        uint32_t i = 0;
+        obj->Unknown = get_WORD(buf + i);
+        i += 2;
+        obj->NEntries = get_WORD(buf + i);
+        i += 2;
+        obj->PreviousPage = get_WORD(buf + i);
 
-    s(GROUPHEADER) d(Magic) d(BitmapSize) d(LastTopic) d(FirstTopic)
-        d(TopicsUsed) d(TopicCount) d(GroupType) d(Unknown1) d(Unknown2)
-            d(Unknown3) e
+        obj->NextPage = 0;
+        return TRUE;
+    } else
+        return FALSE;
+}
 
-    s(KWMAPREC) d(FirstRec) w(PageNum) e
+BOOL read_BTREENODEHEADER(BTREENODEHEADER* obj, FILE* file)
+{
+    BYTE buf[sizeof_BTREENODEHEADER];
+    if (helpdeco_fread(buf, sizeof_BTREENODEHEADER, file)) {
+        uint32_t i = 0;
+        obj->Unknown = get_WORD(buf + i);
+        i += 2;
+        obj->NEntries = get_WORD(buf + i);
+        i += 2;
+        obj->PreviousPage = get_WORD(buf + i);
+        i += 2;
+        obj->NextPage = get_WORD(buf + i);
 
-    s(CATALOGHEADER) w(magic) w(always8) w(always4) d(entries) a(zero, 30) e
+        return TRUE;
+    } else
+        return FALSE;
+}
 
-    g(CTXOMAPREC) d(MapID) d(TopicOffset) e
+BOOL read_SYSTEMHEADER(SYSTEMHEADER* obj, FILE* file)
+{
+    BYTE buf[sizeof_SYSTEMHEADER];
+    if (helpdeco_fread(buf, sizeof_SYSTEMHEADER, file)) {
+        uint32_t i = 0;
+        obj->Magic = get_WORD(buf + i);
+        i += 2;
+        obj->Minor = get_WORD(buf + i);
+        i += 2;
+        obj->Major = get_WORD(buf + i);
+        i += 2;
+        obj->GenDate = get_DWORD(buf + i);
+        i += 4;
+        obj->Flags = get_WORD(buf + i);
 
-    s(CTXOMAPREC) get_CTXOMAPREC(obj, buf + i);
-i += sizeof_CTXOMAPREC;
-e
+        return TRUE;
+    } else
+        return FALSE;
+}
 
-    BOOL
-    read_CTXOMAPRECs(CTXOMAPREC* objs, int n, FILE* file)
+BOOL read_GROUPHEADER(GROUPHEADER* obj, FILE* file)
+{
+    BYTE buf[sizeof_GROUPHEADER];
+    if (helpdeco_fread(buf, sizeof_GROUPHEADER, file)) {
+        uint32_t i = 0;
+        obj->Magic = get_DWORD(buf + i);
+        i += 4;
+        obj->BitmapSize = get_DWORD(buf + i);
+        i += 4;
+        obj->LastTopic = get_DWORD(buf + i);
+        i += 4;
+        obj->FirstTopic = get_DWORD(buf + i);
+        i += 4;
+        obj->TopicsUsed = get_DWORD(buf + i);
+        i += 4;
+        obj->TopicCount = get_DWORD(buf + i);
+        i += 4;
+        obj->GroupType = get_DWORD(buf + i);
+        i += 4;
+        obj->Unknown1 = get_DWORD(buf + i);
+        i += 4;
+        obj->Unknown2 = get_DWORD(buf + i);
+        i += 4;
+        obj->Unknown3 = get_DWORD(buf + i);
+
+        return TRUE;
+    } else
+        return FALSE;
+}
+
+BOOL read_KWMAPREC(KWMAPREC* obj, FILE* file)
+{
+    BYTE buf[sizeof_KWMAPREC];
+    if (helpdeco_fread(buf, sizeof_KWMAPREC, file)) {
+        uint32_t i = 0;
+        obj->FirstRec = get_DWORD(buf + i);
+        i += 4;
+        obj->PageNum = get_WORD(buf + i);
+
+        return TRUE;
+    } else
+        return FALSE;
+}
+
+BOOL read_CATALOGHEADER(CATALOGHEADER* obj, FILE* file)
+{
+    BYTE buf[sizeof_CATALOGHEADER];
+    if (helpdeco_fread(buf, sizeof_CATALOGHEADER, file)) {
+        uint32_t i = 0;
+        obj->magic = get_WORD(buf + i);
+        i += 2;
+        obj->always8 = get_WORD(buf + i);
+        i += 2;
+        obj->always4 = get_WORD(buf + i);
+        i += 2;
+        obj->entries = get_DWORD(buf + i);
+        i += 4;
+        memcpy(&obj->zero[0], buf + i, 30);
+
+        return TRUE;
+    } else
+        return FALSE;
+}
+
+BOOL get_CTXOMAPREC(CTXOMAPREC* obj, BYTE* buf)
+{
+    if (1) {
+        uint32_t i = 0;
+        obj->MapID = get_DWORD(buf + i);
+        i += 4;
+        obj->TopicOffset = get_DWORD(buf + i);
+
+        return TRUE;
+    } else
+        return FALSE;
+}
+
+BOOL read_CTXOMAPREC(CTXOMAPREC* obj, FILE* file)
+{
+    BYTE buf[sizeof_CTXOMAPREC];
+    if (helpdeco_fread(buf, sizeof_CTXOMAPREC, file)) {
+        uint32_t i = 0;
+        get_CTXOMAPREC(obj, buf + i);
+
+        return TRUE;
+    } else
+        return FALSE;
+}
+
+BOOL read_CTXOMAPRECs(CTXOMAPREC* objs, int n, FILE* file)
 {
     BYTE buf[sizeof_CTXOMAPREC];
     int i;
@@ -873,60 +1029,329 @@ e
     return TRUE;
 }
 
-s(STOPHEADER) uint32_t j = 0;
-d(Magic) w(BytesUsed) while (j < 17) { w(Unused[j++]) } e
+BOOL read_STOPHEADER(STOPHEADER* obj, FILE* file)
+{
+    BYTE buf[sizeof_STOPHEADER];
+    if (helpdeco_fread(buf, sizeof_STOPHEADER, file)) {
+        uint32_t i = 0;
+        uint32_t j = 0;
+        obj->Magic = get_DWORD(buf + i);
+        i += 4;
+        obj->BytesUsed = get_WORD(buf + i);
+        i += 2;
+        while (j < 17) {
+            obj->Unused[j++] = get_WORD(buf + i);
+            i += 2;
+        }
+        return TRUE;
+    } else
+        return FALSE;
+}
 
-    s(PHRINDEXHDR) WORD bitfield = 0;
-d(always4A01) d(entries) d(compressedsize) d(phrimagesize)
-    d(phrimagecompressedsize) d(always0) bitfield = get_WORD(buf + i);
-i += 2;
-obj->bits = bitfield;
-obj->unknown = bitfield >> 4;
-w(always4A00) e
+BOOL read_PHRINDEXHDR(PHRINDEXHDR* obj, FILE* file)
+{
+    BYTE buf[sizeof_PHRINDEXHDR];
+    if (helpdeco_fread(buf, sizeof_PHRINDEXHDR, file)) {
+        uint32_t i = 0;
+        WORD bitfield = 0;
+        obj->always4A01 = get_DWORD(buf + i);
+        i += 4;
+        obj->entries = get_DWORD(buf + i);
+        i += 4;
+        obj->compressedsize = get_DWORD(buf + i);
+        i += 4;
+        obj->phrimagesize = get_DWORD(buf + i);
+        i += 4;
+        obj->phrimagecompressedsize = get_DWORD(buf + i);
+        i += 4;
+        obj->always0 = get_DWORD(buf + i);
+        i += 4;
+        bitfield = get_WORD(buf + i);
+        i += 2;
+        obj->bits = bitfield;
+        obj->unknown = bitfield >> 4;
+        obj->always4A00 = get_WORD(buf + i);
 
-    s(CONTEXTREC) d(HashValue) d(TopicOffset) e
+        return TRUE;
+    } else
+        return FALSE;
+}
 
-    s(FONTHEADER) w(NumFacenames) w(NumDescriptors) w(FacenamesOffset)
-        w(DescriptorsOffset) w(NumFormats) w(FormatsOffset) w(NumCharmaps)
-            w(CharmapsOffset) e
+BOOL read_CONTEXTREC(CONTEXTREC* obj, FILE* file)
+{
+    BYTE buf[sizeof_CONTEXTREC];
+    if (helpdeco_fread(buf, sizeof_CONTEXTREC, file)) {
+        uint32_t i = 0;
+        obj->HashValue = get_DWORD(buf + i);
+        i += 4;
+        obj->TopicOffset = get_DWORD(buf + i);
 
-    s(CHARMAPHEADER) uint32_t j = 0;
-w(Magic) w(Size) w(Unknown1) w(Unknown2) w(Entries) w(Ligatures)
-    w(LigLen) while (j < 13) { w(Unknown[j++]) } e
+        return TRUE;
+    } else
+        return FALSE;
+}
 
-    g(MVBFONT) w(FontName) w(expndtw) w(style) a(FGRGB, 3) a(BGRGB, 3) d(Height)
-        a(mostlyzero, 12) w(Weight) b(unknown10) b(unknown11) b(Italic)
-            b(Underline) b(StrikeOut) b(DoubleUnderline) b(SmallCaps)
-                b(unknown17) b(unknown18) b(PitchAndFamily) b(unknown20) b(up) e
+BOOL read_FONTHEADER(FONTHEADER* obj, FILE* file)
+{
+    BYTE buf[sizeof_FONTHEADER];
+    if (helpdeco_fread(buf, sizeof_FONTHEADER, file)) {
+        uint32_t i = 0;
+        obj->NumFacenames = get_WORD(buf + i);
+        i += 2;
+        obj->NumDescriptors = get_WORD(buf + i);
+        i += 2;
+        obj->FacenamesOffset = get_WORD(buf + i);
+        i += 2;
+        obj->DescriptorsOffset = get_WORD(buf + i);
+        i += 2;
+        obj->NumFormats = get_WORD(buf + i);
+        i += 2;
+        i += 2;
+        obj->FormatsOffset = get_WORD(buf + i);
+        i += 2;
+        obj->NumCharmaps = get_WORD(buf + i);
+        i += 2;
+        obj->CharmapsOffset = get_WORD(buf + i);
 
-    s(MVBFONT) get_MVBFONT(obj, buf + i);
-i += sizeof_MVBFONT;
-e
+        return TRUE;
+    } else
+        return FALSE;
+}
 
-    s(MVBSTYLE) w(StyleNum) w(BasedOn) get_MVBFONT(&obj->font, buf + i);
-i += sizeof_MVBFONT;
-a(unknown, 35) a(StyleName, 65) e
+BOOL read_CHARMAPHEADER(CHARMAPHEADER* obj, FILE* file)
+{
+    BYTE buf[sizeof_CHARMAPHEADER];
+    if (helpdeco_fread(buf, sizeof_CHARMAPHEADER, file)) {
+        uint32_t i = 0;
+        uint32_t j = 0;
+        obj->Magic = get_WORD(buf + i);
+        i += 2;
+        obj->Size = get_WORD(buf + i);
+        i += 2;
+        obj->Unknown1 = get_WORD(buf + i);
+        i += 2;
+        obj->Unknown2 = get_WORD(buf + i);
+        i += 2;
+        obj->Entries = get_WORD(buf + i);
+        i += 2;
+        obj->Ligatures = get_WORD(buf + i);
+        i += 2;
+        obj->LigLen = get_WORD(buf + i);
+        i += 2;
+        while (j < 13) {
+            obj->Unknown[j++] = get_WORD(buf + i);
+            i += 2;
+        }
+        return TRUE;
+    } else
+        return FALSE;
+}
 
-    g(NEWFONT) b(unknown1) w(FontName) a(FGRGB, 3) a(BGRGB, 3) b(unknown5)
-        b(unknown6) b(unknown7) b(unknown8) b(unknown9) d(Height)
-            a(mostlyzero, 12) w(Weight) b(unknown10) b(unknown11) b(Italic)
-                b(Underline) b(StrikeOut) b(DoubleUnderline) b(SmallCaps)
-                    b(unknown17) b(unknown18) b(PitchAndFamily) e
+BOOL get_MVBFONT(MVBFONT* obj, BYTE* buf)
+{
+    if (1) {
+        uint32_t i = 0;
+        obj->FontName = get_WORD(buf + i);
+        i += 2;
+        obj->expndtw = get_WORD(buf + i);
+        i += 2;
+        obj->style = get_WORD(buf + i);
+        i += 2;
+        memcpy(&obj->FGRGB[0], buf + i, 3);
+        i += 3;
+        memcpy(&obj->BGRGB[0], buf + i, 3);
+        i += 3;
+        obj->Height = get_DWORD(buf + i);
+        i += 4;
+        memcpy(&obj->mostlyzero[0], buf + i, 12);
+        i += 12;
+        obj->Weight = get_WORD(buf + i);
+        i += 2;
+        obj->unknown10 = *(buf + i);
+        i++;
+        obj->unknown11 = *(buf + i);
+        i++;
+        obj->Italic = *(buf + i);
+        i++;
+        obj->Underline = *(buf + i);
+        i++;
+        obj->StrikeOut = *(buf + i);
+        i++;
+        obj->DoubleUnderline = *(buf + i);
+        i++;
+        obj->SmallCaps = *(buf + i);
+        i++;
+        obj->unknown17 = *(buf + i);
+        i++;
+        obj->unknown18 = *(buf + i);
+        i++;
+        obj->PitchAndFamily = *(buf + i);
+        i++;
+        obj->unknown20 = *(buf + i);
+        i++;
+        obj->up = *(buf + i);
+        i++;
+        return TRUE;
+    } else
+        return FALSE;
+}
 
-    s(NEWFONT) get_NEWFONT(obj, buf + i);
-i += sizeof_NEWFONT;
-e
+BOOL read_MVBFONT(MVBFONT* obj, FILE* file)
+{
+    BYTE buf[sizeof_MVBFONT];
+    if (helpdeco_fread(buf, sizeof_MVBFONT, file)) {
+        uint32_t i = 0;
+        get_MVBFONT(obj, buf + i);
 
-    s(NEWSTYLE) w(StyleNum) w(BasedOn) get_NEWFONT(&obj->font, buf + i);
-i += sizeof_NEWFONT;
-a(unknown, 35) a(StyleName, 65) e
+        return TRUE;
+    } else
+        return FALSE;
+}
 
-    s(OLDFONT) b(Attributes) b(HalfPoints) b(FontFamily) w(FontName) a(FGRGB, 3)
-        a(BGRGB, 3) e
+BOOL read_MVBSTYLE(MVBSTYLE* obj, FILE* file)
+{
+    BYTE buf[sizeof_MVBSTYLE];
+    if (helpdeco_fread(buf, sizeof_MVBSTYLE, file)) {
+        uint32_t i = 0;
+        obj->StyleNum = get_WORD(buf + i);
+        i += 2;
+        obj->BasedOn = get_WORD(buf + i);
+        i += 2;
+        get_MVBFONT(&obj->font, buf + i);
+        i += sizeof_MVBFONT;
+        memcpy(&obj->unknown[0], buf + i, 35);
+        i += 35;
+        memcpy(&obj->StyleName[0], buf + i, 65);
 
-    s(TOPICBLOCKHEADER) d(LastTopicLink) d(FirstTopicLink) d(LastTopicHeader) e
+        return TRUE;
+    } else
+        return FALSE;
+}
 
-    BOOL read_VIOLARECs(VIOLAREC* objs, int n, FILE* file)
+BOOL get_NEWFONT(NEWFONT* obj, BYTE* buf)
+{
+    if (1) {
+        uint32_t i = 0;
+        obj->unknown1 = *(buf + i);
+        i++;
+        obj->FontName = get_WORD(buf + i);
+        i += 2;
+        memcpy(&obj->FGRGB[0], buf + i, 3);
+        i += 3;
+        memcpy(&obj->BGRGB[0], buf + i, 3);
+        i += 3;
+        obj->unknown5 = *(buf + i);
+        i++;
+        obj->unknown6 = *(buf + i);
+        i++;
+        obj->unknown7 = *(buf + i);
+        i++;
+        obj->unknown8 = *(buf + i);
+        i++;
+        obj->unknown9 = *(buf + i);
+        i++;
+        obj->Height = get_DWORD(buf + i);
+        i += 4;
+        memcpy(&obj->mostlyzero[0], buf + i, 12);
+        i += 12;
+        obj->Weight = get_WORD(buf + i);
+        i += 2;
+        obj->unknown10 = *(buf + i);
+        i++;
+        obj->unknown11 = *(buf + i);
+        i++;
+        obj->Italic = *(buf + i);
+        i++;
+        obj->Underline = *(buf + i);
+        i++;
+        obj->StrikeOut = *(buf + i);
+        i++;
+        obj->DoubleUnderline = *(buf + i);
+        i++;
+        obj->SmallCaps = *(buf + i);
+        i++;
+        obj->unknown17 = *(buf + i);
+        i++;
+        obj->unknown18 = *(buf + i);
+        i++;
+        obj->PitchAndFamily = *(buf + i);
+        i++;
+        return TRUE;
+    } else
+        return FALSE;
+}
+
+BOOL read_NEWFONT(NEWFONT* obj, FILE* file)
+{
+    BYTE buf[sizeof_NEWFONT];
+    if (helpdeco_fread(buf, sizeof_NEWFONT, file)) {
+        uint32_t i = 0;
+        get_NEWFONT(obj, buf + i);
+
+        return TRUE;
+    } else
+        return FALSE;
+}
+
+BOOL read_NEWSTYLE(NEWSTYLE* obj, FILE* file)
+{
+    BYTE buf[sizeof_NEWSTYLE];
+    if (helpdeco_fread(buf, sizeof_NEWSTYLE, file)) {
+        uint32_t i = 0;
+        obj->StyleNum = get_WORD(buf + i);
+        i += 2;
+        obj->BasedOn = get_WORD(buf + i);
+        i += 2;
+        get_NEWFONT(&obj->font, buf + i);
+        i += sizeof_NEWFONT;
+        memcpy(&obj->unknown[0], buf + i, 35);
+        i += 35;
+        memcpy(&obj->StyleName[0], buf + i, 65);
+
+        return TRUE;
+    } else
+        return FALSE;
+}
+
+BOOL read_OLDFONT(OLDFONT* obj, FILE* file)
+{
+    BYTE buf[sizeof_OLDFONT];
+    if (helpdeco_fread(buf, sizeof_OLDFONT, file)) {
+        uint32_t i = 0;
+        obj->Attributes = *(buf + i);
+        i++;
+        obj->HalfPoints = *(buf + i);
+        i++;
+        obj->FontFamily = *(buf + i);
+        i++;
+        obj->FontName = get_WORD(buf + i);
+        i += 2;
+        memcpy(&obj->FGRGB[0], buf + i, 3);
+        i += 3;
+        memcpy(&obj->BGRGB[0], buf + i, 3);
+
+        return TRUE;
+    } else
+        return FALSE;
+}
+
+BOOL read_TOPICBLOCKHEADER(TOPICBLOCKHEADER* obj, FILE* file)
+{
+    BYTE buf[sizeof_TOPICBLOCKHEADER];
+    if (helpdeco_fread(buf, sizeof_TOPICBLOCKHEADER, file)) {
+        uint32_t i = 0;
+        obj->LastTopicLink = get_DWORD(buf + i);
+        i += 4;
+        obj->FirstTopicLink = get_DWORD(buf + i);
+        i += 4;
+        obj->LastTopicHeader = get_DWORD(buf + i);
+
+        return TRUE;
+    } else
+        return FALSE;
+}
+
+BOOL read_VIOLARECs(VIOLAREC* objs, int n, FILE* file)
 {
     BYTE buf[sizeof_VIOLAREC];
     int i;

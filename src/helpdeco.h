@@ -59,10 +59,6 @@ typedef struct {
 #pragma pack(1)
 #endif
 
-/* Used to more easily define some functions */
-#define r(a) BOOL read_##a(a* obj, FILE* file);
-#define r2(a, b) BOOL read_##a##_to_##b(b* obj, FILE* file);
-
 #define sizeof_BYTE 1
 #define sizeof_WORD 2
 #define sizeof_DWORD 4
@@ -74,20 +70,19 @@ typedef struct /* structure at beginning of help file */
     int32_t FreeChainStart; /* offset of FILEHEADER or -1 */
     int32_t EntireFileSize; /* size of entire help file in bytes */
 } HELPHEADER;
-r(HELPHEADER)
+BOOL read_HELPHEADER(HELPHEADER* obj, FILE* file);
 #define sizeof_HELPHEADER (sizeof_DWORD * 4)
 
-    typedef struct FILEHEADER /* structure at FileOffset of each internal file
-                               */
+typedef struct FILEHEADER /* structure at FileOffset of each internal file */
 {
     int32_t ReservedSpace; /* reserved space in help file incl. FILEHEADER */
     int32_t UsedSpace; /* used space in help file excl. FILEHEADER */
     unsigned char FileFlags; /* normally 4 */
 } FILEHEADER;
-r(FILEHEADER)
+BOOL read_FILEHEADER(FILEHEADER* obj, FILE* file);
 #define sizeof_FILEHEADER (sizeof_DWORD * 2 + sizeof_BYTE)
 
-    typedef struct BTREEHEADER /* structure after FILEHEADER of each Btree */
+typedef struct BTREEHEADER /* structure after FILEHEADER of each Btree */
 {
     uint16_t Magic; /* 0x293B */
     uint16_t Flags; /* bit 0x0002 always 1, bit 0x0400 1 if direcory */
@@ -101,34 +96,32 @@ r(FILEHEADER)
     int16_t NLevels; /* number of levels of Btree */
     int32_t TotalBtreeEntries; /* number of entries in Btree */
 } BTREEHEADER;
-r(BTREEHEADER)
+BOOL read_BTREEHEADER(BTREEHEADER* obj, FILE* file);
 #define sizeof_BTREEHEADER \
     (sizeof_WORD * 3 + sizeof_BYTE * 16 + sizeof_WORD * 6 + sizeof_DWORD)
 
-    typedef struct BTREEINDEXHEADER /* structure at beginning of every
-                                       index-page */
+typedef struct BTREEINDEXHEADER /* structure at beginning of every index-page */
 {
     uint16_t Unknown; /* sorry, no ID to identify an index-page */
     int16_t NEntries; /* number of entries in this index-page */
     int16_t PreviousPage; /* page number of previous page */
 } BTREEINDEXHEADER;
-r(BTREEINDEXHEADER)
+BOOL read_BTREEINDEXHEADER(BTREEINDEXHEADER* obj, FILE* file);
 #define sizeof_BTREEINDEXHEADER (sizeof_WORD * 3)
 
-    typedef struct BTREENODEHEADER /* structure at beginning of every leaf-page
-                                    */
+typedef struct BTREENODEHEADER /* structure at beginning of every leaf-page */
 {
     uint16_t Unknown; /* Sorry, no ID to identify a leaf-page */
     int16_t NEntries; /* number of entires in this leaf-page */
     int16_t PreviousPage; /* page number of preceeding leaf-page or -1 */
     int16_t NextPage; /* page number of next leaf-page or -1 */
 } BTREENODEHEADER;
-r(BTREENODEHEADER)
+BOOL read_BTREENODEHEADER(BTREENODEHEADER* obj, FILE* file);
 #define sizeof_BTREENODEHEADER (sizeof_WORD * 4)
 
-    r2(BTREEINDEXHEADER, BTREENODEHEADER)
+BOOL read_BTREEINDEXHEADER_to_BTREENODEHEADER(BTREENODEHEADER* obj, FILE* file);
 
-        typedef struct SYSTEMHEADER /* structure at beginning of |SYSTEM file */
+typedef struct SYSTEMHEADER /* structure at beginning of |SYSTEM file */
 {
     uint16_t Magic; /* 0x036C */
     uint16_t Minor; /* help file format version number */
@@ -136,10 +129,10 @@ r(BTREENODEHEADER)
     time_t GenDate; /* date/time the help file was generated or 0 */
     uint16_t Flags; /* tells you how the help file is compressed */
 } SYSTEMHEADER;
-r(SYSTEMHEADER)
+BOOL read_SYSTEMHEADER(SYSTEMHEADER* obj, FILE* file);
 #define sizeof_SYSTEMHEADER (sizeof_WORD * 3 + sizeof_DWORD + sizeof_WORD)
 
-    typedef struct /* internal structure */
+typedef struct /* internal structure */
 {
     FILE* File;
     int32_t SavePos;
@@ -225,11 +218,11 @@ typedef struct PHRINDEXHDR /* structure of beginning of |PhrIndex file */
     uint16_t unknown : 12;
     uint16_t always4A00; /* sometimes 0x4A01, 0x4A02 */
 } PHRINDEXHDR;
-r(PHRINDEXHDR)
+BOOL read_PHRINDEXHDR(PHRINDEXHDR* obj, FILE* file);
 /* bits and unknown are combined into the same WORD */
 #define sizeof_PHRINDEXHDR (sizeof_DWORD * 6 + sizeof_WORD + sizeof_WORD)
 
-    typedef struct FONTHEADER /* structure of beginning of |FONT file */
+typedef struct FONTHEADER /* structure of beginning of |FONT file */
 {
     uint16_t NumFacenames; /* number of face names */
     uint16_t NumDescriptors; /* number of font descriptors */
@@ -240,10 +233,10 @@ r(PHRINDEXHDR)
     uint16_t NumCharmaps; /* only if FacenamesOffset >= 16 */
     uint16_t CharmapsOffset; /* offset of charmapnames array */
 } FONTHEADER;
-r(FONTHEADER)
+BOOL read_FONTHEADER(FONTHEADER* obj, FILE* file);
 #define sizeof_FONTHEADER (sizeof_WORD * 8)
 
-    typedef struct FONTDESCRIPTOR /* internal font descriptor */
+typedef struct FONTDESCRIPTOR /* internal font descriptor */
 {
     unsigned char Bold;
     unsigned char Italic;
@@ -270,11 +263,11 @@ typedef struct /* non-Multimedia font descriptor */
     unsigned char FGRGB[3]; /* RGB values of foreground */
     unsigned char BGRGB[3]; /* unused background RGB Values */
 } OLDFONT;
-r(OLDFONT)
+BOOL read_OLDFONT(OLDFONT* obj, FILE* file);
 #define sizeof_OLDFONT \
     (sizeof_BYTE * 3 + sizeof_WORD + sizeof_BYTE * 3 + sizeof_BYTE * 3)
 
-    typedef struct NEWFONT /* structure located at DescriptorsOffset */
+typedef struct NEWFONT /* structure located at DescriptorsOffset */
 {
     unsigned char unknown1;
     int16_t FontName;
@@ -299,22 +292,22 @@ r(OLDFONT)
     unsigned char unknown18;
     unsigned char PitchAndFamily;
 } NEWFONT;
-r(NEWFONT)
+BOOL read_NEWFONT(NEWFONT* obj, FILE* file);
 #define sizeof_NEWFONT \
     (sizeof_BYTE + sizeof_WORD + sizeof_BYTE * 3 + sizeof_BYTE * 5 + sizeof_DWORD + sizeof_BYTE * 12 + sizeof_WORD + sizeof_BYTE * 10)
 
-    typedef struct {
+typedef struct {
     uint16_t StyleNum;
     uint16_t BasedOn;
     NEWFONT font;
     char unknown[35];
     char StyleName[65];
 } NEWSTYLE;
-r(NEWSTYLE)
+BOOL read_NEWSTYLE(NEWSTYLE* obj, FILE* file);
 #define sizeof_NEWSTYLE \
     (sizeof_WORD * 2 + sizeof_NEWFONT + sizeof_BYTE * 35 + sizeof_BYTE * 65)
 
-    typedef struct MVBFONT /* structure located at DescriptorsOffset */
+typedef struct MVBFONT /* structure located at DescriptorsOffset */
 {
     int16_t FontName;
     int16_t expndtw;
@@ -337,22 +330,22 @@ r(NEWSTYLE)
     unsigned char unknown20;
     signed char up;
 } MVBFONT;
-r(MVBFONT)
+BOOL read_MVBFONT(MVBFONT* obj, FILE* file);
 #define sizeof_MVBFONT \
     (sizeof_WORD * 3 + sizeof_BYTE * 3 * 2 + sizeof_DWORD + sizeof_BYTE * 12 + sizeof_WORD + sizeof_BYTE * 12)
 
-    typedef struct {
+typedef struct {
     uint16_t StyleNum;
     uint16_t BasedOn;
     MVBFONT font;
     char unknown[35];
     char StyleName[65];
 } MVBSTYLE;
-r(MVBSTYLE)
+BOOL read_MVBSTYLE(MVBSTYLE* obj, FILE* file);
 #define sizeof_MVBSTYLE \
     (sizeof_WORD * 2 + sizeof_MVBFONT + sizeof_BYTE * 35 + sizeof_BYTE * 65)
 
-    typedef struct {
+typedef struct {
     uint16_t Magic; /* 0x5555 */
     uint16_t Size;
     uint16_t Unknown1;
@@ -362,7 +355,7 @@ r(MVBSTYLE)
     uint16_t LigLen;
     uint16_t Unknown[13];
 } CHARMAPHEADER;
-r(CHARMAPHEADER)
+BOOL read_CHARMAPHEADER(CHARMAPHEADER* obj, FILE* file);
 #define sizeof_CHARMAPHEADER (sizeof_WORD * 7 + sizeof_WORD * 13)
 
 /* Font Attributes */
@@ -382,12 +375,12 @@ r(CHARMAPHEADER)
 #define FAM_SCRIPT 0x04
 #define FAM_DECOR 0x05
 
-    typedef struct KWMAPREC /* structure of |xWMAP leaf-page entries */
+typedef struct KWMAPREC /* structure of |xWMAP leaf-page entries */
 {
     int32_t FirstRec; /* index number of first keyword on leaf page */
     uint16_t PageNum; /* page number that keywords are associated with */
 } KWMAPREC;
-r(KWMAPREC);
+BOOL read_KWMAPREC(KWMAPREC* obj, FILE* file);
 #define sizeof_KWMAPREC (sizeof_DWORD + sizeof_WORD)
 
 typedef uint32_t
@@ -408,10 +401,10 @@ typedef struct /* structure every TopicBlockSize in |TOPIC */
     TOPICPOS FirstTopicLink; /* points to first TOPICLINK in this block */
     TOPICPOS LastTopicHeader; /* points to TOPICLINK of last TOPICHEADER */
 } TOPICBLOCKHEADER;
-r(TOPICBLOCKHEADER)
+BOOL read_TOPICBLOCKHEADER(TOPICBLOCKHEADER* obj, FILE* file);
 #define sizeof_TOPICBLOCKHEADER (sizeof_TOPICPOS * 3)
 
-    typedef struct /* structure pointed to by FirstTopicLink */
+typedef struct /* structure pointed to by FirstTopicLink */
 {
     uint32_t BlockSize; /* size of this link + LinkData1 + LinkData2 */
     uint32_t DataLen2; /* length of decompressed LinkData2 */
@@ -458,7 +451,8 @@ typedef struct /* structure of |CTXOMAP file entries */
     int32_t MapID;
     int32_t TopicOffset;
 } CTXOMAPREC;
-r(CTXOMAPREC) BOOL read_CTXOMAPRECs(CTXOMAPREC* objs, int n, FILE* file);
+BOOL read_CTXOMAPREC(CTXOMAPREC* obj, FILE* file);
+BOOL read_CTXOMAPRECs(CTXOMAPREC* objs, int n, FILE* file);
 #define sizeof_CTXOMAPREC (sizeof_DWORD * 2)
 
 typedef struct /* structure of |CONTEXT leaf-page entry */
@@ -466,7 +460,8 @@ typedef struct /* structure of |CONTEXT leaf-page entry */
     int32_t HashValue; /* Hash value of context id */
     TOPICOFFSET TopicOffset; /* Topic offset */
 } CONTEXTREC;
-r(CONTEXTREC) BOOL read_CONTEXTRECs(CONTEXTREC* objs, int n, FILE* file);
+BOOL read_CONTEXTREC(CONTEXTREC* obj, FILE* file);
+BOOL read_CONTEXTRECs(CONTEXTREC* objs, int n, FILE* file);
 #define sizeof_CONTEXTREC (sizeof_DWORD + sizeof_TOPICOFFSET)
 
 typedef struct /* structure of *.GRP file header */
@@ -482,10 +477,10 @@ typedef struct /* structure of *.GRP file header */
     uint32_t Unknown2;
     uint32_t Unknown3;
 } GROUPHEADER;
-r(GROUPHEADER)
+BOOL read_GROUPHEADER(GROUPHEADER* obj, FILE* file);
 #define sizeof_GROUPHEADER (sizeof_DWORD * 10)
 
-    typedef struct /* internal use */
+typedef struct /* internal use */
 {
     GROUPHEADER GroupHeader;
     char* Name;
@@ -498,10 +493,10 @@ typedef struct /* structure of STOPn.STP header */
     uint16_t BytesUsed;
     uint16_t Unused[17];
 } STOPHEADER;
-r(STOPHEADER)
+BOOL read_STOPHEADER(STOPHEADER* obj, FILE* file);
 #define sizeof_STOPHEADER (sizeof_DWORD + sizeof_WORD + sizeof_WORD * 17)
 
-    typedef struct /* structure of |VIOLA leaf-page entry */
+typedef struct /* structure of |VIOLA leaf-page entry */
 {
     TOPICOFFSET TopicOffset; /* topic offset */
     int32_t WindowNumber; /* number of window assigned to topic */
@@ -517,10 +512,10 @@ typedef struct /* structure of |CATALOG header */
     int32_t entries;
     unsigned char zero[30];
 } CATALOGHEADER;
-r(CATALOGHEADER)
+BOOL read_CATALOGHEADER(CATALOGHEADER* obj, FILE* file);
 #define sizeof_CATALOGHEADER (sizeof_WORD * 3 + sizeof_DWORD + sizeof_BYTE * 30)
 
-    typedef struct /* structure of Windows Bitmap BMP file */
+typedef struct /* structure of Windows Bitmap BMP file */
 {
     uint16_t bfType;
     uint32_t bfSize;
@@ -605,7 +600,7 @@ typedef struct /* internal use to store keyword definitions */
     BOOL KeyIndex;
     char Footnote;
     char* Keyword;
-    int32_t TopicOffset;
+    TOPICOFFSET TopicOffset;
 } KEYWORDREC;
 
 typedef struct placerec /* internal use to store external references */
