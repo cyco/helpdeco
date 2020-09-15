@@ -23,8 +23,7 @@ http://www.gnu.org
 #define helpdeco_types_h
 #include <stdlib.h>
 
-
-#if  UINTPTR_MAX == 0xffffffff
+#if UINTPTR_MAX == 0xffffffff
 typedef long legacy_long;
 typedef unsigned long unsigned_legacy_long;
 typedef int legacy_int;

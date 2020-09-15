@@ -64,7 +64,7 @@ const char* render(char* data, size_t len, const char* path)
     ctx->mvp = ctx->ext[1] == 'M' || ctx->ext[1] == 'm';
     _makepath(ctx->filename, drive, dir, ctx->name, ctx->ext);
 
-    if (!HelpDeCompile(f, NULL, 8, NULL, 0)) {
+    if (!HelpDeCompile(f, NULL, 9, NULL, 0)) {
         helpdeco_warnf("%s isn't a valid WinHelp file ! (render)\n",
             ctx->filename);
     } else {

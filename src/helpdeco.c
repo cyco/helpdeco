@@ -4521,7 +4521,8 @@ BOOL html_dump(FILE* HelpFile, FILE* __html_output, BOOL inline_bitmaps)
 
                 if (x2 & 0x0008) {
                     int16_t line_spacing = scanint(&ptr);
-                    if(line_spacing > 0) html_printf("line-height: %dpx;", (uint16_t)line_spacing);
+                    if (line_spacing > 0)
+                        html_printf("line-height: %dpx;", (uint16_t)line_spacing);
                     // rtf_printf("\\sl%ld", line_spacing); /* RTF: Space between lines. */
                 }
 
@@ -5915,7 +5916,7 @@ FILE* rtf_dump(FILE* HelpFile, FILE* rtf, FILE* hpj, BOOL makertf)
     TOPICHEADER30* TopicHdr30;
     TOPICHEADER* TopicHdr;
     legacy_long BogusTopicOffset;
-    
+
     if (SearchFile(HelpFile, "|TOPIC", &ctx->topic_file_length)) {
         fontset = -1;
         nextbitmap = 1;
@@ -5942,7 +5943,7 @@ FILE* rtf_dump(FILE* HelpFile, FILE* rtf, FILE* hpj, BOOL makertf)
             if (TopicLink.DataLen1 > sizeof(TOPICLINK)) {
                 LinkData1 = helpdeco_malloc(TopicLink.DataLen1 - sizeof(TOPICLINK) + 1);
                 if (TopicRead(HelpFile, 0, LinkData1,
-                              TopicLink.DataLen1 - sizeof(TOPICLINK))
+                        TopicLink.DataLen1 - sizeof(TOPICLINK))
                     != TopicLink.DataLen1 - sizeof(TOPICLINK))
                     break;
             } else
@@ -5951,8 +5952,8 @@ FILE* rtf_dump(FILE* HelpFile, FILE* rtf, FILE* hpj, BOOL makertf)
             {
                 LinkData2 = helpdeco_malloc(TopicLink.DataLen2 + 1);
                 if (topic_read_phrase(HelpFile, 0, LinkData2,
-                                      TopicLink.BlockSize - TopicLink.DataLen1,
-                                      TopicLink.DataLen2)
+                        TopicLink.BlockSize - TopicLink.DataLen1,
+                        TopicLink.DataLen2)
                     != TopicLink.BlockSize - TopicLink.DataLen1)
                     break;
             } else
@@ -5982,20 +5983,20 @@ FILE* rtf_dump(FILE* HelpFile, FILE* rtf, FILE* hpj, BOOL makertf)
                     if (ctx->before31) {
                         TopicHdr30 = (TOPICHEADER30*)LinkData1;
                         fprintf(rtf, "{\\up #}{\\footnote\\pard\\plain{\\up #} TOPIC%ld}\n",
-                                TopicNum);
+                            TopicNum);
                         if (ctx->opt_resolvebrowse) {
                             if ((TopicHdr30->NextTopicNum > TopicNum && TopicHdr30->PrevTopicNum > TopicNum) || (TopicHdr30->NextTopicNum == -1 && TopicHdr30->PrevTopicNum > TopicNum) || (TopicHdr30->NextTopicNum > TopicNum && TopicHdr30->PrevTopicNum == -1)) {
                                 BrowseNum = AddLink(TopicNum, TopicHdr30->NextTopicNum,
-                                                    TopicHdr30->PrevTopicNum);
+                                    TopicHdr30->PrevTopicNum);
                             } else if (TopicHdr30->NextTopicNum != -1 && TopicHdr30->NextTopicNum < TopicNum && TopicHdr30->PrevTopicNum != -1 && TopicHdr30->PrevTopicNum < TopicNum) {
                                 BrowseNum = MergeLink(TopicNum, TopicNum, TopicHdr30->NextTopicNum,
-                                                      TopicHdr30->PrevTopicNum);
+                                    TopicHdr30->PrevTopicNum);
                             } else if (TopicHdr30->NextTopicNum != -1 && TopicHdr30->NextTopicNum < TopicNum && (TopicHdr30->PrevTopicNum == -1 || TopicHdr30->PrevTopicNum > TopicNum)) {
                                 BrowseNum = BackLinkLink(TopicNum, TopicNum, TopicHdr30->NextTopicNum,
-                                                         TopicHdr30->PrevTopicNum);
+                                    TopicHdr30->PrevTopicNum);
                             } else if (TopicHdr30->PrevTopicNum != -1 && TopicHdr30->PrevTopicNum < TopicNum && (TopicHdr30->NextTopicNum == -1 || TopicHdr30->NextTopicNum > TopicNum)) {
                                 BrowseNum = LinkLink(TopicNum, TopicNum, TopicHdr30->NextTopicNum,
-                                                     TopicHdr30->PrevTopicNum);
+                                    TopicHdr30->PrevTopicNum);
                             }
                         }
                         rtf_list_keywords(HelpFile, rtf, TopicPos);
@@ -6010,16 +6011,16 @@ FILE* rtf_dump(FILE* HelpFile, FILE* rtf, FILE* hpj, BOOL makertf)
                         if (ctx->opt_resolvebrowse) {
                             if ((TopicHdr->BrowseFor > TopicOffset && TopicHdr->BrowseBck > TopicOffset) || (TopicHdr->BrowseFor == -1 && TopicHdr->BrowseBck > TopicOffset) || (TopicHdr->BrowseFor > TopicOffset && TopicHdr->BrowseBck == -1)) {
                                 BrowseNum = AddLink(TopicOffset, TopicHdr->BrowseFor,
-                                                    TopicHdr->BrowseBck);
+                                    TopicHdr->BrowseBck);
                             } else if (TopicHdr->BrowseFor != -1 && TopicHdr->BrowseFor < TopicOffset && TopicHdr->BrowseBck != -1 && TopicHdr->BrowseBck < TopicOffset) {
                                 BrowseNum = MergeLink(TopicOffset, BogusTopicOffset,
-                                                      TopicHdr->BrowseFor, TopicHdr->BrowseBck);
+                                    TopicHdr->BrowseFor, TopicHdr->BrowseBck);
                             } else if (TopicHdr->BrowseFor != -1 && TopicHdr->BrowseFor < TopicOffset && (TopicHdr->BrowseBck == -1 || TopicHdr->BrowseBck > TopicOffset)) {
                                 BrowseNum = BackLinkLink(TopicOffset, BogusTopicOffset,
-                                                         TopicHdr->BrowseFor, TopicHdr->BrowseBck);
+                                    TopicHdr->BrowseFor, TopicHdr->BrowseBck);
                             } else if (TopicHdr->BrowseBck != -1 && TopicHdr->BrowseBck < TopicOffset && (TopicHdr->BrowseFor == -1 || TopicHdr->BrowseFor > TopicOffset)) {
                                 BrowseNum = LinkLink(TopicOffset, BogusTopicOffset,
-                                                     TopicHdr->BrowseFor, TopicHdr->BrowseBck);
+                                    TopicHdr->BrowseFor, TopicHdr->BrowseBck);
                             }
                         }
                     }
@@ -6036,7 +6037,7 @@ FILE* rtf_dump(FILE* HelpFile, FILE* rtf, FILE* hpj, BOOL makertf)
                             if (!ctx->after31 && strlen(LinkData2 + i) > 254) {
                                 printf("Help compiler will issue Warning 3511: Macro '%s' "
                                        "exceeds limit of 254 characters\n",
-                                       LinkData2 + i);
+                                    LinkData2 + i);
                             }
                             rtf_puts(rtf, LinkData2 + i);
                             fputs("}\n", rtf);
@@ -6045,11 +6046,11 @@ FILE* rtf_dump(FILE* HelpFile, FILE* rtf, FILE* hpj, BOOL makertf)
                     while (NextContextRec < ctx->context_rec.count && ctx->context_rec.entry[NextContextRec].TopicOffset <= TopicOffset) {
                         fputs("{\\up #}{\\footnote\\pard\\plain{\\up #} ", rtf);
                         rtf_puts(rtf,
-                                 unhash(ctx->context_rec.entry[NextContextRec].HashValue));
+                            unhash(ctx->context_rec.entry[NextContextRec].HashValue));
                         fputs("}\n", rtf);
                         if (!ctx->mvp)
                             while (
-                                   NextContextRec + 1 < ctx->context_rec.count && ctx->context_rec.entry[NextContextRec].TopicOffset == ctx->context_rec.entry[NextContextRec + 1].TopicOffset) {
+                                NextContextRec + 1 < ctx->context_rec.count && ctx->context_rec.entry[NextContextRec].TopicOffset == ctx->context_rec.entry[NextContextRec + 1].TopicOffset) {
                                 NextContextRec++;
                             }
                         NextContextRec++;
@@ -6057,7 +6058,7 @@ FILE* rtf_dump(FILE* HelpFile, FILE* rtf, FILE* hpj, BOOL makertf)
                     i = ListWindows(HelpFile, TopicOffset);
                     if (i != -1)
                         fprintf(rtf, "{\\up >}{\\footnote\\pard\\plain{\\up >} %s}\n",
-                                GetWindowName(i));
+                            GetWindowName(i));
                 }
                 TopicNum++;
             } else if (LinkData1 && LinkData2 && (TopicLink.RecordType == TL_DISPLAY30 || TopicLink.RecordType == TL_DISPLAY || TopicLink.RecordType == TL_TABLE)) {
@@ -6076,42 +6077,42 @@ FILE* rtf_dump(FILE* HelpFile, FILE* rtf, FILE* hpj, BOOL makertf)
                     cols = (unsigned char)*ptr++;
                     x1 = (unsigned char)*ptr++;
                     switch (x1) {
-                        case 0:
-                        case 2:
-                            l1 = *(int16_t*)ptr; /* min table width */
-                            ptr += 2;
-                            fputs("\\trqc", rtf);
-                            break;
-                        case 1:
-                        case 3:
-                            l1 = 32767;
-                            break;
+                    case 0:
+                    case 2:
+                        l1 = *(int16_t*)ptr; /* min table width */
+                        ptr += 2;
+                        fputs("\\trqc", rtf);
+                        break;
+                    case 1:
+                    case 3:
+                        l1 = 32767;
+                        break;
                     }
                     iptr = (int16_t*)ptr;
                     if (cols > 1) {
                         x1 = iptr[0] + iptr[1] + iptr[3] / 2;
                         fprintf(rtf, "\\trgaph%ld\\trleft%ld \\cellx%ld\\cellx%ld",
-                                ((iptr[3] * ctx->scaling - ctx->rounderr) * l1) / 32767,
-                                (((iptr[1] - iptr[3]) * ctx->scaling - ctx->rounderr) * l1 - 32767) / 32767,
-                                ((x1 * ctx->scaling - ctx->rounderr) * l1) / 32767,
-                                (((x1 + iptr[2] + iptr[3]) * ctx->scaling - ctx->rounderr) * l1) / 32767);
+                            ((iptr[3] * ctx->scaling - ctx->rounderr) * l1) / 32767,
+                            (((iptr[1] - iptr[3]) * ctx->scaling - ctx->rounderr) * l1 - 32767) / 32767,
+                            ((x1 * ctx->scaling - ctx->rounderr) * l1) / 32767,
+                            (((x1 + iptr[2] + iptr[3]) * ctx->scaling - ctx->rounderr) * l1) / 32767);
                         x1 += iptr[2] + iptr[3];
                         for (col = 2; col < cols; col++) {
                             x1 += iptr[2 * col] + iptr[2 * col + 1];
                             fprintf(rtf, "\\cellx%ld",
-                                    ((x1 * ctx->scaling - ctx->rounderr) * l1) / 32767);
+                                ((x1 * ctx->scaling - ctx->rounderr) * l1) / 32767);
                         }
                     } else {
                         fprintf(rtf, "\\trleft%ld \\cellx%ld ",
-                                ((iptr[1] * ctx->scaling - ctx->rounderr) * l1 - 32767) / 32767,
-                                ((iptr[0] * ctx->scaling - ctx->rounderr) * l1) / 32767);
+                            ((iptr[1] * ctx->scaling - ctx->rounderr) * l1 - 32767) / 32767,
+                            ((iptr[0] * ctx->scaling - ctx->rounderr) * l1) / 32767);
                     }
                     ptr = (char*)(iptr + 2 * cols);
                 }
                 lastcol = -1;
                 str = LinkData2;
                 for (col = 0; (TopicLink.RecordType == TL_TABLE ? *(int16_t*)ptr != -1
-                               : col == 0)
+                                                                : col == 0)
                      && ptr < LinkData1 + TopicLink.DataLen1 - sizeof(TOPICLINK);
                      col++) {
                     fputs("\\pard", rtf);
@@ -6135,22 +6136,22 @@ FILE* rtf_dump(FILE* HelpFile, FILE* rtf, FILE* hpj, BOOL makertf)
                         scanlong(&ptr);
                     if (x2 & 0x0002)
                         fprintf(rtf, "\\sb%ld",
-                                scanint(&ptr) * ctx->scaling - ctx->rounderr);
+                            scanint(&ptr) * ctx->scaling - ctx->rounderr);
                     if (x2 & 0x0004)
                         fprintf(rtf, "\\sa%ld",
-                                scanint(&ptr) * ctx->scaling - ctx->rounderr);
+                            scanint(&ptr) * ctx->scaling - ctx->rounderr);
                     if (x2 & 0x0008)
                         fprintf(rtf, "\\sl%ld",
-                                scanint(&ptr) * ctx->scaling - ctx->rounderr);
+                            scanint(&ptr) * ctx->scaling - ctx->rounderr);
                     if (x2 & 0x0010)
                         fprintf(rtf, "\\li%ld",
-                                scanint(&ptr) * ctx->scaling - ctx->rounderr);
+                            scanint(&ptr) * ctx->scaling - ctx->rounderr);
                     if (x2 & 0x0020)
                         fprintf(rtf, "\\ri%ld",
-                                scanint(&ptr) * ctx->scaling - ctx->rounderr);
+                            scanint(&ptr) * ctx->scaling - ctx->rounderr);
                     if (x2 & 0x0040)
                         fprintf(rtf, "\\fi%ld",
-                                scanint(&ptr) * ctx->scaling - ctx->rounderr);
+                            scanint(&ptr) * ctx->scaling - ctx->rounderr);
                     if (x2 & 0x0100) {
                         x1 = (unsigned char)*ptr++;
                         if (x1 & 1)
@@ -6177,21 +6178,21 @@ FILE* rtf_dump(FILE* HelpFile, FILE* rtf, FILE* hpj, BOOL makertf)
                             x1 = scanword(&ptr);
                             if (x1 & 0x4000) {
                                 switch (scanword(&ptr)) {
-                                    case 1:
-                                        fputs("\\tqr", rtf);
-                                        break;
-                                    case 2:
-                                        fputs("\\tqc", rtf);
-                                        break;
+                                case 1:
+                                    fputs("\\tqr", rtf);
+                                    break;
+                                case 2:
+                                    fputs("\\tqc", rtf);
+                                    break;
                                 }
                             }
                             fprintf(rtf, "\\tx%ld",
-                                    (x1 & 0x3FFF) * ctx->scaling - ctx->rounderr);
+                                (x1 & 0x3FFF) * ctx->scaling - ctx->rounderr);
                         }
                     }
                     putc(' ', rtf);
                     while (
-                           1) /* ptr<LinkData1+TopicLink.DataLen1-sizeof(TOPICLINK)&&str<end)
+                        1) /* ptr<LinkData1+TopicLink.DataLen1-sizeof(TOPICLINK)&&str<end)
                                */
                     {
                         if (*str && fontset >= 0 && fontset < ctx->font.count && ctx->font.entry && ctx->font.entry[fontset].SmallCaps)
@@ -6201,8 +6202,8 @@ FILE* rtf_dump(FILE* HelpFile, FILE* rtf, FILE* hpj, BOOL makertf)
                                 while (NextContextRec < ctx->context_rec.count && ctx->context_rec.entry[NextContextRec].TopicOffset <= ActualTopicOffset && ctx->context_rec.entry[NextContextRec].TopicOffset < MaxTopicOffset) {
                                     fputs("{\\up #}{\\footnote\\pard\\plain{\\up #} ", rtf);
                                     rtf_puts(
-                                             rtf,
-                                             unhash(ctx->context_rec.entry[NextContextRec].HashValue));
+                                        rtf,
+                                        unhash(ctx->context_rec.entry[NextContextRec].HashValue));
                                     fputs("}\n", rtf);
                                     if (!ctx->mvp)
                                         while (NextContextRec + 1 < ctx->context_rec.count && ctx->context_rec.entry[NextContextRec].TopicOffset == ctx->context_rec.entry[NextContextRec + 1].TopicOffset) {
@@ -6212,9 +6213,9 @@ FILE* rtf_dump(FILE* HelpFile, FILE* rtf, FILE* hpj, BOOL makertf)
                                 }
                                 if (!ctx->before31)
                                     rtf_list_keywords(HelpFile, rtf,
-                                                      ActualTopicOffset < MaxTopicOffset
-                                                      ? ActualTopicOffset
-                                                      : MaxTopicOffset - 1);
+                                        ActualTopicOffset < MaxTopicOffset
+                                            ? ActualTopicOffset
+                                            : MaxTopicOffset - 1);
                             }
                             if (*str) {
                                 if (*str != '{' && *str != '}' && *str != '\\' && isprint((unsigned char)*str)) {
@@ -6240,291 +6241,291 @@ FILE* rtf_dump(FILE* HelpFile, FILE* rtf, FILE* hpj, BOOL makertf)
                             break;
                         } else
                             switch ((unsigned char)ptr[0]) {
-                                case 0x20: /* vfld MVB */
-                                    if (*(legacy_long*)(ptr + 1)) {
-                                        fprintf(rtf, "\\{vfld%ld\\}", *(legacy_long*)(ptr + 1));
+                            case 0x20: /* vfld MVB */
+                                if (*(legacy_long*)(ptr + 1)) {
+                                    fprintf(rtf, "\\{vfld%ld\\}", *(legacy_long*)(ptr + 1));
+                                } else {
+                                    fputs("\\{vfld\\}", rtf);
+                                }
+                                ptr += 5;
+                                break;
+                            case 0x21: /* dtype MVB */
+                                if (*(int16_t*)(ptr + 1)) {
+                                    fprintf(rtf, "\\{dtype%d\\}", *(int16_t*)(ptr + 1));
+                                } else {
+                                    fputs("\\{dtype\\}", rtf);
+                                }
+                                ptr += 3;
+                                break;
+                            case 0x80: /* font change */
+                                rtf_change_font(rtf, fontset = *(int16_t*)(ptr + 1), ul, uldb);
+                                ptr += 3;
+                                break;
+                            case 0x81:
+                                fputs("\\line\n", rtf);
+                                ptr++;
+                                break;
+                            case 0x82:
+                                if (TopicLink.RecordType == TL_TABLE) {
+                                    if ((unsigned char)ptr[1] != 0xFF) {
+                                        fputs("\n\\par\\intbl ", rtf);
+                                    } else if (*(int16_t*)(ptr + 2) == -1) {
+                                        fputs("\\cell\\intbl\\row\n", rtf);
+                                    } else if (*(int16_t*)(ptr + 2) == lastcol) {
+                                        fputs("\\par\\pard ", rtf);
                                     } else {
-                                        fputs("\\{vfld\\}", rtf);
+                                        fputs("\\cell\\pard ", rtf);
                                     }
-                                    ptr += 5;
-                                    break;
-                                case 0x21: /* dtype MVB */
-                                    if (*(int16_t*)(ptr + 1)) {
-                                        fprintf(rtf, "\\{dtype%d\\}", *(int16_t*)(ptr + 1));
-                                    } else {
-                                        fputs("\\{dtype\\}", rtf);
-                                    }
-                                    ptr += 3;
-                                    break;
-                                case 0x80: /* font change */
-                                    rtf_change_font(rtf, fontset = *(int16_t*)(ptr + 1), ul, uldb);
-                                    ptr += 3;
-                                    break;
-                                case 0x81:
-                                    fputs("\\line\n", rtf);
-                                    ptr++;
-                                    break;
-                                case 0x82:
-                                    if (TopicLink.RecordType == TL_TABLE) {
-                                        if ((unsigned char)ptr[1] != 0xFF) {
-                                            fputs("\n\\par\\intbl ", rtf);
-                                        } else if (*(int16_t*)(ptr + 2) == -1) {
-                                            fputs("\\cell\\intbl\\row\n", rtf);
-                                        } else if (*(int16_t*)(ptr + 2) == lastcol) {
-                                            fputs("\\par\\pard ", rtf);
-                                        } else {
-                                            fputs("\\cell\\pard ", rtf);
-                                        }
-                                    } else {
-                                        fputs("\n\\par ", rtf);
-                                    }
-                                    ptr++;
-                                    break;
-                                case 0x83:
-                                    fputs("\\tab ", rtf);
-                                    ptr++;
-                                    break;
-                                case 0x86:
-                                    x3 = (unsigned char)*ptr++;
-                                    x1 = *ptr++;
-                                    if (x1 == 0x05)
-                                        cmd = "ewc";
-                                    else
-                                        cmd = "bmc";
-                                    goto picture;
-                                case 0x87:
-                                    x3 = (unsigned char)*ptr++;
-                                    x1 = *ptr++;
-                                    if (x1 == 0x05)
-                                        cmd = "ewl";
-                                    else
-                                        cmd = "bml";
-                                    goto picture;
-                                case 0x88:
-                                    x3 = (unsigned char)*ptr++;
-                                    x1 = *ptr++;
-                                    if (x1 == 0x05)
-                                        cmd = "ewr";
-                                    else
-                                        cmd = "bmr";
-                                    goto picture;
-                                picture:
-                                    l1 = scanlong(&ptr);
+                                } else {
+                                    fputs("\n\\par ", rtf);
+                                }
+                                ptr++;
+                                break;
+                            case 0x83:
+                                fputs("\\tab ", rtf);
+                                ptr++;
+                                break;
+                            case 0x86:
+                                x3 = (unsigned char)*ptr++;
+                                x1 = *ptr++;
+                                if (x1 == 0x05)
+                                    cmd = "ewc";
+                                else
+                                    cmd = "bmc";
+                                goto picture;
+                            case 0x87:
+                                x3 = (unsigned char)*ptr++;
+                                x1 = *ptr++;
+                                if (x1 == 0x05)
+                                    cmd = "ewl";
+                                else
+                                    cmd = "bml";
+                                goto picture;
+                            case 0x88:
+                                x3 = (unsigned char)*ptr++;
+                                x1 = *ptr++;
+                                if (x1 == 0x05)
+                                    cmd = "ewr";
+                                else
+                                    cmd = "bmr";
+                                goto picture;
+                            picture:
+                                l1 = scanlong(&ptr);
+                                switch (x1) {
+                                case 0x22: /* HC31 */
+                                    ActualTopicOffset += scanword(&ptr); /* number of hotspots in picture */
+                                    if (ActualTopicOffset > MaxTopicOffset)
+                                        ActualTopicOffset = MaxTopicOffset;
+                                    /* fall thru */
+                                case 0x03: /* HC30 */
+                                    x1 = ((uint16_t*)ptr)[0];
                                     switch (x1) {
-                                        case 0x22: /* HC31 */
-                                            ActualTopicOffset += scanword(&ptr); /* number of hotspots in picture */
-                                            if (ActualTopicOffset > MaxTopicOffset)
-                                                ActualTopicOffset = MaxTopicOffset;
-                                            /* fall thru */
-                                        case 0x03: /* HC30 */
-                                            x1 = ((uint16_t*)ptr)[0];
-                                            switch (x1) {
-                                                case 1:
-                                                    while (nextbitmap < ctx->extension.count && ctx->extension.entry[nextbitmap] < 0x10)
-                                                        nextbitmap++;
-                                                    if (nextbitmap >= ctx->extension.count) {
-                                                        error("Bitmap never saved");
-                                                        break;
-                                                    }
-                                                    x2 = nextbitmap++;
-                                                    goto other;
-                                                case 0:
-                                                    x2 = ((uint16_t*)ptr)[1];
-                                                other:
-                                                    if (makertf) {
-                                                        switch (x3) {
-                                                            case 0x86:
-                                                                fprintf(rtf, "{\\field {\\*\\fldinst import %s}}",
-                                                                        bitmap_export_name(x2));
-                                                                break;
-                                                            case 0x87:
-                                                                fprintf(rtf,
-                                                                        "{\\pvpara {\\field {\\*\\fldinst import "
-                                                                        "%s}}\\par}\n",
-                                                                        bitmap_export_name(x2));
-                                                                break;
-                                                            case 0x88:
-                                                                fprintf(rtf,
-                                                                        "{\\pvpara\\posxr{\\field {\\*\\fldinst import "
-                                                                        "%s}}\\par}\n",
-                                                                        bitmap_export_name(x2));
-                                                                break;
-                                                        }
-                                                    } else {
-                                                        if (x2 < ctx->extension.count && (ctx->extension.entry[x2] & 0x20)) {
-                                                            if (strcmp(cmd, "bmc") == 0)
-                                                                cmd = "bmct";
-                                                            else if (strcmp(cmd, "bml") == 0)
-                                                                cmd = "bmlt";
-                                                            else if (strcmp(cmd, "bmr") == 0)
-                                                                cmd = "bmrt";
-                                                        }
-                                                        fprintf(rtf, "\\{%s %s\\}", cmd, bitmap_export_name(x2));
-                                                    }
-                                                    break;
-                                            }
+                                    case 1:
+                                        while (nextbitmap < ctx->extension.count && ctx->extension.entry[nextbitmap] < 0x10)
+                                            nextbitmap++;
+                                        if (nextbitmap >= ctx->extension.count) {
+                                            error("Bitmap never saved");
                                             break;
-                                        case 0x05: /* ewc,ewl,ewr */
-                                            if (ptr[6] == '!') {
-                                                fprintf(rtf, "\\{button %s\\}", ptr + 7);
-                                            } else if (ptr[6] == '*') {
-                                                char* plus;
-                                                legacy_int n, c1, c2;
-                                                
-                                                sscanf(ptr + 7, "%d,%d,%n", &c1, &c2, &n);
-                                                plus = strchr(ptr + 7 + n, '+');
-                                                if ((c1 & 0xFFF5) != 0x8400)
-                                                    fprintf(stderr, "mci c1=%04x\n", c1);
-                                                fputs("\\{mci", rtf);
-                                                if (cmd[2] == 'r')
-                                                    fputs("_right", rtf);
-                                                if (cmd[2] == 'l')
-                                                    fputs("_left", rtf);
-                                                if (c2 == 1)
-                                                    fputs(" REPEAT", rtf);
-                                                if (c2 == 2)
-                                                    fputs(" PLAY", rtf);
-                                                if (!plus)
-                                                    fputs(" EXTERNAL", rtf);
-                                                if (c1 & 8)
-                                                    fputs(" NOMENU", rtf);
-                                                if (c1 & 2)
-                                                    fputs(" NOPLAYBAR", rtf);
-                                                fprintf(rtf, ",%s\\}\n", plus ? plus + 1 : ptr + 7 + n);
-                                            } else {
-                                                fprintf(rtf, "\\{%s %s\\}", cmd, ptr + 6);
+                                        }
+                                        x2 = nextbitmap++;
+                                        goto other;
+                                    case 0:
+                                        x2 = ((uint16_t*)ptr)[1];
+                                    other:
+                                        if (makertf) {
+                                            switch (x3) {
+                                            case 0x86:
+                                                fprintf(rtf, "{\\field {\\*\\fldinst import %s}}",
+                                                    bitmap_export_name(x2));
+                                                break;
+                                            case 0x87:
+                                                fprintf(rtf,
+                                                    "{\\pvpara {\\field {\\*\\fldinst import "
+                                                    "%s}}\\par}\n",
+                                                    bitmap_export_name(x2));
+                                                break;
+                                            case 0x88:
+                                                fprintf(rtf,
+                                                    "{\\pvpara\\posxr{\\field {\\*\\fldinst import "
+                                                    "%s}}\\par}\n",
+                                                    bitmap_export_name(x2));
+                                                break;
                                             }
-                                            break;
-                                    }
-                                    ptr += l1;
-                                    break;
-                                case 0x89: /* end of hotspot */
-                                    if (!makertf) {
-                                        if (hotspot[0] == '%' && fontset >= 0 && fontset < ctx->font.count && ctx->font.entry[fontset].Underline) {
-                                            hotspot[0] = '*';
-                                        }
-                                    }
-                                    rtf_change_font(rtf, fontset, ul = FALSE, uldb = FALSE);
-                                    if (!makertf) {
-                                        if (!ctx->after31 && strlen(hotspot) > 255) {
-                                            puts("Help compiler will issue Warning 4072: Context "
-                                                 "string exceeds limit of 255 characters");
-                                        }
-                                        fputs("{\\v ", rtf);
-                                        rtf_puts(rtf,
-                                                 ctx->multi && (hotspot[0] == '%' || hotspot[0] == '*')
-                                                 ? hotspot + 1
-                                                 : hotspot);
-                                        fputc('}', rtf);
-                                    }
-                                    ptr++;
-                                    break;
-                                case 0xC8: /* macro */
-                                    rtf_change_font(rtf, fontset, FALSE, uldb = TRUE);
-                                    if (!makertf) {
-                                        hotspot = helpdeco_realloc(hotspot, strlen(ptr + 3) + 2);
-                                        sprintf(hotspot, "!%s", ptr + 3);
-                                    }
-                                    ptr += *(int16_t*)(ptr + 1) + 3;
-                                    break;
-                                case 0xCC: /* macro without font change */
-                                    rtf_change_font(rtf, fontset, FALSE, uldb = TRUE);
-                                    if (!makertf) {
-                                        hotspot = helpdeco_realloc(hotspot, strlen(ptr + 3) + 3);
-                                        sprintf(hotspot, "%%!%s", ptr + 3);
-                                    }
-                                    ptr += *(int16_t*)(ptr + 1) + 3;
-                                    break;
-                                case 0xE0: /* popup jump HC30 */
-                                    rtf_change_font(rtf, fontset, ul = TRUE, FALSE);
-                                    goto label0;
-                                case 0xE1: /* topic jump HC30 */
-                                    rtf_change_font(rtf, fontset, FALSE, uldb = TRUE);
-                                label0:
-                                    if (!makertf) {
-                                        hotspot = helpdeco_realloc(hotspot, 128);
-                                        sprintf(hotspot, "TOPIC%ld", *(legacy_long*)(ptr + 1));
-                                    }
-                                    ptr += 5;
-                                    break;
-                                case 0xE2: /* popup jump HC31 */
-                                    rtf_change_font(rtf, fontset, ul = TRUE, FALSE);
-                                    goto label1;
-                                case 0xE3: /* topic jump HC31 */
-                                    rtf_change_font(rtf, fontset, FALSE, uldb = TRUE);
-                                label1:
-                                    if (!makertf) {
-                                        arg = ContextId(*(legacy_long*)(ptr + 1));
-                                        hotspot = helpdeco_realloc(hotspot, strlen(arg) + 1);
-                                        sprintf(hotspot, "%s", arg);
-                                    }
-                                    ptr += 5;
-                                    break;
-                                case 0xE6: /* popup jump without font change */
-                                    rtf_change_font(rtf, fontset, ul = TRUE, FALSE);
-                                    goto label2;
-                                case 0xE7: /* topic jump without font change */
-                                    rtf_change_font(rtf, fontset, FALSE, uldb = TRUE);
-                                label2:
-                                    if (!makertf) {
-                                        arg = ContextId(*(legacy_long*)(ptr + 1));
-                                        hotspot = helpdeco_realloc(hotspot, strlen(arg) + 2);
-                                        sprintf(hotspot, "%%%s", arg);
-                                    }
-                                    ptr += 5;
-                                    break;
-                                case 0xEA: /* popup jump into external file */
-                                case 0xEE:
-                                    rtf_change_font(rtf, fontset, ul = TRUE, FALSE);
-                                    goto label3;
-                                case 0xEB: /* topic jump into external file / secondary window */
-                                case 0xEF:
-                                    rtf_change_font(rtf, fontset, FALSE, uldb = TRUE);
-                                label3:
-                                    if (!makertf) {
-                                        if ((unsigned char)ptr[0] == 0xEE || (unsigned char)ptr[0] == 0xEF) {
-                                            cmd = "%";
                                         } else {
-                                            cmd = "";
+                                            if (x2 < ctx->extension.count && (ctx->extension.entry[x2] & 0x20)) {
+                                                if (strcmp(cmd, "bmc") == 0)
+                                                    cmd = "bmct";
+                                                else if (strcmp(cmd, "bml") == 0)
+                                                    cmd = "bmlt";
+                                                else if (strcmp(cmd, "bmr") == 0)
+                                                    cmd = "bmrt";
+                                            }
+                                            fprintf(rtf, "\\{%s %s\\}", cmd, bitmap_export_name(x2));
                                         }
-                                        arg = unhash(
-                                                     *(legacy_long*)(ptr + 4)); // no ContextId, it may jump
-                                        // into external file
-                                        switch ((unsigned char)ptr[3]) {
-                                            case 0:
-                                                hotspot = helpdeco_realloc(hotspot, strlen(cmd) + strlen(arg) + 1);
-                                                sprintf(hotspot, "%s%s", cmd, arg);
-                                                break;
-                                            case 1:
-                                                hotspot = helpdeco_realloc(hotspot,
-                                                                           strlen(cmd) + strlen(arg) + 1 + strlen(GetWindowName(ptr[8])) + 1);
-                                                sprintf(hotspot, "%s%s>%s", cmd, arg,
-                                                        GetWindowName(ptr[8]));
-                                                break;
-                                            case 4:
-                                                hotspot = helpdeco_realloc(hotspot, strlen(cmd) + strlen(arg) + 1 + strlen(ptr + 8) + 1);
-                                                sprintf(hotspot, "%s%s@%s", cmd, arg, ptr + 8);
-                                                break;
-                                            case 6:
-                                                hotspot = helpdeco_realloc(
-                                                                           hotspot, strlen(cmd) + strlen(arg) + 1 + strlen(ptr + 8) + 1 + strlen(strchr(ptr + 8, '\0') + 1) + 1);
-                                                sprintf(hotspot, "%s%s>%s@%s", cmd, arg, ptr + 8,
-                                                        strchr(ptr + 8, '\0') + 1);
-                                                break;
-                                        }
+                                        break;
                                     }
-                                    ptr += *(int16_t*)(ptr + 1) + 3;
                                     break;
-                                case 0x8B:
-                                    fputs("\\~", rtf);
-                                    ptr++;
+                                case 0x05: /* ewc,ewl,ewr */
+                                    if (ptr[6] == '!') {
+                                        fprintf(rtf, "\\{button %s\\}", ptr + 7);
+                                    } else if (ptr[6] == '*') {
+                                        char* plus;
+                                        legacy_int n, c1, c2;
+
+                                        sscanf(ptr + 7, "%d,%d,%n", &c1, &c2, &n);
+                                        plus = strchr(ptr + 7 + n, '+');
+                                        if ((c1 & 0xFFF5) != 0x8400)
+                                            fprintf(stderr, "mci c1=%04x\n", c1);
+                                        fputs("\\{mci", rtf);
+                                        if (cmd[2] == 'r')
+                                            fputs("_right", rtf);
+                                        if (cmd[2] == 'l')
+                                            fputs("_left", rtf);
+                                        if (c2 == 1)
+                                            fputs(" REPEAT", rtf);
+                                        if (c2 == 2)
+                                            fputs(" PLAY", rtf);
+                                        if (!plus)
+                                            fputs(" EXTERNAL", rtf);
+                                        if (c1 & 8)
+                                            fputs(" NOMENU", rtf);
+                                        if (c1 & 2)
+                                            fputs(" NOPLAYBAR", rtf);
+                                        fprintf(rtf, ",%s\\}\n", plus ? plus + 1 : ptr + 7 + n);
+                                    } else {
+                                        fprintf(rtf, "\\{%s %s\\}", cmd, ptr + 6);
+                                    }
                                     break;
-                                case 0x8C:
-                                    fputs("\\-", rtf);
-                                    ptr++;
-                                    break;
-                                default:
-                                    ptr++;
+                                }
+                                ptr += l1;
+                                break;
+                            case 0x89: /* end of hotspot */
+                                if (!makertf) {
+                                    if (hotspot[0] == '%' && fontset >= 0 && fontset < ctx->font.count && ctx->font.entry[fontset].Underline) {
+                                        hotspot[0] = '*';
+                                    }
+                                }
+                                rtf_change_font(rtf, fontset, ul = FALSE, uldb = FALSE);
+                                if (!makertf) {
+                                    if (!ctx->after31 && strlen(hotspot) > 255) {
+                                        puts("Help compiler will issue Warning 4072: Context "
+                                             "string exceeds limit of 255 characters");
+                                    }
+                                    fputs("{\\v ", rtf);
+                                    rtf_puts(rtf,
+                                        ctx->multi && (hotspot[0] == '%' || hotspot[0] == '*')
+                                            ? hotspot + 1
+                                            : hotspot);
+                                    fputc('}', rtf);
+                                }
+                                ptr++;
+                                break;
+                            case 0xC8: /* macro */
+                                rtf_change_font(rtf, fontset, FALSE, uldb = TRUE);
+                                if (!makertf) {
+                                    hotspot = helpdeco_realloc(hotspot, strlen(ptr + 3) + 2);
+                                    sprintf(hotspot, "!%s", ptr + 3);
+                                }
+                                ptr += *(int16_t*)(ptr + 1) + 3;
+                                break;
+                            case 0xCC: /* macro without font change */
+                                rtf_change_font(rtf, fontset, FALSE, uldb = TRUE);
+                                if (!makertf) {
+                                    hotspot = helpdeco_realloc(hotspot, strlen(ptr + 3) + 3);
+                                    sprintf(hotspot, "%%!%s", ptr + 3);
+                                }
+                                ptr += *(int16_t*)(ptr + 1) + 3;
+                                break;
+                            case 0xE0: /* popup jump HC30 */
+                                rtf_change_font(rtf, fontset, ul = TRUE, FALSE);
+                                goto label0;
+                            case 0xE1: /* topic jump HC30 */
+                                rtf_change_font(rtf, fontset, FALSE, uldb = TRUE);
+                            label0:
+                                if (!makertf) {
+                                    hotspot = helpdeco_realloc(hotspot, 128);
+                                    sprintf(hotspot, "TOPIC%ld", *(legacy_long*)(ptr + 1));
+                                }
+                                ptr += 5;
+                                break;
+                            case 0xE2: /* popup jump HC31 */
+                                rtf_change_font(rtf, fontset, ul = TRUE, FALSE);
+                                goto label1;
+                            case 0xE3: /* topic jump HC31 */
+                                rtf_change_font(rtf, fontset, FALSE, uldb = TRUE);
+                            label1:
+                                if (!makertf) {
+                                    arg = ContextId(*(legacy_long*)(ptr + 1));
+                                    hotspot = helpdeco_realloc(hotspot, strlen(arg) + 1);
+                                    sprintf(hotspot, "%s", arg);
+                                }
+                                ptr += 5;
+                                break;
+                            case 0xE6: /* popup jump without font change */
+                                rtf_change_font(rtf, fontset, ul = TRUE, FALSE);
+                                goto label2;
+                            case 0xE7: /* topic jump without font change */
+                                rtf_change_font(rtf, fontset, FALSE, uldb = TRUE);
+                            label2:
+                                if (!makertf) {
+                                    arg = ContextId(*(legacy_long*)(ptr + 1));
+                                    hotspot = helpdeco_realloc(hotspot, strlen(arg) + 2);
+                                    sprintf(hotspot, "%%%s", arg);
+                                }
+                                ptr += 5;
+                                break;
+                            case 0xEA: /* popup jump into external file */
+                            case 0xEE:
+                                rtf_change_font(rtf, fontset, ul = TRUE, FALSE);
+                                goto label3;
+                            case 0xEB: /* topic jump into external file / secondary window */
+                            case 0xEF:
+                                rtf_change_font(rtf, fontset, FALSE, uldb = TRUE);
+                            label3:
+                                if (!makertf) {
+                                    if ((unsigned char)ptr[0] == 0xEE || (unsigned char)ptr[0] == 0xEF) {
+                                        cmd = "%";
+                                    } else {
+                                        cmd = "";
+                                    }
+                                    arg = unhash(
+                                        *(legacy_long*)(ptr + 4)); // no ContextId, it may jump
+                                    // into external file
+                                    switch ((unsigned char)ptr[3]) {
+                                    case 0:
+                                        hotspot = helpdeco_realloc(hotspot, strlen(cmd) + strlen(arg) + 1);
+                                        sprintf(hotspot, "%s%s", cmd, arg);
+                                        break;
+                                    case 1:
+                                        hotspot = helpdeco_realloc(hotspot,
+                                            strlen(cmd) + strlen(arg) + 1 + strlen(GetWindowName(ptr[8])) + 1);
+                                        sprintf(hotspot, "%s%s>%s", cmd, arg,
+                                            GetWindowName(ptr[8]));
+                                        break;
+                                    case 4:
+                                        hotspot = helpdeco_realloc(hotspot, strlen(cmd) + strlen(arg) + 1 + strlen(ptr + 8) + 1);
+                                        sprintf(hotspot, "%s%s@%s", cmd, arg, ptr + 8);
+                                        break;
+                                    case 6:
+                                        hotspot = helpdeco_realloc(
+                                            hotspot, strlen(cmd) + strlen(arg) + 1 + strlen(ptr + 8) + 1 + strlen(strchr(ptr + 8, '\0') + 1) + 1);
+                                        sprintf(hotspot, "%s%s>%s@%s", cmd, arg, ptr + 8,
+                                            strchr(ptr + 8, '\0') + 1);
+                                        break;
+                                    }
+                                }
+                                ptr += *(int16_t*)(ptr + 1) + 3;
+                                break;
+                            case 0x8B:
+                                fputs("\\~", rtf);
+                                ptr++;
+                                break;
+                            case 0x8C:
+                                fputs("\\-", rtf);
+                                ptr++;
+                                break;
+                            default:
+                                ptr++;
                             }
                     }
                 }
@@ -6724,6 +6725,7 @@ BOOL HelpDeCompile(FILE* HelpFile, char* dumpfile, legacy_int mode,
             }
             break;
         case 8: /* create lookalike HTML */
+        case 9: /* create lookalike HTML-fragment */
             SysLoad(HelpFile);
             helpdeco_logf("Writing %s...\n", ctx->title);
             ctx->exportplain = TRUE;
@@ -6734,33 +6736,42 @@ BOOL HelpDeCompile(FILE* HelpFile, char* dumpfile, legacy_int mode,
             rtf = helpdeco_fopen(filename, "wt");
             if (rtf) {
                 helpdeco_logf("Writing html\n");
-                FILE* __html_output = rtf;
-                fprintf(__html_output, "<!doctype html>\n");
-                fprintf(__html_output, "<html lang=\"en\">\n");
-                fprintf(__html_output, "<head>\n");
-                fprintf(__html_output, "<meta charset=\"utf-8\">\n");
-                fprintf(__html_output, "<title>%s</title>\n",
-                    strlen(ctx->title) ? ctx->title : "untitled");
-                fprintf(__html_output, "<style>"
-                                       "helpdeco-document { margin: auto; max-width: 600px; display: block; }"
-                                       "helpdeco-topic { display: block; border: 1px "
-                                       "solid black; padding: 10px; margin: 10px;}"
-                                       "</style>"
-                                       "\n");
+                FILE* html_output = rtf;
+                if (mode == 8) {
+                    fprintf(html_output, "<!doctype html>\n");
+                    fprintf(html_output, "<html lang=\"en\">\n");
+                    fprintf(html_output, "<head>\n");
+                    fprintf(html_output, "<meta charset=\"utf-8\">\n");
+                    fprintf(html_output, "<title>%s</title>\n",
+                        strlen(ctx->title) ? ctx->title : "untitled");
+                    fprintf(html_output, "<style>"
+                                         "helpdeco-document { margin: auto; max-width: 600px; display: block; }"
+                                         "helpdeco-title { display: block; font-size: 30px; font-weight: 300; line-height: 1em; }"
+                                         "helpdeco-topic { display: block; border: 1px "
+                                         "solid black; padding: 10px; margin: 10px;}"
+                                         "</style>"
+                                         "\n");
+                }
+
                 helpdeco_logf("Loading fonts\n");
                 html_define_fonts(HelpFile, rtf);
-                fprintf(__html_output, "</head>\n");
-                fprintf(__html_output, "<body>\n");
-                fprintf(__html_output, "<helpdeco-document>");
+                if (mode == 8) {
+                    fprintf(html_output, "</head>\n");
+                    fprintf(html_output, "<body>\n");
+                }
+                fprintf(html_output, "<helpdeco-document>");
+                fprintf(html_output, "<helpdeco-title>%s</helpdeco-title>\n", strlen(ctx->title) ? ctx->title : "Untitled Document");
                 helpdeco_logf("Dumpic topics\n");
                 html_dump(HelpFile, rtf, TRUE);
-                fprintf(__html_output, "</helpdeco-document>");
-                fprintf(__html_output, "</body>\n");
-                fprintf(__html_output, "</html>\n");
+                fprintf(html_output, "</helpdeco-document>");
+                if (mode == 8) {
+                    fprintf(html_output, "</body>\n");
+                    fprintf(html_output, "</html>\n");
+                }
                 helpdeco_logf("HTML output complete\n");
 
                 helpdeco_logf("\n");
-                helpdeco_fclose(__html_output);
+                helpdeco_fclose(html_output);
             } else {
                 helpdeco_warnf("Could not open output file %s!", filename);
             }

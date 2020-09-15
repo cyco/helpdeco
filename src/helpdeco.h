@@ -43,8 +43,8 @@ http://www.gnu.org
 #include "compat.h"
 #endif /* _WIN32 */
 
-#include "types.h"
 #include "mfile.h"
+#include "types.h"
 
 #ifdef __TURBOC__
 typedef struct {
