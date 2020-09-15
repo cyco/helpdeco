@@ -23,18 +23,19 @@ http://www.gnu.org
 #define helpdeco_types_h
 #include <stdlib.h>
 
-#if UINTPTR_MAX == 0xffffffff
+
+#if  UINTPTR_MAX == 0xffffffff
 typedef long legacy_long;
 typedef unsigned long unsigned_legacy_long;
 typedef int legacy_int;
 typedef unsigned int unsigned_legacy_int;
-#elif UINTPTR_MAX == 0xffffffffffffffff
+#elif UINTPTR_MAX == 0xffffffffffffffff || __EMSCRIPTEN__
 typedef int legacy_long;
 typedef unsigned int unsigned_legacy_long;
 typedef short legacy_int;
 typedef unsigned short unsigned_legacy_int;
 #else
-#error Unknown platform
+#error Unknown platform (UINTPTR_MAX)
 #endif
 
 typedef enum { FALSE,
